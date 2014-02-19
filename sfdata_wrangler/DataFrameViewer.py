@@ -18,14 +18,37 @@ __license__     = """
 """
 
 import sys
-import numpy as np
-import pandas as pd
 
-from SFMuniDataFrame import SFMuniDataFrame
+from pandas.sandbox.qtpandas import DataFrameWidget
+from PySide import QtGui
 
+class DataFrameViewer():
+    """ 
+    Provides functionality to view and scroll through a pandas dataframe. 
+    """
+                
+    def view(self, df): 
+        """ 
+        View the dataframe and exit cleanly. 
+        """
+        
+        # need to initialize an application
+        app = QtGui.QApplication(sys.argv)
+        app.aboutToQuit.connect(app.deleteLater)
 
+        # Create the widget and set the DataFrame
+        mw = QtGui.QWidget()
+        mw.widget = DataFrameWidget(df)
 
-if __name__ == "__main__":
-    
-    df = SFMuniDataFrame.read("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp")
-    
+        # Set the layout
+        vbox = QtGui.QVBoxLayout()
+        vbox.addWidget(mw.widget)
+        mw.setLayout(vbox)
+        
+        # view
+        mw.show()      
+        app.exec_()
+
+        # exit nicely
+        app.quit()
+        
