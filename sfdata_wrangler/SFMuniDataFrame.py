@@ -245,7 +245,7 @@ class SFMuniDataFrame():
                          colspecs = SFMuniDataFrame.COLSPECS, 
                          names    = SFMuniDataFrame.COLNAMES, 
                          skiprows = SFMuniDataFrame.HEADERROWS, 
-                         nrows    = 1000)
+                         nrows    = 100000)
 
         # only include revenue service
         # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid

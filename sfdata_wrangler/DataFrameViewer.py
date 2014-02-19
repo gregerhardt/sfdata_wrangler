@@ -24,16 +24,17 @@ import sys
 
 from qtpandas import DataFrameWidget
 from PySide import QtGui
-from PySide.QtGui import QApplication, QDialog, QVBoxLayout, QWidget
 
 class DataFrameViewer():
     """ 
     Provides functionality to view and scroll through a pandas dataframe. 
     """
                 
-    def view(self, df): 
+    def view(self, dataframe): 
         """ 
         View the dataframe and exit cleanly. 
+        
+        To view a subset of rows, such as 10 to 20, use view(df[10:20])
         """
         
         # need to initialize an application
@@ -42,7 +43,7 @@ class DataFrameViewer():
 
         # Create the widget and set the DataFrame
         mw = QtGui.QWidget()
-        mw.widget = DataFrameWidget(df)
+        mw.widget = DataFrameWidget(dataframe)
 
         # Set the layout
         vbox = QtGui.QVBoxLayout()
