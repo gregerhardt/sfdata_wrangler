@@ -19,8 +19,12 @@ __license__     = """
 
 import sys
 
-from pandas.sandbox.qtpandas import DataFrameWidget
+#from qttest import DataFrameWidget
+#from PyQt4.QtGui import QApplication, QDialog, QVBoxLayout, QWidget
+
+from qtpandas import DataFrameWidget
 from PySide import QtGui
+from PySide.QtGui import QApplication, QDialog, QVBoxLayout, QWidget
 
 class DataFrameViewer():
     """ 
