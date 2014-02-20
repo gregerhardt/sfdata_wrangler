@@ -19,6 +19,7 @@ __license__     = """
 """
 
 import pandas as pd
+import numpy as np
 
 class SFMuniDataFrame():
     """ 
@@ -163,7 +164,7 @@ class SFMuniDataFrame():
 		'VEHNO'     ,   # (161, 165) - bus number
 		'LINE'      ,   # (166, 170) - route (APC numeric code)
 		'DBNN'      ,   # (171, 175) - data batch
-		'SCHTIM'    ,   # (176, 180) - schedule time
+		'TIMESTOP_S',   # (176, 180) - schedule time
 		'SRTIME'    ,   # (181, 186) - schedule run time
 		'ARTIME'    ,   # (187, 192) 
 		'ODOM'      ,   # (193, 198) - not used
@@ -197,7 +198,7 @@ class SFMuniDataFrame():
 		'SCHOOL'    ,   # (329, 335) - school trip
 		'TRIPID_2'  ,   # (336, 344) - long trip ID
 		'PULLOUT'   ,   # (345, 351) - movement time
-		'SCHED'     ,   # (352, 356) - scheduled departure time
+		'DOORCLOSE_S',  # (352, 356) - scheduled departure time
 		'DEVIAD'    ,   # (357, 363) - schedule deviation
 		'SCDW'      ,   # (364, 368) - scheduled dwell time
 		'SREC'      ,   # (369, 374) - scheduled EOL recovery
@@ -235,17 +236,24 @@ class SFMuniDataFrame():
 		'CARS']         # (544, 547)
 
 
+    # by default, read the first 75 columns, through NEXT
+    COLUMNS_TO_READ = [i for i in range(75)]
 
     @staticmethod
     def read(filename):
         """
         Read SFMuniData and return it as a pandas dataframe
+        
+        filename - just that
+        columnsToUse - array of column names or numbers to read
+        rowsToRead - read this many rows from the file
         """
         df = pd.read_fwf(filename, 
                          colspecs = SFMuniDataFrame.COLSPECS, 
                          names    = SFMuniDataFrame.COLNAMES, 
                          skiprows = SFMuniDataFrame.HEADERROWS, 
-                         nrows    = 100000)
+                         usecols  = SFMuniDataFrame.COLUMNS_TO_READ, 
+                         nrows    = 1000)
 
         # only include revenue service
         # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
@@ -259,18 +267,33 @@ class SFMuniDataFrame():
         df['STOPA']  = 1000 * df['STOPA']
         df['RTEDIR'] = 1000 * df['ROUTE'] + 0.1 * df['DIR']
         
-        # convert TIMESTOP, DOORCLOSE and PULLOUT to datetime format
+        # convert DATE, TIMESTOP, DOORCLOSE, PULLOUT to datetime format
+        df['DATE']      = pd.to_datetime(df['DATE'],      format="%m%d%y")
+        df['TIMESTOP']  = pd.to_datetime(df['TIMESTOP'],  format="%H%M%S")
+        df['DOORCLOSE'] = pd.to_datetime(df['DOORCLOSE'], format="%H%M%S")
+        df['PULLOUT']   = pd.to_datetime(df['PULLOUT'],   format="%H%M%S")  
+        
+        # same with scheduled times
+        # funny stuff in formatting adds leading zeros as needed
+        # seems like this needs to loop through the rows
+        #df['TIMESTOP_S'] = df['TIMESTOP_S'].replace(9999, 0)
+        #df['TIMESTOP_S2'] = pd.to_datetime(df['TIMESTOP_S'], format="%H%M")
+        #df['TIMESTOP_S2'] = str(df['TIMESTOP_S'])
+        #df['TIMESTOP_S2']  = "{0:0>4}".format(df['TIMESTOP_S'])
+        #df['DOORCLOSE_S'].replace(9999, np.nan)
+        #df['DOORCLOSE_S'] = pd.to_datetime("{0:0>4}".format(df['DOORCLOSE_S']), 
+        #    format="%H%M")
         
         # create unique string TRIPCODE to describe each trip
-        df['TRIPCODE'] = str(df['RTEDIR']) + "_" + str(df['VEHNO']) + "_" + \
-                         str(df['DATE']) + "_" + str(df['TRIP'])
+        #df['TRIPCODE'] = str(df['RTEDIR']) + "_" + str(df['VEHNO']) + "_" + \
+        #                 str(df['DATE']) + "_" + str(df['TRIP'])
         
         # create unique string TRIPSTOP to create sortable sequence of stops
-        df['TRIPSTOP'] = str(df['STOPA']) + "_" + df['ANAME']
+        #df['TRIPSTOP'] = str(df['STOPA']) + "_" + df['ANAME']
         
         # create unique string RTDIRSEQ to identify trip/dir/seq/stop
-        df['RTDIRSEQ'] = str(df['RTEDIR']) + "." + str(df['STOPA']) + "." + \
-                         str(df['QSTOP'])
+        #df['RTDIRSEQ'] = str(df['RTEDIR']) + "." + str(df['STOPA']) + "." + \
+        #                 str(df['QSTOP'])
         
         # DOORTIME = passenger dwell (time interval doors open)
         df['DOORDWELL'] = df['DOORCLOSE'] - df['TIMESTOP']
