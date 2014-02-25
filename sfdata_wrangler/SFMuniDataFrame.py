@@ -52,7 +52,7 @@ class SFMuniDataFrame():
 		(103, 112), # 'LON'      - longitude 
 		(113, 118), # 'MILES'    
 		(119, 123), # 'TRIP'     - trip
-		(124, 125), # 'DRCLS'    - door cycles
+		(124, 125), # 'DOORCYCLES'- door cycles
 		(126, 130), # 'DELTA'    - delta
 		(131, 132), # 'DOW'      - day of week
 		(133, 134), # 'DIR'      
@@ -76,15 +76,15 @@ class SFMuniDataFrame():
 		(235, 238), # 'QC201'    - count QC
 		(239, 242), # 'AQC'      - assignment QC
 		(243, 244), # 'RECORD'   - record type
-		(245, 246), # 'W'        - wheelchair
-		(247, 248), # 'SP1'      - bike rack
+		(245, 246), # 'WHEELCHAIR'- wheelchair
+		(247, 248), # 'BIKERACK' - bike rack
 		(249, 250), # 'SP2'      - not used
 		(251, 257), # 'V51'      - not used
 		(258, 263), # 'VERSN'    - import version
 		(264, 270), # 'DEPART'   - departure time
 		(271, 274), # 'UON'      - unadjusted on
 		(275, 278), # 'UOFF'     - unadjusted off
-		(279, 283), # 'FULL'     - capacity
+		(279, 283), # 'CAPACITY' - capacity
 		(284, 288), # 'OVER'     - 5 over cap
 		(289, 290), # 'NS'       - north/south
 		(291, 292), # 'EW'       - east/west
@@ -153,7 +153,7 @@ class SFMuniDataFrame():
 		'LON'       ,   # (103, 112) - longitude 
 		'MILES'     ,   # (113, 118) 
 		'TRIP'      ,   # (119, 123) - trip
-		'DRCLS'     ,   # (124, 125) - door cycles
+		'DOORCYCLES',   # (124, 125) - door cycles
 		'DELTA'     ,   # (126, 130) - delta
 		'DOW'       ,   # (131, 132) - day of week
 		'DIR'       ,   # (133, 134)
@@ -177,15 +177,15 @@ class SFMuniDataFrame():
 		'QC201'     ,   # (235, 238) - count QC
 		'AQC'       ,   # (239, 242) - assignment QC
 		'RECORD'    ,   # (243, 244) - record type
-		'W'         ,   # (245, 246) - wheelchair
-		'SP1'       ,   # (247, 248) - bike rack
+		'WHEELCHAIR',   # (245, 246) - wheelchair
+		'BIKERACK'  ,   # (247, 248) - bike rack
 		'SP2'       ,   # (249, 250) - not used
 		'V51'       ,   # (251, 257) - not used
 		'VERSN'     ,   # (258, 263) - import version
 		'DOORCLOSE' ,   # (264, 270) - departure time
 		'UON'       ,   # (271, 274) - unadjusted on
 		'UOFF'      ,   # (275, 278) - unadjusted off
-		'FULL'      ,   # (279, 283) - capacity
+		'CAPACITY'  ,   # (279, 283) - capacity
 		'OVER'      ,   # (284, 288) - 5 over cap
 		'NS'        ,   # (289, 290) - north/south
 		'EW'        ,   # (291, 292) - east/west
@@ -239,6 +239,106 @@ class SFMuniDataFrame():
     # by default, read the first 75 columns, through NEXT
     COLUMNS_TO_READ = [i for i in range(75)]
 
+    # set the order of the columns in the resulting dataframe
+    REORDERED_COLUMNS=[  
+                # index attributes
+		'DATE'      ,   # ( 68,  74) - date
+		'ROUTE'     ,   # ( 75,  79)
+		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
+		'TRIP'      ,   # (119, 123) - trip
+                'STOPA'     ,   # (  0,   5) - stop sequence
+                
+                # route/trip attributes
+		'ROUTEA'    ,   #            - alphanumeric route name
+		'PATTCODE'  ,   # (305, 315) - pattern code
+		'VEHNO'     ,   # (161, 165) - bus number
+		'SCHOOL'    ,   # (329, 335) - school trip
+		'LAST'      ,   # (417, 421) - previous trip
+		'NEXT'      ,   # (422, 426) - next trip
+		'DOW'       ,   # (131, 132) - day of week
+		'TEPPER'    ,   #            - aggregate time period
+		
+		# stop attributes
+		'QSTOP'     ,   # ( 10,  14) - unique stop no	
+		'ANAME'     ,   # ( 15,  47) - stop name	
+		'EOL'       ,   #            - end-of-line flag	
+		
+		# location information
+		'LAT'       ,   # ( 94, 102) - latitude
+		'LON'       ,   # (103, 112) - longitude 
+		'NS'        ,   # (289, 290) - north/south
+		'EW'        ,   # (291, 292) - east/west
+		'MAXVEL'    ,   # (293, 296) - max velocity on previous link
+		'MILES'     ,   # (113, 118) 
+		'GODOM'     ,   # (199, 204) - distance (GPS)
+		'DWDI'      ,   # (316, 320) - distance traveled durign dwell
+		'DELTAA'    ,   # (391, 397) - distance from stop at arrival
+		'DELTAD'    ,   # (398, 404) - distance from stop at departure
+
+                # ridership
+		'ON'        ,   # ( 55,  58) - on 
+		'OFF'       ,   # ( 59,  62) - off
+		'LOAD'      ,   # ( 63,  66) - departing load
+		'RDBRDNGS'  ,   # (297, 300) - rear door boardings
+		'LOADCODE'  ,   # ( 67,  67) - ADJ=*, BAL=B
+		'CAPACITY'  ,   # (279, 283) - capacity
+		'DOORCYCLES',   # (124, 125) - door cycles
+		'WHEELCHAIR',   # (245, 246) - wheelchair
+		'BIKERACK'  ,   # (247, 248) - bike rack
+
+                # times
+		'TIMESTOP'  ,   # ( 48,  54) - arrival time
+		'TIMESTOP_S',   # (176, 180) - schedule time
+		'SRTIME'    ,   # (181, 186) - schedule run time
+		'ARTIME'    ,   # (187, 192) 
+		'SCHDEV'    ,   # (205, 211) - schedule deviation
+		'DWTIME'    ,   # (212, 217) - dwell time interval (decimal minutes)
+		'PULLOUT'   ,   # (345, 351) - movement time
+		'DOORCLOSE_S',  # (352, 356) - scheduled departure time
+		'DEVIAD'    ,   # (357, 363) - schedule deviation
+		'SCDW'      ,   # (364, 368) - scheduled dwell time
+		'SREC'      ,   # (369, 374) - scheduled EOL recovery
+		'AREC'      ,   # (375, 380) 
+		'DOORCLOSE' ,   # (264, 270) - departure time	
+		'DOORDWELL' ,   #            - passenger dwell (time interval doors open)
+		'WAITDWELL' ,   #            - pullout dwell (time interval between door close and movement)
+                'DOORDTIME' ,   #            - passenger dwell (time interval doors open), excluding end-of-line
+                'WAITDTIME' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
+	
+		'DELTA'     ,   # (126, 130) - delta
+		'DLMILES'   ,   # (135, 140) - delta miles 
+		'DLPMIN'    ,   # (141, 145) - delta minutes
+		'DLPMLS'    ,   # (146, 153) - delta passenger miles
+		'DLPHRS'    ,   # (154, 160) - delta passenger minutes
+		
+		# quality control codes
+		'QC104'     ,   # (231, 234) - GPS QC
+		'QC201'     ,   # (235, 238) - count QC
+		'AQC'       ,   # (239, 242) - assignment QC
+		
+		# additional identifying information
+		'RECORD'    ,   # (243, 244) - record type
+		'BLOCK'     ,   # ( 87,  93)    
+		'DBNN'      ,   # (171, 175) - data batch    
+		'TRIPID_2'  ,   # (336, 344) - long trip ID
+		'RUN'       ,   # (321, 328) - run      
+		'VERSN'     ,   # (258, 263) - import version
+		'DV'        ,   # (301, 304) - division
+		'MSFILE'    ,   # (218, 226) - sign up YYMM
+		'MC'        ,   # (410, 412) - municipal code
+		'DIV'       ,   # (413, 416) - division
+		'ECNT'      ,   # (405, 409) - error count   
+		]         
+		    
+
+    INDEX_COLUMNS=[  
+		'DATE'      ,   # ( 68,  74) - date
+		'ROUTE'     ,   # ( 75,  79)
+		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
+		'TRIP'      ,   # (119, 123) - trip
+                'STOPA'     ,   # (  0,   5) - stop sequence
+                ] 
+
     @staticmethod
     def read(filename):
         """
@@ -253,7 +353,7 @@ class SFMuniDataFrame():
                          names    = SFMuniDataFrame.COLNAMES, 
                          skiprows = SFMuniDataFrame.HEADERROWS, 
                          usecols  = SFMuniDataFrame.COLUMNS_TO_READ, 
-                         nrows    = 1000)
+                         nrows    = 10000)
 
         # only include revenue service
         # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
@@ -261,17 +361,19 @@ class SFMuniDataFrame():
 
         # filter by count QC (<=20 is default)
         df = df[df['QC201'] <= 20]
+        
+        # filter where there is no route or no stop identified
+        df = df[df['ROUTE']>0]
+        df = df[df['QSTOP']<9999]
 
         # calculate some basic data adjustments
         df['LON']    = -1 * df['LON']
-        df['STOPA']  = 1000 * df['STOPA']
-        df['RTEDIR'] = 1000 * df['ROUTE'] + 0.1 * df['DIR']
         
         # convert DATE, TIMESTOP, DOORCLOSE, PULLOUT to datetime format
         df['DATE']      = pd.to_datetime(df['DATE'],      format="%m%d%y")
-        df['TIMESTOP']  = pd.to_datetime(df['TIMESTOP'],  format="%H%M%S")
-        df['DOORCLOSE'] = pd.to_datetime(df['DOORCLOSE'], format="%H%M%S")
-        df['PULLOUT']   = pd.to_datetime(df['PULLOUT'],   format="%H%M%S")  
+        #df['TIMESTOP']  = pd.to_datetime(df['TIMESTOP'],  format="%H%M%S")
+        #df['DOORCLOSE'] = pd.to_datetime(df['DOORCLOSE'], format="%H%M%S")
+        #df['PULLOUT']   = pd.to_datetime(df['PULLOUT'],   format="%H%M%S")  
         
         # same with scheduled times
         # funny stuff in formatting adds leading zeros as needed
@@ -283,17 +385,6 @@ class SFMuniDataFrame():
         #df['DOORCLOSE_S'].replace(9999, np.nan)
         #df['DOORCLOSE_S'] = pd.to_datetime("{0:0>4}".format(df['DOORCLOSE_S']), 
         #    format="%H%M")
-        
-        # create unique string TRIPCODE to describe each trip
-        #df['TRIPCODE'] = str(df['RTEDIR']) + "_" + str(df['VEHNO']) + "_" + \
-        #                 str(df['DATE']) + "_" + str(df['TRIP'])
-        
-        # create unique string TRIPSTOP to create sortable sequence of stops
-        #df['TRIPSTOP'] = str(df['STOPA']) + "_" + df['ANAME']
-        
-        # create unique string RTDIRSEQ to identify trip/dir/seq/stop
-        #df['RTDIRSEQ'] = str(df['RTEDIR']) + "." + str(df['STOPA']) + "." + \
-        #                 str(df['QSTOP'])
         
         # DOORTIME = passenger dwell (time interval doors open)
         df['DOORDWELL'] = df['DOORCLOSE'] - df['TIMESTOP']
@@ -423,5 +514,19 @@ class SFMuniDataFrame():
             elif df['ROUTE'][row_index]==938:  df['ROUTEA'][row_index] = '38AX (938)'
         
         
-        return df
+        # re-order the columns
+        df2 = df[SFMuniDataFrame.REORDERED_COLUMNS]
+        
+        # sort in logical order for viewing
+        df2.sort_index(by=SFMuniDataFrame.INDEX_COLUMNS, inplace=True)
+        
+        # drop duplicates (not sure why these occur)
+        df2.drop_duplicates(cols=SFMuniDataFrame.INDEX_COLUMNS, inplace=True) 
+        
+        # set the index 
+        df2.set_index(SFMuniDataFrame.INDEX_COLUMNS, drop=False, inplace=True, 
+            verify_integrity=True)
+
+
+        return df2
     
