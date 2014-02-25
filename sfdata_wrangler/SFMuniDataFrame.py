@@ -35,10 +35,10 @@ class SFMuniDataFrame():
     HEADERROWS = 2
 
     # specifies columns for fixed-format text input
-    COLSPECS=[  (  0,   5), # STOPA  - stop sequence
+    COLSPECS=[  (  0,   5), # SEQ     - stop sequence
 		(  6,  10), # 'V2'       - not used
 		( 10,  14), # 'QSTOP'    - unique stop no	
-		( 15,  47), # 'ANAME'    - stop name
+		( 15,  47), # 'STOPNAME' - stop name
 		( 48,  54), # 'TIMESTOP' - arrival time
 		( 55,  58), # 'ON'       - on 
 		( 59,  62), # 'OFF'      - off
@@ -64,12 +64,12 @@ class SFMuniDataFrame():
 		(166, 170), # 'LINE'     - route (APC numeric code)
 		(171, 175), # 'DBNN'     - data batch
 		(176, 180), # 'SCHTIM'   - schedule time
-		(181, 186), # 'SRTIME'   - schedule run time
-		(187, 192), # 'ARTIME'   
+		(181, 186), # 'RUNTIME_S'- schedule run time
+		(187, 192), # 'RUNTIME'   
 		(193, 198), # 'ODOM'     - not used
 		(199, 204), # 'GODOM'    - distance (GPS)
 		(205, 211), # 'SCHDEV'   - schedule deviation
-		(212, 217), # 'DWTIME'   - dwell time interval (decimal minutes)
+		(212, 217), # 'DWELL'    - dwell time interval (decimal minutes)
 		(218, 226), # 'MSFILE'   - sign up YYMM
 		(227, 230), # 'QC101'    - not used
 		(231, 234), # 'QC104'    - GPS QC
@@ -99,17 +99,17 @@ class SFMuniDataFrame():
 		(345, 351), # 'DEPARTI'  - movement time
 		(352, 356), # 'SCHED'    - scheduled departure time
 		(357, 363), # 'DEVIAD'   - schedule deviation
-		(364, 368), # 'SCDW'     - scheduled dwell time
-		(369, 374), # 'SREC'     - scheduled EOL recovery
-		(375, 380), # 'AREC'     
+		(364, 368), # 'DWELL_S'  - scheduled dwell time
+		(369, 374), # 'RECOVERY_S'- scheduled EOL recovery
+		(375, 380), # 'RECOVERY'     
 		(381, 390), # 'POLITICAL'- not used
 		(391, 397), # 'DELTAA'   - distance from stop at arrival
 		(398, 404), # 'DELTAD'   - distance from stop at departure
 		(405, 409), # 'ECNT'     - error count
 		(410, 412), # 'MC'       - municipal code
 		(413, 416), # 'DIV'      - division
-		(417, 421), # 'LAST'     - previous trip
-		(422, 426), # 'NEXT'     - next trip
+		(417, 421), # 'LASTTRIP' - previous trip
+		(422, 426), # 'NEXTTRIP' - next trip
 		(427, 430), # 'V86'      - not used
 		(431, 441), # 'TRIPID_3' 
 		(442, 445), # 'WCC'      
@@ -136,10 +136,10 @@ class SFMuniDataFrame():
 
 
     # the column name for each variable
-    COLNAMES=[  'STOPA'     ,   # (  0,   5) - stop sequence
+    COLNAMES=[  'SEQ'     ,   # (  0,   5) - stop sequence
 		'V2'        ,   # (  6,  10) - not used
 		'QSTOP'     ,   # ( 10,  14) - unique stop no	
-		'ANAME'     ,   # ( 15,  47) - stop name
+		'STOPNAME'  ,   # ( 15,  47) - stop name
 		'TIMESTOP'  ,   # ( 48,  54) - arrival time
 		'ON'        ,   # ( 55,  58) - on 
 		'OFF'       ,   # ( 59,  62) - off
@@ -165,12 +165,12 @@ class SFMuniDataFrame():
 		'LINE'      ,   # (166, 170) - route (APC numeric code)
 		'DBNN'      ,   # (171, 175) - data batch
 		'TIMESTOP_S',   # (176, 180) - schedule time
-		'SRTIME'    ,   # (181, 186) - schedule run time
-		'ARTIME'    ,   # (187, 192) 
+		'RUNTIME_S' ,   # (181, 186) - schedule run time
+		'RUNTIME'   ,   # (187, 192) 
 		'ODOM'      ,   # (193, 198) - not used
 		'GODOM'     ,   # (199, 204) - distance (GPS)
 		'SCHDEV'    ,   # (205, 211) - schedule deviation
-		'DWTIME'    ,   # (212, 217) - dwell time interval (decimal minutes)
+		'DWELL'     ,   # (212, 217) - dwell time interval (decimal minutes)
 		'MSFILE'    ,   # (218, 226) - sign up YYMM
 		'QC101'     ,   # (227, 230) - not used
 		'QC104'     ,   # (231, 234) - GPS QC
@@ -200,17 +200,17 @@ class SFMuniDataFrame():
 		'PULLOUT'   ,   # (345, 351) - movement time
 		'DOORCLOSE_S',  # (352, 356) - scheduled departure time
 		'DEVIAD'    ,   # (357, 363) - schedule deviation
-		'SCDW'      ,   # (364, 368) - scheduled dwell time
-		'SREC'      ,   # (369, 374) - scheduled EOL recovery
-		'AREC'      ,   # (375, 380) 
+		'DWELL_S'   ,   # (364, 368) - scheduled dwell time
+		'RECOVERY_S',   # (369, 374) - scheduled EOL recovery
+		'RECOVERY'  ,   # (375, 380) 
 		'POLITICAL' ,   # (381, 390) - not used
 		'DELTAA'    ,   # (391, 397) - distance from stop at arrival
 		'DELTAD'    ,   # (398, 404) - distance from stop at departure
 		'ECNT'      ,   # (405, 409) - error count
 		'MC'        ,   # (410, 412) - municipal code
 		'DIV'       ,   # (413, 416) - division
-		'LAST'      ,   # (417, 421) - previous trip
-		'NEXT'      ,   # (422, 426) - next trip
+		'LASTTRIP'  ,   # (417, 421) - previous trip
+		'NEXTTRIP'  ,   # (422, 426) - next trip
 		'V86'       ,   # (427, 430) - not used
 		'TRIPID_3'  ,   # (431, 441)
 		'WCC'       ,   # (442, 445)
@@ -246,21 +246,21 @@ class SFMuniDataFrame():
 		'ROUTE'     ,   # ( 75,  79)
 		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
 		'TRIP'      ,   # (119, 123) - trip
-                'STOPA'     ,   # (  0,   5) - stop sequence
+                'SEQ'       ,   # (  0,   5) - stop sequence
                 
                 # route/trip attributes
 		'ROUTEA'    ,   #            - alphanumeric route name
 		'PATTCODE'  ,   # (305, 315) - pattern code
 		'VEHNO'     ,   # (161, 165) - bus number
 		'SCHOOL'    ,   # (329, 335) - school trip
-		'LAST'      ,   # (417, 421) - previous trip
-		'NEXT'      ,   # (422, 426) - next trip
+		'LASTTRIP'  ,   # (417, 421) - previous trip
+		'NEXTTRIP'  ,   # (422, 426) - next trip
 		'DOW'       ,   # (131, 132) - day of week
 		'TEPPER'    ,   #            - aggregate time period
 		
 		# stop attributes
 		'QSTOP'     ,   # ( 10,  14) - unique stop no	
-		'ANAME'     ,   # ( 15,  47) - stop name	
+		'STOPNAME'  ,   # ( 15,  47) - stop name	
 		'EOL'       ,   #            - end-of-line flag	
 		
 		# location information
@@ -289,22 +289,20 @@ class SFMuniDataFrame():
                 # times
 		'TIMESTOP'  ,   # ( 48,  54) - arrival time
 		'TIMESTOP_S',   # (176, 180) - schedule time
-		'SRTIME'    ,   # (181, 186) - schedule run time
-		'ARTIME'    ,   # (187, 192) 
-		'SCHDEV'    ,   # (205, 211) - schedule deviation
-		'DWTIME'    ,   # (212, 217) - dwell time interval (decimal minutes)
 		'PULLOUT'   ,   # (345, 351) - movement time
-		'DOORCLOSE_S',  # (352, 356) - scheduled departure time
-		'DEVIAD'    ,   # (357, 363) - schedule deviation
-		'SCDW'      ,   # (364, 368) - scheduled dwell time
-		'SREC'      ,   # (369, 374) - scheduled EOL recovery
-		'AREC'      ,   # (375, 380) 
 		'DOORCLOSE' ,   # (264, 270) - departure time	
-		'DOORDWELL' ,   #            - passenger dwell (time interval doors open)
-		'WAITDWELL' ,   #            - pullout dwell (time interval between door close and movement)
-                'DOORDTIME' ,   #            - passenger dwell (time interval doors open), excluding end-of-line
-                'WAITDTIME' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
-	
+		'DOORCLOSE_S',  # (352, 356) - scheduled departure time	
+		'DWELL'     ,   # (212, 217) - dwell time interval (decimal minutes)
+		'DOORDWELL' ,   #            - passenger dwell (time interval doors open), excluding end-of-line
+		'WAITDWELL' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
+		'DWELL_S'   ,   # (364, 368) - scheduled dwell time
+		'RUNTIME'   ,   # (187, 192) 
+		'RUNTIME_S' ,   # (181, 186) - schedule run time
+		'RECOVERY'  ,   # (375, 380) - EOL recovery time
+		'RECOVERY_S',   # (369, 374) - scheduled EOL recovery	
+		
+		'SCHDEV'    ,   # (205, 211) - schedule deviation
+		'DEVIAD'    ,   # (357, 363) - schedule deviation	
 		'DELTA'     ,   # (126, 130) - delta
 		'DLMILES'   ,   # (135, 140) - delta miles 
 		'DLPMIN'    ,   # (141, 145) - delta minutes
@@ -314,20 +312,20 @@ class SFMuniDataFrame():
 		# quality control codes
 		'QC104'     ,   # (231, 234) - GPS QC
 		'QC201'     ,   # (235, 238) - count QC
-		'AQC'       ,   # (239, 242) - assignment QC
+		'AQC'           # (239, 242) - assignment QC
 		
-		# additional identifying information
-		'RECORD'    ,   # (243, 244) - record type
-		'BLOCK'     ,   # ( 87,  93)    
-		'DBNN'      ,   # (171, 175) - data batch    
-		'TRIPID_2'  ,   # (336, 344) - long trip ID
-		'RUN'       ,   # (321, 328) - run      
-		'VERSN'     ,   # (258, 263) - import version
-		'DV'        ,   # (301, 304) - division
-		'MSFILE'    ,   # (218, 226) - sign up YYMM
-		'MC'        ,   # (410, 412) - municipal code
-		'DIV'       ,   # (413, 416) - division
-		'ECNT'      ,   # (405, 409) - error count   
+		# additional identifying information (exclude unless needed)
+		#'RECORD'    ,   # (243, 244) - record type
+		#'BLOCK'     ,   # ( 87,  93)    
+		#'DBNN'      ,   # (171, 175) - data batch    
+		#'TRIPID_2'  ,   # (336, 344) - long trip ID
+		#'RUN'       ,   # (321, 328) - run      
+		#'VERSN'     ,   # (258, 263) - import version
+		#'DV'        ,   # (301, 304) - division
+		#'MSFILE'    ,   # (218, 226) - sign up YYMM
+		#'MC'        ,   # (410, 412) - municipal code
+		#'DIV'       ,   # (413, 416) - division
+		#'ECNT'      ,   # (405, 409) - error count   
 		]         
 		    
 
@@ -336,7 +334,7 @@ class SFMuniDataFrame():
 		'ROUTE'     ,   # ( 75,  79)
 		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
 		'TRIP'      ,   # (119, 123) - trip
-                'STOPA'     ,   # (  0,   5) - stop sequence
+                'SEQ'    ,   # (  0,   5) - stop sequence
                 ] 
 
     @staticmethod
@@ -386,21 +384,29 @@ class SFMuniDataFrame():
         #df['DOORCLOSE_S'] = pd.to_datetime("{0:0>4}".format(df['DOORCLOSE_S']), 
         #    format="%H%M")
         
-        # DOORTIME = passenger dwell (time interval doors open)
-        df['DOORDWELL'] = df['DOORCLOSE'] - df['TIMESTOP']
-        
-        # WAITTIME = pullout dwell (time interval between door close and movement)
-        df['WAITDWELL'] = df['PULLOUT'] - df['DOORCLOSE']
-        
-        # exclude dwell and wait delays at terminals
-        df['EOL'] = str(df['ANAME']).count("- EOL")
-        df['DOORDTIME'] = df['DOORDWELL'] * df['EOL']
-        df['WAITDTIME'] = df['WAITDWELL'] * df['EOL']
         
         # iterate through the rows for computed fields
+        df['EOL'] = 0
+        df['DOORDWELL'] = 0
+        df['WAITDWELL'] = 0
         df['TEPPER'] = 9
         df['ROUTEA'] = ''
         for row_index, row in df.iterrows():
+            
+            # identify end-of-line stops
+            df['EOL'][row_index] = str(df['STOPNAME'][row_index]).count("- EOL")            
+            
+            # DOORDWELL = passenger dwell (time interval doors open)
+            #             excluding end-of-line time
+            if (df['EOL'][row_index] == 0): 
+                df['DOORDWELL'][row_index] = (df['DOORCLOSE'][row_index] 
+                    - df['TIMESTOP'][row_index])
+        
+            # WAITDWELL = pullout dwell (time interval between door close and movement)
+            #            excluding end-of-line time
+            if (df['EOL'][row_index] == 0): 
+                df['WAITDWELL'][row_index] = (df['PULLOUT'][row_index] 
+                    - df['DOORCLOSE'][row_index])
                     
             # compute TEP time periods -- need to iterate
             if (df['TRIP'][row_index] >= 300  and df['TRIP'][row_index] < 600):  
