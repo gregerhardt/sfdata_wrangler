@@ -29,6 +29,10 @@ class SFMuniDataFrame():
     computed fields, and some basic clean-up/quality control. 
 
     Logic is adapted from a .SPS file provided by SFMTA. 
+    
+    A note on times/dates:  MUNI considers the day to start and end at 3 am
+    for operational purposes.  Therefore times > 2400, are still grouped
+    with the day before, but can be considered to happen after midnight. 
     """
     
     # number of rows at top of file to skip
@@ -39,37 +43,37 @@ class SFMuniDataFrame():
 		(  6,  10), # 'V2'       - not used
 		( 10,  14), # 'QSTOP'    - unique stop no	
 		( 15,  47), # 'STOPNAME' - stop name
-		( 48,  54), # 'TIMESTOP' - arrival time
+		( 48,  54), # 'TIMESTOP_INT' - arrival time
 		( 55,  58), # 'ON'       - on 
 		( 59,  62), # 'OFF'      - off
-		( 63,  66), # 'LOAD'     - departing load
+		( 63,  66), # 'LOAD_DEP' - departing load
 		( 67,  67), # 'LOADCODE' - ADJ=*, BAL=B
-		( 68,  74), # 'DATE'     - date
+		( 68,  74), # 'DATE_INT' - date
 		( 75,  79), # 'ROUTE'    
 		( 80,  86), # 'PATTERN'  - schedule pattern
 		( 87,  93), # 'BLOCK'  
 		( 94, 102), # 'LAT'      - latitude
 		(103, 112), # 'LON'      - longitude 
-		(113, 118), # 'MILES'    
+		(113, 118), # 'MILES'    - odometer reading (miles)
 		(119, 123), # 'TRIP'     - trip
 		(124, 125), # 'DOORCYCLES'- door cycles
 		(126, 130), # 'DELTA'    - delta
 		(131, 132), # 'DOW'      - day of week
 		(133, 134), # 'DIR'      
-		(135, 140), # 'DLMILES'  - delta miles 
+		(135, 140), # 'VEHMILES' - delta vehicle miles  - miles bus travels from last stop
 		(141, 145), # 'DLPMIN'   - delta minutes
-		(146, 153), # 'DLPMLS'   - delta passenger miles
-		(154, 160), # 'DLPHRS'   - delta passenger minutes
+		(146, 153), # 'PASSMILES'- delta passenger miles
+		(154, 160), # 'PASSHOURS'- delta passenger minutes
 		(161, 165), # 'VEHNO'    - bus number
 		(166, 170), # 'LINE'     - route (APC numeric code)
 		(171, 175), # 'DBNN'     - data batch
-		(176, 180), # 'SCHTIM'   - schedule time
-		(181, 186), # 'RUNTIME_S'- schedule run time
-		(187, 192), # 'RUNTIME'   
+		(176, 180), # 'TIMESTOP_S_INT' - schedule time
+		(181, 186), # 'RUNTIME_S'- schedule run time, in decimal minutes
+		(187, 192), # 'RUNTIME'  - runtime from the last schedule point--TIMESTOP - DOORCLOSE of previous time point. (Excludes DWELL at the time points.), in decimal minutes
 		(193, 198), # 'ODOM'     - not used
 		(199, 204), # 'GODOM'    - distance (GPS)
-		(205, 211), # 'SCHDEV'   - schedule deviation
-		(212, 217), # 'DWELL'    - dwell time interval (decimal minutes)
+		(205, 211), # 'TIMESTOP_DEV'- schedule deviation
+		(212, 217), # 'DWELL'    - dwell time interval (decimal minutes) -- (DOORCLOSE - TIMESTOP)
 		(218, 226), # 'MSFILE'   - sign up YYMM
 		(227, 230), # 'QC101'    - not used
 		(231, 234), # 'QC104'    - GPS QC
@@ -81,7 +85,7 @@ class SFMuniDataFrame():
 		(249, 250), # 'SP2'      - not used
 		(251, 257), # 'V51'      - not used
 		(258, 263), # 'VERSN'    - import version
-		(264, 270), # 'DEPART'   - departure time
+		(264, 270), # 'DOORCLOSE_INT'   - departure time
 		(271, 274), # 'UON'      - unadjusted on
 		(275, 278), # 'UOFF'     - unadjusted off
 		(279, 283), # 'CAPACITY' - capacity
@@ -96,9 +100,9 @@ class SFMuniDataFrame():
 		(321, 328), # 'RUN'      - run
 		(329, 335), # 'SCHOOL'   - school trip
 		(336, 344), # 'TRIPID_2' - long trip ID
-		(345, 351), # 'DEPARTI'  - movement time
-		(352, 356), # 'SCHED'    - scheduled departure time
-		(357, 363), # 'DEVIAD'   - schedule deviation
+		(345, 351), # 'PULLOUT_INT'  - movement time
+		(352, 356), # 'DOORCLOSE_S_INT'- scheduled departure time
+		(357, 363), # 'DOORCLOSE_DEV' - schedule deviation
 		(364, 368), # 'DWELL_S'  - scheduled dwell time
 		(369, 374), # 'RECOVERY_S'- scheduled EOL recovery
 		(375, 380), # 'RECOVERY'     
@@ -136,41 +140,41 @@ class SFMuniDataFrame():
 
 
     # the column name for each variable
-    COLNAMES=[  'SEQ'     ,   # (  0,   5) - stop sequence
+    COLNAMES=[  'SEQ'       ,   # (  0,   5) - stop sequence
 		'V2'        ,   # (  6,  10) - not used
 		'QSTOP'     ,   # ( 10,  14) - unique stop no	
 		'STOPNAME'  ,   # ( 15,  47) - stop name
-		'TIMESTOP'  ,   # ( 48,  54) - arrival time
+		'TIMESTOP_INT', # ( 48,  54) - arrival time
 		'ON'        ,   # ( 55,  58) - on 
 		'OFF'       ,   # ( 59,  62) - off
-		'LOAD'      ,   # ( 63,  66) - departing load
+		'LOAD_DEP'  ,   # ( 63,  66) - departing load
 		'LOADCODE'  ,   # ( 67,  67) - ADJ=*, BAL=B
-		'DATE'      ,   # ( 68,  74) - date
+		'DATE_INT'  ,   # ( 68,  74) - date
 		'ROUTE'     ,   # ( 75,  79)
 		'PATTERN'   ,   # ( 80,  86) - schedule pattern
 		'BLOCK'     ,   # ( 87,  93) 
 		'LAT'       ,   # ( 94, 102) - latitude
 		'LON'       ,   # (103, 112) - longitude 
-		'MILES'     ,   # (113, 118) 
+		'MILES'     ,   # (113, 118) - odometer reading (miles)
 		'TRIP'      ,   # (119, 123) - trip
 		'DOORCYCLES',   # (124, 125) - door cycles
 		'DELTA'     ,   # (126, 130) - delta
 		'DOW'       ,   # (131, 132) - day of week
 		'DIR'       ,   # (133, 134)
-		'DLMILES'   ,   # (135, 140) - delta miles 
+		'VEHMILES'  ,   # (135, 140) - delta vehicle miles  - miles bus travels from last stop
 		'DLPMIN'    ,   # (141, 145) - delta minutes
-		'DLPMLS'    ,   # (146, 153) - delta passenger miles
-		'DLPHRS'    ,   # (154, 160) - delta passenger minutes
+		'PASSMILES' ,   # (146, 153) - delta passenger miles
+		'PASSHOURS' ,   # (154, 160) - delta passenger minutes
 		'VEHNO'     ,   # (161, 165) - bus number
 		'LINE'      ,   # (166, 170) - route (APC numeric code)
 		'DBNN'      ,   # (171, 175) - data batch
-		'TIMESTOP_S',   # (176, 180) - schedule time
-		'RUNTIME_S' ,   # (181, 186) - schedule run time
-		'RUNTIME'   ,   # (187, 192) 
+		'TIMESTOP_S_INT',# (176, 180) - schedule time
+		'RUNTIME_S' ,   # (181, 186) - schedule run time, in decimal minutes
+		'RUNTIME'   ,   # (187, 192) - runtime from the last schedule point--TIMESTOP - DOORCLOSE of previous time point. (Excludes DWELL at the time points.), in decimal minutes
 		'ODOM'      ,   # (193, 198) - not used
 		'GODOM'     ,   # (199, 204) - distance (GPS)
-		'SCHDEV'    ,   # (205, 211) - schedule deviation
-		'DWELL'     ,   # (212, 217) - dwell time interval (decimal minutes)
+		'TIMESTOP_DEV', # (205, 211) - schedule deviation
+		'DWELL'     ,   # (212, 217) - dwell time interval (decimal minutes) -- (DOORCLOSE - TIMESTOP)
 		'MSFILE'    ,   # (218, 226) - sign up YYMM
 		'QC101'     ,   # (227, 230) - not used
 		'QC104'     ,   # (231, 234) - GPS QC
@@ -182,7 +186,7 @@ class SFMuniDataFrame():
 		'SP2'       ,   # (249, 250) - not used
 		'V51'       ,   # (251, 257) - not used
 		'VERSN'     ,   # (258, 263) - import version
-		'DOORCLOSE' ,   # (264, 270) - departure time
+		'DOORCLOSE_INT',# (264, 270) - departure time
 		'UON'       ,   # (271, 274) - unadjusted on
 		'UOFF'      ,   # (275, 278) - unadjusted off
 		'CAPACITY'  ,   # (279, 283) - capacity
@@ -197,9 +201,9 @@ class SFMuniDataFrame():
 		'RUN'       ,   # (321, 328) - run
 		'SCHOOL'    ,   # (329, 335) - school trip
 		'TRIPID_2'  ,   # (336, 344) - long trip ID
-		'PULLOUT'   ,   # (345, 351) - movement time
-		'DOORCLOSE_S',  # (352, 356) - scheduled departure time
-		'DEVIAD'    ,   # (357, 363) - schedule deviation
+		'PULLOUT_INT',  # (345, 351) - movement time
+		'DOORCLOSE_S_INT',# (352, 356) - scheduled departure time
+		'DOORCLOSE_DEV',# (357, 363) - schedule deviation
 		'DWELL_S'   ,   # (364, 368) - scheduled dwell time
 		'RECOVERY_S',   # (369, 374) - scheduled EOL recovery
 		'RECOVERY'  ,   # (375, 380) 
@@ -245,7 +249,7 @@ class SFMuniDataFrame():
 		'DATE'      ,   # ( 68,  74) - date
 		'ROUTE'     ,   # ( 75,  79)
 		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
-		'TRIP'      ,   # (119, 123) - trip
+		'TRIP'      ,   # (119, 123) - trip 
                 'SEQ'       ,   # (  0,   5) - stop sequence
                 
                 # route/trip attributes
@@ -261,6 +265,7 @@ class SFMuniDataFrame():
 		# stop attributes
 		'QSTOP'     ,   # ( 10,  14) - unique stop no	
 		'STOPNAME'  ,   # ( 15,  47) - stop name	
+		'TIMEPOINT' ,   #            - flag indicating a schedule time point
 		'EOL'       ,   #            - end-of-line flag	
 		
 		# location information
@@ -269,16 +274,17 @@ class SFMuniDataFrame():
 		'NS'        ,   # (289, 290) - north/south
 		'EW'        ,   # (291, 292) - east/west
 		'MAXVEL'    ,   # (293, 296) - max velocity on previous link
-		'MILES'     ,   # (113, 118) 
-		'GODOM'     ,   # (199, 204) - distance (GPS)
-		'DWDI'      ,   # (316, 320) - distance traveled durign dwell
-		'DELTAA'    ,   # (391, 397) - distance from stop at arrival
-		'DELTAD'    ,   # (398, 404) - distance from stop at departure
+		'MILES'     ,   # (113, 118) - odometer reading (miles) - cumulative, but doesn't start at zero at beginning of route
+		'GODOM'     ,   # (199, 204) - distance (GPS) - cumulative, but doesn't start at zero at beginning of route
+		'VEHMILES'  ,   # (135, 140) - delta vehicle miles - miles bus travels from last stop
 
                 # ridership
 		'ON'        ,   # ( 55,  58) - on 
 		'OFF'       ,   # ( 59,  62) - off
-		'LOAD'      ,   # ( 63,  66) - departing load
+		'LOAD_ARR'  ,   #            - arriving load
+		'LOAD_DEP'  ,   # ( 63,  66) - departing load
+		'PASSMILES' ,   # (146, 153) - delta passenger miles - LOAD_ARR * VEHMILES
+		'PASSHOURS' ,   # (154, 160) - delta passenger hours - LOAD_ARR * DLPMIN / 60 -- NOT SURE THIS IS RIGHT
 		'RDBRDNGS'  ,   # (297, 300) - rear door boardings
 		'LOADCODE'  ,   # ( 67,  67) - ADJ=*, BAL=B
 		'CAPACITY'  ,   # (279, 283) - capacity
@@ -289,30 +295,28 @@ class SFMuniDataFrame():
                 # times
 		'TIMESTOP'  ,   # ( 48,  54) - arrival time
 		'TIMESTOP_S',   # (176, 180) - schedule time
-		'PULLOUT'   ,   # (345, 351) - movement time
+		'TIMESTOP_DEV', # (205, 211) - schedule deviation (TIMESTOP - TIMESTOP_S) in decimal minutes
 		'DOORCLOSE' ,   # (264, 270) - departure time	
 		'DOORCLOSE_S',  # (352, 356) - scheduled departure time	
-		'DWELL'     ,   # (212, 217) - dwell time interval (decimal minutes)
-		'DOORDWELL' ,   #            - passenger dwell (time interval doors open), excluding end-of-line
-		'WAITDWELL' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
+		'DOORCLOSE_DEV',# (357, 363) - schedule deviation (DOORCLOSE - DOORCLOSE_S) in decimal minutes
+		'DWELL'     ,   # (212, 217) - dwell time (decimal minutes) -- (DOORCLOSE - TIMESTOP), zero at first and last stop
 		'DWELL_S'   ,   # (364, 368) - scheduled dwell time
-		'RUNTIME'   ,   # (187, 192) 
-		'RUNTIME_S' ,   # (181, 186) - schedule run time
+		'PULLOUT'   ,   # (345, 351) - movement time
+		'PULLDWELL' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
+		'RUNTIME'   ,   # (187, 192) - runtime from the last schedule point--TIMESTOP - DOORCLOSE of previous time point. (Excludes DWELL at the time points.), in decimal minutes
+		'RUNTIME_S' ,   # (181, 186) - schedule run time from the last schedule point, in decimal minutes
 		'RECOVERY'  ,   # (375, 380) - EOL recovery time
-		'RECOVERY_S',   # (369, 374) - scheduled EOL recovery	
+		'RECOVERY_S',   # (369, 374) - scheduled EOL recovery			
+		'DLPMIN'    ,   # (141, 145) - delta minutes - minutes traveled from last stop -- THIS DOESN'T SEEM TO ADD UP
 		
-		'SCHDEV'    ,   # (205, 211) - schedule deviation
-		'DEVIAD'    ,   # (357, 363) - schedule deviation	
-		'DELTA'     ,   # (126, 130) - delta
-		'DLMILES'   ,   # (135, 140) - delta miles 
-		'DLPMIN'    ,   # (141, 145) - delta minutes
-		'DLPMLS'    ,   # (146, 153) - delta passenger miles
-		'DLPHRS'    ,   # (154, 160) - delta passenger minutes
-		
-		# quality control codes
+		# quality control stuff
 		'QC104'     ,   # (231, 234) - GPS QC
 		'QC201'     ,   # (235, 238) - count QC
-		'AQC'           # (239, 242) - assignment QC
+		'AQC'       ,   # (239, 242) - assignment QC
+		'DWDI'      ,   # (316, 320) - distance traveled durign dwell
+		'DELTAA'    ,   # (391, 397) - distance from stop at arrival
+		'DELTAD'    ,   # (398, 404) - distance from stop at departure
+		'DELTA'         # (126, 130) - delta
 		
 		# additional identifying information (exclude unless needed)
 		#'RECORD'    ,   # (243, 244) - record type
@@ -334,8 +338,9 @@ class SFMuniDataFrame():
 		'ROUTE'     ,   # ( 75,  79)
 		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
 		'TRIP'      ,   # (119, 123) - trip
-                'SEQ'    ,   # (  0,   5) - stop sequence
+                'SEQ'       ,   # (  0,   5) - stop sequence
                 ] 
+
 
     @staticmethod
     def read(filename):
@@ -363,176 +368,236 @@ class SFMuniDataFrame():
         # filter where there is no route or no stop identified
         df = df[df['ROUTE']>0]
         df = df[df['QSTOP']<9999]
-
+        
         # calculate some basic data adjustments
-        df['LON']    = -1 * df['LON']
+        df['LON']      = -1 * df['LON']
+        df['LOAD_ARR'] = df['LOAD_DEP'] - df['ON'] + df['OFF']
         
-        # convert DATE, TIMESTOP, DOORCLOSE, PULLOUT to datetime format
-        df['DATE']      = pd.to_datetime(df['DATE'],      format="%m%d%y")
-        #df['TIMESTOP']  = pd.to_datetime(df['TIMESTOP'],  format="%H%M%S")
-        #df['DOORCLOSE'] = pd.to_datetime(df['DOORCLOSE'], format="%H%M%S")
-        #df['PULLOUT']   = pd.to_datetime(df['PULLOUT'],   format="%H%M%S")  
-        
-        # same with scheduled times
-        # funny stuff in formatting adds leading zeros as needed
-        # seems like this needs to loop through the rows
-        #df['TIMESTOP_S'] = df['TIMESTOP_S'].replace(9999, 0)
-        #df['TIMESTOP_S2'] = pd.to_datetime(df['TIMESTOP_S'], format="%H%M")
-        #df['TIMESTOP_S2'] = str(df['TIMESTOP_S'])
-        #df['TIMESTOP_S2']  = "{0:0>4}".format(df['TIMESTOP_S'])
-        #df['DOORCLOSE_S'].replace(9999, np.nan)
-        #df['DOORCLOSE_S'] = pd.to_datetime("{0:0>4}".format(df['DOORCLOSE_S']), 
-        #    format="%H%M")
-        
-        
-        # iterate through the rows for computed fields
+        # generate empty fields        
+        df['TIMEPOINT'] = 0 
         df['EOL'] = 0
-        df['DOORDWELL'] = 0
-        df['WAITDWELL'] = 0
         df['TEPPER'] = 9
         df['ROUTEA'] = ''
-        for row_index, row in df.iterrows():
+        
+        # iterate through the rows for computed fields
+        for i, row in df.iterrows():
+            
+            # identify scheduled time points
+            if (df['TIMESTOP_S_INT'][i] < 9999): 
+                df['TIMEPOINT'][i] = 1
             
             # identify end-of-line stops
-            df['EOL'][row_index] = str(df['STOPNAME'][row_index]).count("- EOL")            
+            df['EOL'][i] = str(df['STOPNAME'][i]).count("- EOL")            
             
-            # DOORDWELL = passenger dwell (time interval doors open)
-            #             excluding end-of-line time
-            if (df['EOL'][row_index] == 0): 
-                df['DOORDWELL'][row_index] = (df['DOORCLOSE'][row_index] 
-                    - df['TIMESTOP'][row_index])
+            # exclude beginning and end of line from DWELL time
+            if ((df['EOL'][i] == 1) or (df['SEQ'][i] == 1)): 
+                df['DWELL'][i] = 0
         
-            # WAITDWELL = pullout dwell (time interval between door close and movement)
-            #            excluding end-of-line time
-            if (df['EOL'][row_index] == 0): 
-                df['WAITDWELL'][row_index] = (df['PULLOUT'][row_index] 
-                    - df['DOORCLOSE'][row_index])
-                    
             # compute TEP time periods -- need to iterate
-            if (df['TRIP'][row_index] >= 300  and df['TRIP'][row_index] < 600):  
-                df['TEPPER'][row_index]=300
-            elif (df['TRIP'][row_index] >= 600  and df['TRIP'][row_index] < 900):  
-                df['TEPPER'][row_index]=600
-            elif (df['TRIP'][row_index] >= 900  and df['TRIP'][row_index] < 1400): 
-                df['TEPPER'][row_index]=900
-            elif (df['TRIP'][row_index] >= 1400 and df['TRIP'][row_index] < 1600): 
-                df['TEPPER'][row_index]=1400
-            elif (df['TRIP'][row_index] >= 1600 and df['TRIP'][row_index] < 1900): 
-                df['TEPPER'][row_index]=1600
-            elif (df['TRIP'][row_index] >= 1900 and df['TRIP'][row_index] < 2200): 
-                df['TEPPER'][row_index]=1900
-            elif (df['TRIP'][row_index] >= 2200 and df['TRIP'][row_index] < 9999): 
-                df['TEPPER'][row_index]=2200
+            if (df['TRIP'][i] >= 300  and df['TRIP'][i] < 600):  
+                df['TEPPER'][i]=300
+            elif (df['TRIP'][i] >= 600  and df['TRIP'][i] < 900):  
+                df['TEPPER'][i]=600
+            elif (df['TRIP'][i] >= 900  and df['TRIP'][i] < 1400): 
+                df['TEPPER'][i]=900
+            elif (df['TRIP'][i] >= 1400 and df['TRIP'][i] < 1600): 
+                df['TEPPER'][i]=1400
+            elif (df['TRIP'][i] >= 1600 and df['TRIP'][i] < 1900): 
+                df['TEPPER'][i]=1600
+            elif (df['TRIP'][i] >= 1900 and df['TRIP'][i] < 2200): 
+                df['TEPPER'][i]=1900
+            elif (df['TRIP'][i] >= 2200 and df['TRIP'][i] < 9999): 
+                df['TEPPER'][i]=2200
                         
             # compute numeric APC route to MUNI alpha -- need to iterate
-            if df['ROUTE'][row_index]==0:      df['ROUTEA'][row_index] = '0'
-            elif df['ROUTE'][row_index]==1:    df['ROUTEA'][row_index] = '1'
-            elif df['ROUTE'][row_index]==2:    df['ROUTEA'][row_index] = '2'
-            elif df['ROUTE'][row_index]==3:    df['ROUTEA'][row_index] = '3'
-            elif df['ROUTE'][row_index]==4:    df['ROUTEA'][row_index] = '4'
-            elif df['ROUTE'][row_index]==5:    df['ROUTEA'][row_index] = '5'
-            elif df['ROUTE'][row_index]==6:    df['ROUTEA'][row_index] = '6'
-            elif df['ROUTE'][row_index]==7:    df['ROUTEA'][row_index] = '7'
-            elif df['ROUTE'][row_index]==9:    df['ROUTEA'][row_index] = '9'
-            elif df['ROUTE'][row_index]==10:   df['ROUTEA'][row_index] = '10'
-            elif df['ROUTE'][row_index]==12:   df['ROUTEA'][row_index] = '12'
-            elif df['ROUTE'][row_index]==14:   df['ROUTEA'][row_index] = '14'
-            elif df['ROUTE'][row_index]==15:   df['ROUTEA'][row_index] = '15'
-            elif df['ROUTE'][row_index]==17:   df['ROUTEA'][row_index] = '17'
-            elif df['ROUTE'][row_index]==18:   df['ROUTEA'][row_index] = '18'
-            elif df['ROUTE'][row_index]==19:   df['ROUTEA'][row_index] = '19'
-            elif df['ROUTE'][row_index]==20:   df['ROUTEA'][row_index] = '20'
-            elif df['ROUTE'][row_index]==21:   df['ROUTEA'][row_index] = '21'
-            elif df['ROUTE'][row_index]==22:   df['ROUTEA'][row_index] = '22'
-            elif df['ROUTE'][row_index]==23:   df['ROUTEA'][row_index] = '23'
-            elif df['ROUTE'][row_index]==24:   df['ROUTEA'][row_index] = '24'
-            elif df['ROUTE'][row_index]==26:   df['ROUTEA'][row_index] = '26'
-            elif df['ROUTE'][row_index]==27:   df['ROUTEA'][row_index] = '27'
-            elif df['ROUTE'][row_index]==28:   df['ROUTEA'][row_index] = '28'
-            elif df['ROUTE'][row_index]==29:   df['ROUTEA'][row_index] = '29'
-            elif df['ROUTE'][row_index]==30:   df['ROUTEA'][row_index] = '30'
-            elif df['ROUTE'][row_index]==31:   df['ROUTEA'][row_index] = '31'
-            elif df['ROUTE'][row_index]==33:   df['ROUTEA'][row_index] = '33'
-            elif df['ROUTE'][row_index]==35:   df['ROUTEA'][row_index] = '35'
-            elif df['ROUTE'][row_index]==36:   df['ROUTEA'][row_index] = '36'
-            elif df['ROUTE'][row_index]==37:   df['ROUTEA'][row_index] = '37'
-            elif df['ROUTE'][row_index]==38:   df['ROUTEA'][row_index] = '38'
-            elif df['ROUTE'][row_index]==39:   df['ROUTEA'][row_index] = '39'
-            elif df['ROUTE'][row_index]==41:   df['ROUTEA'][row_index] = '41'
-            elif df['ROUTE'][row_index]==43:   df['ROUTEA'][row_index] = '43'
-            elif df['ROUTE'][row_index]==44:   df['ROUTEA'][row_index] = '44'
-            elif df['ROUTE'][row_index]==45:   df['ROUTEA'][row_index] = '45'
-            elif df['ROUTE'][row_index]==47:   df['ROUTEA'][row_index] = '47'
-            elif df['ROUTE'][row_index]==48:   df['ROUTEA'][row_index] = '48'
-            elif df['ROUTE'][row_index]==49:   df['ROUTEA'][row_index] = '49'
-            elif df['ROUTE'][row_index]==52:   df['ROUTEA'][row_index] = '52'
-            elif df['ROUTE'][row_index]==53:   df['ROUTEA'][row_index] = '53'
-            elif df['ROUTE'][row_index]==54:   df['ROUTEA'][row_index] = '54'
-            elif df['ROUTE'][row_index]==56:   df['ROUTEA'][row_index] = '56'
-            elif df['ROUTE'][row_index]==66:   df['ROUTEA'][row_index] = '66'
-            elif df['ROUTE'][row_index]==67:   df['ROUTEA'][row_index] = '67'
-            elif df['ROUTE'][row_index]==71:   df['ROUTEA'][row_index] = '71'
-            elif df['ROUTE'][row_index]==76:   df['ROUTEA'][row_index] = '76'
-            elif df['ROUTE'][row_index]==88:   df['ROUTEA'][row_index] = '88'
-            elif df['ROUTE'][row_index]==89:   df['ROUTEA'][row_index] = '89'
-            elif df['ROUTE'][row_index]==90:   df['ROUTEA'][row_index] = '90'
-            elif df['ROUTE'][row_index]==91:   df['ROUTEA'][row_index] = '91'
-            elif df['ROUTE'][row_index]==92:   df['ROUTEA'][row_index] = '92'
-            elif df['ROUTE'][row_index]==108:  df['ROUTEA'][row_index] = '108'
-            elif df['ROUTE'][row_index]==509:  df['ROUTEA'][row_index] = '9L (509)'
-            elif df['ROUTE'][row_index]==514:  df['ROUTEA'][row_index] = '14L (514)'
-            elif df['ROUTE'][row_index]==528:  df['ROUTEA'][row_index] = '28L (528)'
-            elif df['ROUTE'][row_index]==538:  df['ROUTEA'][row_index] = '38L (538)'
-            elif df['ROUTE'][row_index]==571:  df['ROUTEA'][row_index] = '71L (571)'
-            elif df['ROUTE'][row_index]==601:  df['ROUTEA'][row_index] = 'KOWL (601)'
-            elif df['ROUTE'][row_index]==602:  df['ROUTEA'][row_index] = 'LOWL (602)'
-            elif df['ROUTE'][row_index]==603:  df['ROUTEA'][row_index] = 'MOWL (603)'
-            elif df['ROUTE'][row_index]==604:  df['ROUTEA'][row_index] = 'NOWL (604)'
-            elif df['ROUTE'][row_index]==605:  df['ROUTEA'][row_index] = 'N (605)'
-            elif df['ROUTE'][row_index]==606:  df['ROUTEA'][row_index] = 'J (606)'
-            elif df['ROUTE'][row_index]==607:  df['ROUTEA'][row_index] = 'F (607)'
-            elif df['ROUTE'][row_index]==608:  df['ROUTEA'][row_index] = 'K (608)'
-            elif df['ROUTE'][row_index]==609:  df['ROUTEA'][row_index] = 'L (609)'
-            elif df['ROUTE'][row_index]==610:  df['ROUTEA'][row_index] = 'M (610)'
-            elif df['ROUTE'][row_index]==611:  df['ROUTEA'][row_index] = 'S (611)'
-            elif df['ROUTE'][row_index]==612:  df['ROUTEA'][row_index] = 'T (612)'
-            elif df['ROUTE'][row_index]==708:  df['ROUTEA'][row_index] = '8X (708)'
-            elif df['ROUTE'][row_index]==709:  df['ROUTEA'][row_index] = '9X (709)'
-            elif df['ROUTE'][row_index]==714:  df['ROUTEA'][row_index] = '14X (714)'
-            elif df['ROUTE'][row_index]==716:  df['ROUTEA'][row_index] = '16X (716)'
-            elif df['ROUTE'][row_index]==730:  df['ROUTEA'][row_index] = '30X (730)'
-            elif df['ROUTE'][row_index]==780:  df['ROUTEA'][row_index] = '80X (780)'
-            elif df['ROUTE'][row_index]==781:  df['ROUTEA'][row_index] = '81X (781)'
-            elif df['ROUTE'][row_index]==782:  df['ROUTEA'][row_index] = '82X (782)'
-            elif df['ROUTE'][row_index]==797:  df['ROUTEA'][row_index] = 'NX (797)'
-            elif df['ROUTE'][row_index]==801:  df['ROUTEA'][row_index] = '1BX (801)'
-            elif df['ROUTE'][row_index]==808:  df['ROUTEA'][row_index] = '8BX (808)'
-            elif df['ROUTE'][row_index]==809:  df['ROUTEA'][row_index] = '9BX (809)'
-            elif df['ROUTE'][row_index]==816:  df['ROUTEA'][row_index] = '16BX (816)'
-            elif df['ROUTE'][row_index]==831:  df['ROUTEA'][row_index] = '31BX (831)'
-            elif df['ROUTE'][row_index]==838:  df['ROUTEA'][row_index] = '38BX (838)'
-            elif df['ROUTE'][row_index]==901:  df['ROUTEA'][row_index] = '1AX (901)'
-            elif df['ROUTE'][row_index]==908:  df['ROUTEA'][row_index] = '8AX (908)'
-            elif df['ROUTE'][row_index]==909:  df['ROUTEA'][row_index] = '9AX (909)'
-            elif df['ROUTE'][row_index]==914:  df['ROUTEA'][row_index] = '14X (914)'
-            elif df['ROUTE'][row_index]==916:  df['ROUTEA'][row_index] = '16AX (916)'
-            elif df['ROUTE'][row_index]==931:  df['ROUTEA'][row_index] = '31AX (931)'
-            elif df['ROUTE'][row_index]==938:  df['ROUTEA'][row_index] = '38AX (938)'
+            if df['ROUTE'][i]==0:      df['ROUTEA'][i] = '0'
+            elif df['ROUTE'][i]==1:    df['ROUTEA'][i] = '1'
+            elif df['ROUTE'][i]==2:    df['ROUTEA'][i] = '2'
+            elif df['ROUTE'][i]==3:    df['ROUTEA'][i] = '3'
+            elif df['ROUTE'][i]==4:    df['ROUTEA'][i] = '4'
+            elif df['ROUTE'][i]==5:    df['ROUTEA'][i] = '5'
+            elif df['ROUTE'][i]==6:    df['ROUTEA'][i] = '6'
+            elif df['ROUTE'][i]==7:    df['ROUTEA'][i] = '7'
+            elif df['ROUTE'][i]==9:    df['ROUTEA'][i] = '9'
+            elif df['ROUTE'][i]==10:   df['ROUTEA'][i] = '10'
+            elif df['ROUTE'][i]==12:   df['ROUTEA'][i] = '12'
+            elif df['ROUTE'][i]==14:   df['ROUTEA'][i] = '14'
+            elif df['ROUTE'][i]==15:   df['ROUTEA'][i] = '15'
+            elif df['ROUTE'][i]==17:   df['ROUTEA'][i] = '17'
+            elif df['ROUTE'][i]==18:   df['ROUTEA'][i] = '18'
+            elif df['ROUTE'][i]==19:   df['ROUTEA'][i] = '19'
+            elif df['ROUTE'][i]==20:   df['ROUTEA'][i] = '20'
+            elif df['ROUTE'][i]==21:   df['ROUTEA'][i] = '21'
+            elif df['ROUTE'][i]==22:   df['ROUTEA'][i] = '22'
+            elif df['ROUTE'][i]==23:   df['ROUTEA'][i] = '23'
+            elif df['ROUTE'][i]==24:   df['ROUTEA'][i] = '24'
+            elif df['ROUTE'][i]==26:   df['ROUTEA'][i] = '26'
+            elif df['ROUTE'][i]==27:   df['ROUTEA'][i] = '27'
+            elif df['ROUTE'][i]==28:   df['ROUTEA'][i] = '28'
+            elif df['ROUTE'][i]==29:   df['ROUTEA'][i] = '29'
+            elif df['ROUTE'][i]==30:   df['ROUTEA'][i] = '30'
+            elif df['ROUTE'][i]==31:   df['ROUTEA'][i] = '31'
+            elif df['ROUTE'][i]==33:   df['ROUTEA'][i] = '33'
+            elif df['ROUTE'][i]==35:   df['ROUTEA'][i] = '35'
+            elif df['ROUTE'][i]==36:   df['ROUTEA'][i] = '36'
+            elif df['ROUTE'][i]==37:   df['ROUTEA'][i] = '37'
+            elif df['ROUTE'][i]==38:   df['ROUTEA'][i] = '38'
+            elif df['ROUTE'][i]==39:   df['ROUTEA'][i] = '39'
+            elif df['ROUTE'][i]==41:   df['ROUTEA'][i] = '41'
+            elif df['ROUTE'][i]==43:   df['ROUTEA'][i] = '43'
+            elif df['ROUTE'][i]==44:   df['ROUTEA'][i] = '44'
+            elif df['ROUTE'][i]==45:   df['ROUTEA'][i] = '45'
+            elif df['ROUTE'][i]==47:   df['ROUTEA'][i] = '47'
+            elif df['ROUTE'][i]==48:   df['ROUTEA'][i] = '48'
+            elif df['ROUTE'][i]==49:   df['ROUTEA'][i] = '49'
+            elif df['ROUTE'][i]==52:   df['ROUTEA'][i] = '52'
+            elif df['ROUTE'][i]==53:   df['ROUTEA'][i] = '53'
+            elif df['ROUTE'][i]==54:   df['ROUTEA'][i] = '54'
+            elif df['ROUTE'][i]==56:   df['ROUTEA'][i] = '56'
+            elif df['ROUTE'][i]==66:   df['ROUTEA'][i] = '66'
+            elif df['ROUTE'][i]==67:   df['ROUTEA'][i] = '67'
+            elif df['ROUTE'][i]==71:   df['ROUTEA'][i] = '71'
+            elif df['ROUTE'][i]==76:   df['ROUTEA'][i] = '76'
+            elif df['ROUTE'][i]==88:   df['ROUTEA'][i] = '88'
+            elif df['ROUTE'][i]==89:   df['ROUTEA'][i] = '89'
+            elif df['ROUTE'][i]==90:   df['ROUTEA'][i] = '90'
+            elif df['ROUTE'][i]==91:   df['ROUTEA'][i] = '91'
+            elif df['ROUTE'][i]==92:   df['ROUTEA'][i] = '92'
+            elif df['ROUTE'][i]==108:  df['ROUTEA'][i] = '108'
+            elif df['ROUTE'][i]==509:  df['ROUTEA'][i] = '9L (509)'
+            elif df['ROUTE'][i]==514:  df['ROUTEA'][i] = '14L (514)'
+            elif df['ROUTE'][i]==528:  df['ROUTEA'][i] = '28L (528)'
+            elif df['ROUTE'][i]==538:  df['ROUTEA'][i] = '38L (538)'
+            elif df['ROUTE'][i]==571:  df['ROUTEA'][i] = '71L (571)'
+            elif df['ROUTE'][i]==601:  df['ROUTEA'][i] = 'KOWL (601)'
+            elif df['ROUTE'][i]==602:  df['ROUTEA'][i] = 'LOWL (602)'
+            elif df['ROUTE'][i]==603:  df['ROUTEA'][i] = 'MOWL (603)'
+            elif df['ROUTE'][i]==604:  df['ROUTEA'][i] = 'NOWL (604)'
+            elif df['ROUTE'][i]==605:  df['ROUTEA'][i] = 'N (605)'
+            elif df['ROUTE'][i]==606:  df['ROUTEA'][i] = 'J (606)'
+            elif df['ROUTE'][i]==607:  df['ROUTEA'][i] = 'F (607)'
+            elif df['ROUTE'][i]==608:  df['ROUTEA'][i] = 'K (608)'
+            elif df['ROUTE'][i]==609:  df['ROUTEA'][i] = 'L (609)'
+            elif df['ROUTE'][i]==610:  df['ROUTEA'][i] = 'M (610)'
+            elif df['ROUTE'][i]==611:  df['ROUTEA'][i] = 'S (611)'
+            elif df['ROUTE'][i]==612:  df['ROUTEA'][i] = 'T (612)'
+            elif df['ROUTE'][i]==708:  df['ROUTEA'][i] = '8X (708)'
+            elif df['ROUTE'][i]==709:  df['ROUTEA'][i] = '9X (709)'
+            elif df['ROUTE'][i]==714:  df['ROUTEA'][i] = '14X (714)'
+            elif df['ROUTE'][i]==716:  df['ROUTEA'][i] = '16X (716)'
+            elif df['ROUTE'][i]==730:  df['ROUTEA'][i] = '30X (730)'
+            elif df['ROUTE'][i]==780:  df['ROUTEA'][i] = '80X (780)'
+            elif df['ROUTE'][i]==781:  df['ROUTEA'][i] = '81X (781)'
+            elif df['ROUTE'][i]==782:  df['ROUTEA'][i] = '82X (782)'
+            elif df['ROUTE'][i]==797:  df['ROUTEA'][i] = 'NX (797)'
+            elif df['ROUTE'][i]==801:  df['ROUTEA'][i] = '1BX (801)'
+            elif df['ROUTE'][i]==808:  df['ROUTEA'][i] = '8BX (808)'
+            elif df['ROUTE'][i]==809:  df['ROUTEA'][i] = '9BX (809)'
+            elif df['ROUTE'][i]==816:  df['ROUTEA'][i] = '16BX (816)'
+            elif df['ROUTE'][i]==831:  df['ROUTEA'][i] = '31BX (831)'
+            elif df['ROUTE'][i]==838:  df['ROUTEA'][i] = '38BX (838)'
+            elif df['ROUTE'][i]==901:  df['ROUTEA'][i] = '1AX (901)'
+            elif df['ROUTE'][i]==908:  df['ROUTEA'][i] = '8AX (908)'
+            elif df['ROUTE'][i]==909:  df['ROUTEA'][i] = '9AX (909)'
+            elif df['ROUTE'][i]==914:  df['ROUTEA'][i] = '14X (914)'
+            elif df['ROUTE'][i]==916:  df['ROUTEA'][i] = '16AX (916)'
+            elif df['ROUTE'][i]==931:  df['ROUTEA'][i] = '31AX (931)'
+            elif df['ROUTE'][i]==938:  df['ROUTEA'][i] = '38AX (938)'
         
+        # convert to timedate formats
+        # trick here is that the MUNI service day starts and ends at 3 am, 
+        # so boardings from midnight to 3 have a service date of the day before
+        df['DATE']        = ''
+        df['TIMESTOP']    = ''
+        df['DOORCLOSE']   = ''
+        df['PULLOUT']     = ''
+        df['TIMESTOP_S']  = '0101010101'
+        df['DOORCLOSE_S'] = '0101010101'
+        df['PULLDWELL']   = 0.0
+
+        # convert to string formats
+        for i, row in df.iterrows():        
+            df['DATE'][i] = "{0:0>6}".format(df['DATE_INT'][i])   
+            
+            if (df['TIMESTOP_INT'][i] >= 240000): 
+                df['TIMESTOP_INT'][i] = df['TIMESTOP_INT'][i] - 240000
+            df['TIMESTOP'][i] = df['DATE'][i] + "{0:0>6}".format(df['TIMESTOP_INT'][i])            
+
+            if (df['DOORCLOSE_INT'][i] >= 240000): 
+                df['DOORCLOSE_INT'][i] = df['DOORCLOSE_INT'][i] - 240000
+            df['DOORCLOSE'][i] = df['DATE'][i] + "{0:0>6}".format(df['DOORCLOSE_INT'][i])
+
+            if (df['PULLOUT_INT'][i] >= 240000): 
+                df['PULLOUT_INT'][i] = df['PULLOUT_INT'][i] - 240000
+            df['PULLOUT'][i] = df['DATE'][i] + "{0:0>6}".format(df['PULLOUT_INT'][i])
+            
+            # schedule times only at timepoints
+            if (df['TIMEPOINT'][i]==1): 
+                if (df['TIMESTOP_S_INT'][i] >= 2400): 
+                    df['TIMESTOP_S_INT'][i] = df['TIMESTOP_S_INT'][i] - 2400
+                df['TIMESTOP_S'][i] = df['DATE'][i] + "{0:0>4}".format(df['TIMESTOP_S_INT'][i])            
+
+                if (df['DOORCLOSE_S_INT'][i] >= 2400): 
+                    df['DOORCLOSE_S_INT'][i] = df['DOORCLOSE_S_INT'][i] - 2400
+                df['DOORCLOSE_S'][i] = df['DATE'][i] + "{0:0>4}".format(df['DOORCLOSE_S_INT'][i])
+
+        # convert to timedate formats
+        df['DATE'] = pd.to_datetime(df['DATE'], format="%m%d%y")
+        df['TIMESTOP']    = pd.to_datetime(df['TIMESTOP'],    format="%m%d%y%H%M%S")        
+        df['DOORCLOSE']   = pd.to_datetime(df['DOORCLOSE'],   format="%m%d%y%H%M%S")    
+        df['PULLOUT']     = pd.to_datetime(df['PULLOUT'],     format="%m%d%y%H%M%S")
+        df['TIMESTOP_S']  = pd.to_datetime(df['TIMESTOP_S'],  format="%m%d%y%H%M")        
+        df['DOORCLOSE_S'] = pd.to_datetime(df['DOORCLOSE_S'], format="%m%d%y%H%M")    
+
+        # deal with offsets for midnight to 3 am
+        for i, row in df.iterrows():       
+            if (df['TIMESTOP'][i].hour < 3): 
+                df['TIMESTOP'][i] = df['TIMESTOP'][i] + pd.DateOffset(days=1)
+
+            if (df['DOORCLOSE'][i].hour < 3): 
+                df['DOORCLOSE'][i] = df['DOORCLOSE'][i] + pd.DateOffset(days=1)
+
+            if (df['PULLOUT'][i].hour < 3): 
+                df['PULLOUT'][i]   = df['PULLOUT'][i] + pd.DateOffset(days=1)
+            
+            # schedule only valide at timepoints
+            if (df['TIMEPOINT'][i] == 0): 
+
+                df['TIMESTOP_S'][i]    = pd.NaT
+                df['DOORCLOSE_S'][i]   = pd.NaT
+                df['TIMESTOP_DEV'][i]  = np.NaN
+                df['DOORCLOSE_DEV'][i] = np.NaN
+                df['RUNTIME'][i]       = np.NaN
+                df['RUNTIME_S'][i]     = np.NaN
+
+            else:     
+                
+                if (df['TIMESTOP_S'][i].hour < 3): 
+                    df['TIMESTOP_S'][i] = df['TIMESTOP_S'][i] + pd.DateOffset(days=1)
+
+                if (df['DOORCLOSE_S'][i].hour < 3): 
+                    df['DOORCLOSE_S'][i] = df['DOORCLOSE_S'][i] + pd.DateOffset(days=1)
         
-        # re-order the columns
-        df2 = df[SFMuniDataFrame.REORDERED_COLUMNS]
+            # PULLDWELL = pullout dwell (time interval between door close and movement)
+            if (df['EOL'][i]==0):
+                pulldwell = df['PULLOUT'][i] - df['DOORCLOSE'][i]
+                df['PULLDWELL'][i] = round(pulldwell.seconds / 60.0, 2)
+                
+        # replace missing values as appropriate -- this doesn't seem to work
+        df['SCHOOL'].replace(9999, 0)
         
         # sort in logical order for viewing
-        df2.sort_index(by=SFMuniDataFrame.INDEX_COLUMNS, inplace=True)
+        df.sort_index(by=SFMuniDataFrame.INDEX_COLUMNS, inplace=True)
         
         # drop duplicates (not sure why these occur)
-        df2.drop_duplicates(cols=SFMuniDataFrame.INDEX_COLUMNS, inplace=True) 
+        df.drop_duplicates(cols=SFMuniDataFrame.INDEX_COLUMNS, inplace=True) 
         
         # set the index 
-        df2.set_index(SFMuniDataFrame.INDEX_COLUMNS, drop=False, inplace=True, 
+        df.set_index(SFMuniDataFrame.INDEX_COLUMNS, drop=False, inplace=True, 
             verify_integrity=True)
 
+        # re-order the columns
+        df2 = df[SFMuniDataFrame.REORDERED_COLUMNS]
 
         return df2
     
