@@ -342,20 +342,17 @@ class SFMuniDataFrame():
                 ] 
 
 
-    @staticmethod
-    def read(filename):
+    def read(self, filename):
         """
         Read SFMuniData and return it as a pandas dataframe
         
-        filename - just that
-        columnsToUse - array of column names or numbers to read
-        rowsToRead - read this many rows from the file
+        filename - in "raw STP" format
         """
         df = pd.read_fwf(filename, 
-                         colspecs = SFMuniDataFrame.COLSPECS, 
-                         names    = SFMuniDataFrame.COLNAMES, 
-                         skiprows = SFMuniDataFrame.HEADERROWS, 
-                         usecols  = SFMuniDataFrame.COLUMNS_TO_READ, 
+                         colspecs = self.COLSPECS, 
+                         names    = self.COLNAMES, 
+                         skiprows = self.HEADERROWS, 
+                         usecols  = self.COLUMNS_TO_READ, 
                          nrows    = 10000)
 
         # only include revenue service
@@ -587,17 +584,17 @@ class SFMuniDataFrame():
         df['SCHOOL'].replace(9999, 0)
         
         # sort in logical order for viewing
-        df.sort_index(by=SFMuniDataFrame.INDEX_COLUMNS, inplace=True)
+        df.sort_index(by=self.INDEX_COLUMNS, inplace=True)
         
         # drop duplicates (not sure why these occur)
-        df.drop_duplicates(cols=SFMuniDataFrame.INDEX_COLUMNS, inplace=True) 
+        df.drop_duplicates(cols=self.INDEX_COLUMNS, inplace=True) 
         
         # set the index 
-        df.set_index(SFMuniDataFrame.INDEX_COLUMNS, drop=False, inplace=True, 
+        df.set_index(self.INDEX_COLUMNS, drop=False, inplace=True, 
             verify_integrity=True)
 
         # re-order the columns
-        df2 = df[SFMuniDataFrame.REORDERED_COLUMNS]
+        df2 = df[self.REORDERED_COLUMNS]
 
         return df2
     

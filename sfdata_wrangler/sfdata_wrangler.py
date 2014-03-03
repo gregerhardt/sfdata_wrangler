@@ -22,10 +22,18 @@ import numpy as np
 import pandas as pd
 
 from SFMuniDataFrame import SFMuniDataFrame
+from DataFrameViewer import DataFrameViewer
 
 
 
 if __name__ == "__main__":
     
-    df = SFMuniDataFrame.read("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp")
+    # read the data
+    reader = SFMuniDataFrame()
+    df = reader.read("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp")
     
+    # let the user view the first 1000 rows
+    vw = DataFrameViewer()
+    vw.view(df[1:1000])
+    
+    # write the data
