@@ -29,11 +29,15 @@ from DataFrameViewer import DataFrameViewer
 if __name__ == "__main__":
     
     # read the data
-    reader = SFMuniDataFrame()
-    df = reader.read("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp")
-    
+    readerWriter = SFMuniDataFrame()
+    df1 = readerWriter.read_stp("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp")
+        
+    # write the data
+    readerWriter.write_hdf(df1, "C:/CASA/DataExploration/sfmuni.h5")
+
+    # read it back in
+    df2 = readerWriter.read_hdf("C:/CASA/DataExploration/sfmuni.h5")    
+
     # let the user view the first 1000 rows
     vw = DataFrameViewer()
-    vw.view(df[1:1000])
-    
-    # write the data
+    vw.view(df2[1:1000])

@@ -20,6 +20,7 @@ __license__     = """
 
 import pandas as pd
 import numpy as np
+import pytables
 
 class SFMuniDataFrame():
     """ 
@@ -342,7 +343,7 @@ class SFMuniDataFrame():
                 ] 
 
 
-    def read(self, filename):
+    def read_stp(self, filename):
         """
         Read SFMuniData and return it as a pandas dataframe
         
@@ -353,7 +354,9 @@ class SFMuniDataFrame():
                          names    = self.COLNAMES, 
                          skiprows = self.HEADERROWS, 
                          usecols  = self.COLUMNS_TO_READ, 
-                         nrows    = 10000)
+                         iterator = True, 
+                         chunksize= 10000, 
+                         nrows    = 100000)
 
         # only include revenue service
         # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
@@ -598,3 +601,22 @@ class SFMuniDataFrame():
 
         return df2
     
+    
+    def write_hdf(self, df, filename):
+        """
+        Writes processed SFMuniData to a HDF5 file. 
+        
+        filename - output file to write
+        """
+        df.to_hdf(filename, 'table', append=False)        
+    
+    
+    def read_hdf(self, filename):
+        """
+        Read SFMuniData and return it as a pandas dataframe
+        
+        filename - in converted hdf5 format
+        """
+        df  = pd.read_hdf(filename, 'table')
+        
+        return df
