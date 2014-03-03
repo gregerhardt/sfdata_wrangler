@@ -22,7 +22,7 @@ import pandas as pd
 import numpy as np
 import pytables
 
-class SFMuniDataFrame():
+class SFMuniDataHelper():
     """ 
     Methods used to read SFMuni Automated Passenger Count (APC) and 
     Automated Vehicle Location (AVL) data into a Pandas data frame.  This

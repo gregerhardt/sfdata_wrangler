@@ -21,7 +21,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from SFMuniDataFrame import SFMuniDataFrame
+from SFMuniDataHelper import SFMuniDataHelper
 from DataFrameViewer import DataFrameViewer
 
 
@@ -29,14 +29,14 @@ from DataFrameViewer import DataFrameViewer
 if __name__ == "__main__":
     
     # read the data
-    readerWriter = SFMuniDataFrame()
-    df1 = readerWriter.read_stp("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp")
+    sfmuniHelper = SFMuniDataHelper()
+    df1 = sfmuniHelper.read_stp("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp")
         
     # write the data
-    readerWriter.write_hdf(df1, "C:/CASA/DataExploration/sfmuni.h5")
+    sfmuniHelper.write_hdf(df1, "C:/CASA/DataExploration/sfmuni.h5")
 
     # read it back in
-    df2 = readerWriter.read_hdf("C:/CASA/DataExploration/sfmuni.h5")    
+    df2 = sfmuniHelper.read_hdf("C:/CASA/DataExploration/sfmuni.h5")    
 
     # let the user view the first 1000 rows
     vw = DataFrameViewer()
