@@ -42,6 +42,12 @@ class SFMuniDataHelper():
     # number of rows at top of file to skip
     HEADERROWS = 2
     
+    # number of rows to read at a time
+    CHUNKSIZE = 100000
+
+    # by default, read the first 75 columns, through NEXTTRIP
+    COLUMNS_TO_READ = [i for i in range(75)]
+
     # specifies columns for fixed-format text input
     COLSPECS=[  (  0,   5), # SEQ     - stop sequence
 		(  6,  10), # 'V2'       - not used
@@ -243,10 +249,6 @@ class SFMuniDataHelper():
 		'T_MILE'    ,   # (537, 543)
 		'CARS']         # (544, 547)
 
-
-    # by default, read the first 75 columns, through NEXTTRIP
-    COLUMNS_TO_READ = [i for i in range(75)]
-
     # set the order of the columns in the resulting dataframe
     REORDERED_COLUMNS=[  
                 # index attributes
@@ -340,9 +342,14 @@ class SFMuniDataHelper():
     INDEX_COLUMNS=['DATE', 'ROUTE', 'DIR', 'TRIP','SEQ'] 
     INDEX_NAMES  =['DATE_IDX', 'ROUTE_IDX', 'DIR_IDX', 'TRIP_IDX','SEQ_IDX'] 
     
-    
-    # number of rows to read at a time
-    CHUNKSIZE = 100000
+    # define string lengths (otherwise would be set by first chunk)    
+    STRING_LENGTHS={  
+		'ROUTEA'   :10,   #            - alphanumeric route name
+		'PATTCODE' :10,   # (305, 315) - pattern code
+		'STOPNAME' :32,   # ( 15,  47) - stop name	
+		'NS'       : 2,   # (289, 290) - north/south
+		'EW'       : 2,   # (291, 292) - east/west
+                } 
         
 
     def processRawData(self, infile, outfile):
@@ -361,6 +368,9 @@ class SFMuniDataHelper():
                          usecols  = self.COLUMNS_TO_READ, 
                          iterator = True, 
                          chunksize= self.CHUNKSIZE)
+
+        # establish the writer
+        store = pd.HDFStore(outfile)
 
         # iterate through chunk by chunk so we don't run out of memory
         rowsRead    = 0
@@ -627,7 +637,8 @@ class SFMuniDataHelper():
 
             # write the data
             try: 
-                df.to_hdf(outfile, 'df', append=True)
+                store.append('df', df, data_columns=True, 
+                    min_itemsize=self.STRING_LENGTHS)
             except ValueError: 
                 store = pd.HDFStore(outfile)
                 print 'Structure of HDF5 file is: '
@@ -642,6 +653,9 @@ class SFMuniDataHelper():
 
             rowsWritten += len(df)
             print 'Read %i rows and kept %i rows.' % (rowsRead, rowsWritten)
+            
+        # close the writer
+        store.close()
     
     
     def write_hdf(self, df, filename):

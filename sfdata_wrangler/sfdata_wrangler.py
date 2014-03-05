@@ -17,9 +17,8 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys
-import numpy as np
 import pandas as pd
+import datetime
 
 from SFMuniDataHelper import SFMuniDataHelper
 from DataFrameViewer import DataFrameViewer
@@ -32,9 +31,15 @@ if __name__ == "__main__":
     infile  = "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp"
     outfile = "C:/CASA/DataExploration/sfmuni.h5"
     
+    startTime = datetime.datetime.now()   
+    print 'Started at ', startTime
+
     # convert the data
     sfmuniHelper = SFMuniDataHelper()
     sfmuniHelper.processRawData(infile, outfile)
+        
+    elapsedTime = datetime.datetime.now() - startTime
+    print 'Finished converting data in ', elapsedTime
         
     # read it back in
     store = pd.HDFStore(outfile)
