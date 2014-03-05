@@ -18,9 +18,12 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import sys
+
 import pandas as pd
 import numpy as np
-import pytables
+
+from DataFrameViewer import DataFrameViewer
 
 class SFMuniDataHelper():
     """ 
@@ -38,7 +41,7 @@ class SFMuniDataHelper():
     
     # number of rows at top of file to skip
     HEADERROWS = 2
-
+    
     # specifies columns for fixed-format text input
     COLSPECS=[  (  0,   5), # SEQ     - stop sequence
 		(  6,  10), # 'V2'       - not used
@@ -241,7 +244,7 @@ class SFMuniDataHelper():
 		'CARS']         # (544, 547)
 
 
-    # by default, read the first 75 columns, through NEXT
+    # by default, read the first 75 columns, through NEXTTRIP
     COLUMNS_TO_READ = [i for i in range(75)]
 
     # set the order of the columns in the resulting dataframe
@@ -333,273 +336,312 @@ class SFMuniDataHelper():
 		#'ECNT'      ,   # (405, 409) - error count   
 		]         
 		    
+    # uniquely define the records
+    INDEX_COLUMNS=['DATE', 'ROUTE', 'DIR', 'TRIP','SEQ'] 
+    INDEX_NAMES  =['DATE_IDX', 'ROUTE_IDX', 'DIR_IDX', 'TRIP_IDX','SEQ_IDX'] 
+    
+    
+    # number of rows to read at a time
+    CHUNKSIZE = 100000
+        
 
-    INDEX_COLUMNS=[  
-		'DATE'      ,   # ( 68,  74) - date
-		'ROUTE'     ,   # ( 75,  79)
-		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
-		'TRIP'      ,   # (119, 123) - trip
-                'SEQ'       ,   # (  0,   5) - stop sequence
-                ] 
-
-
-    def read_stp(self, filename):
+    def processRawData(self, infile, outfile):
         """
         Read SFMuniData and return it as a pandas dataframe
         
-        filename - in "raw STP" format
+        infile  - in "raw STP" format
+        outfile - output file name in h5 format
         """
-        df = pd.read_fwf(filename, 
+        
+        # set up the reader
+        reader = pd.read_fwf(infile, 
                          colspecs = self.COLSPECS, 
                          names    = self.COLNAMES, 
                          skiprows = self.HEADERROWS, 
                          usecols  = self.COLUMNS_TO_READ, 
                          iterator = True, 
-                         chunksize= 10000, 
-                         nrows    = 100000)
+                         chunksize= self.CHUNKSIZE)
 
-        # only include revenue service
-        # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
-        df = df[df['DIR'] < 2]
-
-        # filter by count QC (<=20 is default)
-        df = df[df['QC201'] <= 20]
-        
-        # filter where there is no route or no stop identified
-        df = df[df['ROUTE']>0]
-        df = df[df['QSTOP']<9999]
-        
-        # calculate some basic data adjustments
-        df['LON']      = -1 * df['LON']
-        df['LOAD_ARR'] = df['LOAD_DEP'] - df['ON'] + df['OFF']
-        
-        # generate empty fields        
-        df['TIMEPOINT'] = 0 
-        df['EOL'] = 0
-        df['TEPPER'] = 9
-        df['ROUTEA'] = ''
-        
-        # iterate through the rows for computed fields
-        for i, row in df.iterrows():
-            
-            # identify scheduled time points
-            if (df['TIMESTOP_S_INT'][i] < 9999): 
-                df['TIMEPOINT'][i] = 1
-            
-            # identify end-of-line stops
-            df['EOL'][i] = str(df['STOPNAME'][i]).count("- EOL")            
-            
-            # exclude beginning and end of line from DWELL time
-            if ((df['EOL'][i] == 1) or (df['SEQ'][i] == 1)): 
-                df['DWELL'][i] = 0
-        
-            # compute TEP time periods -- need to iterate
-            if (df['TRIP'][i] >= 300  and df['TRIP'][i] < 600):  
-                df['TEPPER'][i]=300
-            elif (df['TRIP'][i] >= 600  and df['TRIP'][i] < 900):  
-                df['TEPPER'][i]=600
-            elif (df['TRIP'][i] >= 900  and df['TRIP'][i] < 1400): 
-                df['TEPPER'][i]=900
-            elif (df['TRIP'][i] >= 1400 and df['TRIP'][i] < 1600): 
-                df['TEPPER'][i]=1400
-            elif (df['TRIP'][i] >= 1600 and df['TRIP'][i] < 1900): 
-                df['TEPPER'][i]=1600
-            elif (df['TRIP'][i] >= 1900 and df['TRIP'][i] < 2200): 
-                df['TEPPER'][i]=1900
-            elif (df['TRIP'][i] >= 2200 and df['TRIP'][i] < 9999): 
-                df['TEPPER'][i]=2200
+        # iterate through chunk by chunk so we don't run out of memory
+        rowsRead    = 0
+        rowsWritten = 0
+        for chunk in reader:     
                         
-            # compute numeric APC route to MUNI alpha -- need to iterate
-            if df['ROUTE'][i]==0:      df['ROUTEA'][i] = '0'
-            elif df['ROUTE'][i]==1:    df['ROUTEA'][i] = '1'
-            elif df['ROUTE'][i]==2:    df['ROUTEA'][i] = '2'
-            elif df['ROUTE'][i]==3:    df['ROUTEA'][i] = '3'
-            elif df['ROUTE'][i]==4:    df['ROUTEA'][i] = '4'
-            elif df['ROUTE'][i]==5:    df['ROUTEA'][i] = '5'
-            elif df['ROUTE'][i]==6:    df['ROUTEA'][i] = '6'
-            elif df['ROUTE'][i]==7:    df['ROUTEA'][i] = '7'
-            elif df['ROUTE'][i]==9:    df['ROUTEA'][i] = '9'
-            elif df['ROUTE'][i]==10:   df['ROUTEA'][i] = '10'
-            elif df['ROUTE'][i]==12:   df['ROUTEA'][i] = '12'
-            elif df['ROUTE'][i]==14:   df['ROUTEA'][i] = '14'
-            elif df['ROUTE'][i]==15:   df['ROUTEA'][i] = '15'
-            elif df['ROUTE'][i]==17:   df['ROUTEA'][i] = '17'
-            elif df['ROUTE'][i]==18:   df['ROUTEA'][i] = '18'
-            elif df['ROUTE'][i]==19:   df['ROUTEA'][i] = '19'
-            elif df['ROUTE'][i]==20:   df['ROUTEA'][i] = '20'
-            elif df['ROUTE'][i]==21:   df['ROUTEA'][i] = '21'
-            elif df['ROUTE'][i]==22:   df['ROUTEA'][i] = '22'
-            elif df['ROUTE'][i]==23:   df['ROUTEA'][i] = '23'
-            elif df['ROUTE'][i]==24:   df['ROUTEA'][i] = '24'
-            elif df['ROUTE'][i]==26:   df['ROUTEA'][i] = '26'
-            elif df['ROUTE'][i]==27:   df['ROUTEA'][i] = '27'
-            elif df['ROUTE'][i]==28:   df['ROUTEA'][i] = '28'
-            elif df['ROUTE'][i]==29:   df['ROUTEA'][i] = '29'
-            elif df['ROUTE'][i]==30:   df['ROUTEA'][i] = '30'
-            elif df['ROUTE'][i]==31:   df['ROUTEA'][i] = '31'
-            elif df['ROUTE'][i]==33:   df['ROUTEA'][i] = '33'
-            elif df['ROUTE'][i]==35:   df['ROUTEA'][i] = '35'
-            elif df['ROUTE'][i]==36:   df['ROUTEA'][i] = '36'
-            elif df['ROUTE'][i]==37:   df['ROUTEA'][i] = '37'
-            elif df['ROUTE'][i]==38:   df['ROUTEA'][i] = '38'
-            elif df['ROUTE'][i]==39:   df['ROUTEA'][i] = '39'
-            elif df['ROUTE'][i]==41:   df['ROUTEA'][i] = '41'
-            elif df['ROUTE'][i]==43:   df['ROUTEA'][i] = '43'
-            elif df['ROUTE'][i]==44:   df['ROUTEA'][i] = '44'
-            elif df['ROUTE'][i]==45:   df['ROUTEA'][i] = '45'
-            elif df['ROUTE'][i]==47:   df['ROUTEA'][i] = '47'
-            elif df['ROUTE'][i]==48:   df['ROUTEA'][i] = '48'
-            elif df['ROUTE'][i]==49:   df['ROUTEA'][i] = '49'
-            elif df['ROUTE'][i]==52:   df['ROUTEA'][i] = '52'
-            elif df['ROUTE'][i]==53:   df['ROUTEA'][i] = '53'
-            elif df['ROUTE'][i]==54:   df['ROUTEA'][i] = '54'
-            elif df['ROUTE'][i]==56:   df['ROUTEA'][i] = '56'
-            elif df['ROUTE'][i]==66:   df['ROUTEA'][i] = '66'
-            elif df['ROUTE'][i]==67:   df['ROUTEA'][i] = '67'
-            elif df['ROUTE'][i]==71:   df['ROUTEA'][i] = '71'
-            elif df['ROUTE'][i]==76:   df['ROUTEA'][i] = '76'
-            elif df['ROUTE'][i]==88:   df['ROUTEA'][i] = '88'
-            elif df['ROUTE'][i]==89:   df['ROUTEA'][i] = '89'
-            elif df['ROUTE'][i]==90:   df['ROUTEA'][i] = '90'
-            elif df['ROUTE'][i]==91:   df['ROUTEA'][i] = '91'
-            elif df['ROUTE'][i]==92:   df['ROUTEA'][i] = '92'
-            elif df['ROUTE'][i]==108:  df['ROUTEA'][i] = '108'
-            elif df['ROUTE'][i]==509:  df['ROUTEA'][i] = '9L (509)'
-            elif df['ROUTE'][i]==514:  df['ROUTEA'][i] = '14L (514)'
-            elif df['ROUTE'][i]==528:  df['ROUTEA'][i] = '28L (528)'
-            elif df['ROUTE'][i]==538:  df['ROUTEA'][i] = '38L (538)'
-            elif df['ROUTE'][i]==571:  df['ROUTEA'][i] = '71L (571)'
-            elif df['ROUTE'][i]==601:  df['ROUTEA'][i] = 'KOWL (601)'
-            elif df['ROUTE'][i]==602:  df['ROUTEA'][i] = 'LOWL (602)'
-            elif df['ROUTE'][i]==603:  df['ROUTEA'][i] = 'MOWL (603)'
-            elif df['ROUTE'][i]==604:  df['ROUTEA'][i] = 'NOWL (604)'
-            elif df['ROUTE'][i]==605:  df['ROUTEA'][i] = 'N (605)'
-            elif df['ROUTE'][i]==606:  df['ROUTEA'][i] = 'J (606)'
-            elif df['ROUTE'][i]==607:  df['ROUTEA'][i] = 'F (607)'
-            elif df['ROUTE'][i]==608:  df['ROUTEA'][i] = 'K (608)'
-            elif df['ROUTE'][i]==609:  df['ROUTEA'][i] = 'L (609)'
-            elif df['ROUTE'][i]==610:  df['ROUTEA'][i] = 'M (610)'
-            elif df['ROUTE'][i]==611:  df['ROUTEA'][i] = 'S (611)'
-            elif df['ROUTE'][i]==612:  df['ROUTEA'][i] = 'T (612)'
-            elif df['ROUTE'][i]==708:  df['ROUTEA'][i] = '8X (708)'
-            elif df['ROUTE'][i]==709:  df['ROUTEA'][i] = '9X (709)'
-            elif df['ROUTE'][i]==714:  df['ROUTEA'][i] = '14X (714)'
-            elif df['ROUTE'][i]==716:  df['ROUTEA'][i] = '16X (716)'
-            elif df['ROUTE'][i]==730:  df['ROUTEA'][i] = '30X (730)'
-            elif df['ROUTE'][i]==780:  df['ROUTEA'][i] = '80X (780)'
-            elif df['ROUTE'][i]==781:  df['ROUTEA'][i] = '81X (781)'
-            elif df['ROUTE'][i]==782:  df['ROUTEA'][i] = '82X (782)'
-            elif df['ROUTE'][i]==797:  df['ROUTEA'][i] = 'NX (797)'
-            elif df['ROUTE'][i]==801:  df['ROUTEA'][i] = '1BX (801)'
-            elif df['ROUTE'][i]==808:  df['ROUTEA'][i] = '8BX (808)'
-            elif df['ROUTE'][i]==809:  df['ROUTEA'][i] = '9BX (809)'
-            elif df['ROUTE'][i]==816:  df['ROUTEA'][i] = '16BX (816)'
-            elif df['ROUTE'][i]==831:  df['ROUTEA'][i] = '31BX (831)'
-            elif df['ROUTE'][i]==838:  df['ROUTEA'][i] = '38BX (838)'
-            elif df['ROUTE'][i]==901:  df['ROUTEA'][i] = '1AX (901)'
-            elif df['ROUTE'][i]==908:  df['ROUTEA'][i] = '8AX (908)'
-            elif df['ROUTE'][i]==909:  df['ROUTEA'][i] = '9AX (909)'
-            elif df['ROUTE'][i]==914:  df['ROUTEA'][i] = '14X (914)'
-            elif df['ROUTE'][i]==916:  df['ROUTEA'][i] = '16AX (916)'
-            elif df['ROUTE'][i]==931:  df['ROUTEA'][i] = '31AX (931)'
-            elif df['ROUTE'][i]==938:  df['ROUTEA'][i] = '38AX (938)'
-        
-        # convert to timedate formats
-        # trick here is that the MUNI service day starts and ends at 3 am, 
-        # so boardings from midnight to 3 have a service date of the day before
-        df['DATE']        = ''
-        df['TIMESTOP']    = ''
-        df['DOORCLOSE']   = ''
-        df['PULLOUT']     = ''
-        df['TIMESTOP_S']  = '0101010101'
-        df['DOORCLOSE_S'] = '0101010101'
-        df['PULLDWELL']   = 0.0
+            rowsRead    += len(chunk)
 
-        # convert to string formats
-        for i, row in df.iterrows():        
-            df['DATE'][i] = "{0:0>6}".format(df['DATE_INT'][i])   
+            # in at least 1 row, the fixed format text file gets misaligned
+            # so test for specfic values being 999 instead of 9999
+            chunk = chunk[chunk['NEXTTRIP'] != 999]
+
+            # only include revenue service
+            # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
+            chunk = chunk[chunk['DIR'] < 2]
+    
+            # filter by count QC (<=20 is default)
+            chunk = chunk[chunk['QC201'] <= 20]
             
-            if (df['TIMESTOP_INT'][i] >= 240000): 
-                df['TIMESTOP_INT'][i] = df['TIMESTOP_INT'][i] - 240000
-            df['TIMESTOP'][i] = df['DATE'][i] + "{0:0>6}".format(df['TIMESTOP_INT'][i])            
-
-            if (df['DOORCLOSE_INT'][i] >= 240000): 
-                df['DOORCLOSE_INT'][i] = df['DOORCLOSE_INT'][i] - 240000
-            df['DOORCLOSE'][i] = df['DATE'][i] + "{0:0>6}".format(df['DOORCLOSE_INT'][i])
-
-            if (df['PULLOUT_INT'][i] >= 240000): 
-                df['PULLOUT_INT'][i] = df['PULLOUT_INT'][i] - 240000
-            df['PULLOUT'][i] = df['DATE'][i] + "{0:0>6}".format(df['PULLOUT_INT'][i])
+            # filter where there is no route or no stop identified
+            chunk = chunk[chunk['ROUTE']>0]
+            chunk = chunk[chunk['QSTOP']<9999]
             
-            # schedule times only at timepoints
-            if (df['TIMEPOINT'][i]==1): 
-                if (df['TIMESTOP_S_INT'][i] >= 2400): 
-                    df['TIMESTOP_S_INT'][i] = df['TIMESTOP_S_INT'][i] - 2400
-                df['TIMESTOP_S'][i] = df['DATE'][i] + "{0:0>4}".format(df['TIMESTOP_S_INT'][i])            
-
-                if (df['DOORCLOSE_S_INT'][i] >= 2400): 
-                    df['DOORCLOSE_S_INT'][i] = df['DOORCLOSE_S_INT'][i] - 2400
-                df['DOORCLOSE_S'][i] = df['DATE'][i] + "{0:0>4}".format(df['DOORCLOSE_S_INT'][i])
-
-        # convert to timedate formats
-        df['DATE'] = pd.to_datetime(df['DATE'], format="%m%d%y")
-        df['TIMESTOP']    = pd.to_datetime(df['TIMESTOP'],    format="%m%d%y%H%M%S")        
-        df['DOORCLOSE']   = pd.to_datetime(df['DOORCLOSE'],   format="%m%d%y%H%M%S")    
-        df['PULLOUT']     = pd.to_datetime(df['PULLOUT'],     format="%m%d%y%H%M%S")
-        df['TIMESTOP_S']  = pd.to_datetime(df['TIMESTOP_S'],  format="%m%d%y%H%M")        
-        df['DOORCLOSE_S'] = pd.to_datetime(df['DOORCLOSE_S'], format="%m%d%y%H%M")    
-
-        # deal with offsets for midnight to 3 am
-        for i, row in df.iterrows():       
-            if (df['TIMESTOP'][i].hour < 3): 
-                df['TIMESTOP'][i] = df['TIMESTOP'][i] + pd.DateOffset(days=1)
-
-            if (df['DOORCLOSE'][i].hour < 3): 
-                df['DOORCLOSE'][i] = df['DOORCLOSE'][i] + pd.DateOffset(days=1)
-
-            if (df['PULLOUT'][i].hour < 3): 
-                df['PULLOUT'][i]   = df['PULLOUT'][i] + pd.DateOffset(days=1)
+            # calculate some basic data adjustments
+            chunk['LON']      = -1 * chunk['LON']
+            chunk['LOAD_ARR'] = chunk['LOAD_DEP'] - chunk['ON'] + chunk['OFF']
             
-            # schedule only valide at timepoints
-            if (df['TIMEPOINT'][i] == 0): 
-
-                df['TIMESTOP_S'][i]    = pd.NaT
-                df['DOORCLOSE_S'][i]   = pd.NaT
-                df['TIMESTOP_DEV'][i]  = np.NaN
-                df['DOORCLOSE_DEV'][i] = np.NaN
-                df['RUNTIME'][i]       = np.NaN
-                df['RUNTIME_S'][i]     = np.NaN
-
-            else:     
+            # generate empty fields        
+            chunk['TIMEPOINT'] = 0 
+            chunk['EOL'] = 0
+            chunk['TEPPER'] = 9
+            chunk['ROUTEA'] = ''
+            
+            # iterate through the rows for computed fields
+            for i, row in chunk.iterrows():
                 
-                if (df['TIMESTOP_S'][i].hour < 3): 
-                    df['TIMESTOP_S'][i] = df['TIMESTOP_S'][i] + pd.DateOffset(days=1)
-
-                if (df['DOORCLOSE_S'][i].hour < 3): 
-                    df['DOORCLOSE_S'][i] = df['DOORCLOSE_S'][i] + pd.DateOffset(days=1)
-        
-            # PULLDWELL = pullout dwell (time interval between door close and movement)
-            if (df['EOL'][i]==0):
-                pulldwell = df['PULLOUT'][i] - df['DOORCLOSE'][i]
-                df['PULLDWELL'][i] = round(pulldwell.seconds / 60.0, 2)
+                # identify scheduled time points
+                if (chunk['TIMESTOP_S_INT'][i] < 9999): 
+                    chunk['TIMEPOINT'][i] = 1
                 
-        # replace missing values as appropriate -- this doesn't seem to work
-        df['SCHOOL'].replace(9999, 0)
-        
-        # sort in logical order for viewing
-        df.sort_index(by=self.INDEX_COLUMNS, inplace=True)
-        
-        # drop duplicates (not sure why these occur)
-        df.drop_duplicates(cols=self.INDEX_COLUMNS, inplace=True) 
-        
-        # set the index 
-        df.set_index(self.INDEX_COLUMNS, drop=False, inplace=True, 
-            verify_integrity=True)
+                # identify end-of-line stops
+                chunk['EOL'][i] = str(chunk['STOPNAME'][i]).count("- EOL")            
+                
+                # exclude beginning and end of line from DWELL time
+                if ((chunk['EOL'][i] == 1) or (chunk['SEQ'][i] == 1)): 
+                    chunk['DWELL'][i] = 0
+            
+                # compute TEP time periods -- need to iterate
+                if (chunk['TRIP'][i] >= 300  and chunk['TRIP'][i] < 600):  
+                    chunk['TEPPER'][i]=300
+                elif (chunk['TRIP'][i] >= 600  and chunk['TRIP'][i] < 900):  
+                    chunk['TEPPER'][i]=600
+                elif (chunk['TRIP'][i] >= 900  and chunk['TRIP'][i] < 1400): 
+                    chunk['TEPPER'][i]=900
+                elif (chunk['TRIP'][i] >= 1400 and chunk['TRIP'][i] < 1600): 
+                    chunk['TEPPER'][i]=1400
+                elif (chunk['TRIP'][i] >= 1600 and chunk['TRIP'][i] < 1900): 
+                    chunk['TEPPER'][i]=1600
+                elif (chunk['TRIP'][i] >= 1900 and chunk['TRIP'][i] < 2200): 
+                    chunk['TEPPER'][i]=1900
+                elif (chunk['TRIP'][i] >= 2200 and chunk['TRIP'][i] < 9999): 
+                    chunk['TEPPER'][i]=2200
+                            
+                # compute numeric APC route to MUNI alpha -- need to iterate
+                if chunk['ROUTE'][i]==0:      chunk['ROUTEA'][i] = '0'
+                elif chunk['ROUTE'][i]==1:    chunk['ROUTEA'][i] = '1'
+                elif chunk['ROUTE'][i]==2:    chunk['ROUTEA'][i] = '2'
+                elif chunk['ROUTE'][i]==3:    chunk['ROUTEA'][i] = '3'
+                elif chunk['ROUTE'][i]==4:    chunk['ROUTEA'][i] = '4'
+                elif chunk['ROUTE'][i]==5:    chunk['ROUTEA'][i] = '5'
+                elif chunk['ROUTE'][i]==6:    chunk['ROUTEA'][i] = '6'
+                elif chunk['ROUTE'][i]==7:    chunk['ROUTEA'][i] = '7'
+                elif chunk['ROUTE'][i]==9:    chunk['ROUTEA'][i] = '9'
+                elif chunk['ROUTE'][i]==10:   chunk['ROUTEA'][i] = '10'
+                elif chunk['ROUTE'][i]==12:   chunk['ROUTEA'][i] = '12'
+                elif chunk['ROUTE'][i]==14:   chunk['ROUTEA'][i] = '14'
+                elif chunk['ROUTE'][i]==15:   chunk['ROUTEA'][i] = '15'
+                elif chunk['ROUTE'][i]==17:   chunk['ROUTEA'][i] = '17'
+                elif chunk['ROUTE'][i]==18:   chunk['ROUTEA'][i] = '18'
+                elif chunk['ROUTE'][i]==19:   chunk['ROUTEA'][i] = '19'
+                elif chunk['ROUTE'][i]==20:   chunk['ROUTEA'][i] = '20'
+                elif chunk['ROUTE'][i]==21:   chunk['ROUTEA'][i] = '21'
+                elif chunk['ROUTE'][i]==22:   chunk['ROUTEA'][i] = '22'
+                elif chunk['ROUTE'][i]==23:   chunk['ROUTEA'][i] = '23'
+                elif chunk['ROUTE'][i]==24:   chunk['ROUTEA'][i] = '24'
+                elif chunk['ROUTE'][i]==26:   chunk['ROUTEA'][i] = '26'
+                elif chunk['ROUTE'][i]==27:   chunk['ROUTEA'][i] = '27'
+                elif chunk['ROUTE'][i]==28:   chunk['ROUTEA'][i] = '28'
+                elif chunk['ROUTE'][i]==29:   chunk['ROUTEA'][i] = '29'
+                elif chunk['ROUTE'][i]==30:   chunk['ROUTEA'][i] = '30'
+                elif chunk['ROUTE'][i]==31:   chunk['ROUTEA'][i] = '31'
+                elif chunk['ROUTE'][i]==33:   chunk['ROUTEA'][i] = '33'
+                elif chunk['ROUTE'][i]==35:   chunk['ROUTEA'][i] = '35'
+                elif chunk['ROUTE'][i]==36:   chunk['ROUTEA'][i] = '36'
+                elif chunk['ROUTE'][i]==37:   chunk['ROUTEA'][i] = '37'
+                elif chunk['ROUTE'][i]==38:   chunk['ROUTEA'][i] = '38'
+                elif chunk['ROUTE'][i]==39:   chunk['ROUTEA'][i] = '39'
+                elif chunk['ROUTE'][i]==41:   chunk['ROUTEA'][i] = '41'
+                elif chunk['ROUTE'][i]==43:   chunk['ROUTEA'][i] = '43'
+                elif chunk['ROUTE'][i]==44:   chunk['ROUTEA'][i] = '44'
+                elif chunk['ROUTE'][i]==45:   chunk['ROUTEA'][i] = '45'
+                elif chunk['ROUTE'][i]==47:   chunk['ROUTEA'][i] = '47'
+                elif chunk['ROUTE'][i]==48:   chunk['ROUTEA'][i] = '48'
+                elif chunk['ROUTE'][i]==49:   chunk['ROUTEA'][i] = '49'
+                elif chunk['ROUTE'][i]==52:   chunk['ROUTEA'][i] = '52'
+                elif chunk['ROUTE'][i]==53:   chunk['ROUTEA'][i] = '53'
+                elif chunk['ROUTE'][i]==54:   chunk['ROUTEA'][i] = '54'
+                elif chunk['ROUTE'][i]==56:   chunk['ROUTEA'][i] = '56'
+                elif chunk['ROUTE'][i]==66:   chunk['ROUTEA'][i] = '66'
+                elif chunk['ROUTE'][i]==67:   chunk['ROUTEA'][i] = '67'
+                elif chunk['ROUTE'][i]==71:   chunk['ROUTEA'][i] = '71'
+                elif chunk['ROUTE'][i]==76:   chunk['ROUTEA'][i] = '76'
+                elif chunk['ROUTE'][i]==88:   chunk['ROUTEA'][i] = '88'
+                elif chunk['ROUTE'][i]==89:   chunk['ROUTEA'][i] = '89'
+                elif chunk['ROUTE'][i]==90:   chunk['ROUTEA'][i] = '90'
+                elif chunk['ROUTE'][i]==91:   chunk['ROUTEA'][i] = '91'
+                elif chunk['ROUTE'][i]==92:   chunk['ROUTEA'][i] = '92'
+                elif chunk['ROUTE'][i]==108:  chunk['ROUTEA'][i] = '108'
+                elif chunk['ROUTE'][i]==509:  chunk['ROUTEA'][i] = '9L (509)'
+                elif chunk['ROUTE'][i]==514:  chunk['ROUTEA'][i] = '14L (514)'
+                elif chunk['ROUTE'][i]==528:  chunk['ROUTEA'][i] = '28L (528)'
+                elif chunk['ROUTE'][i]==538:  chunk['ROUTEA'][i] = '38L (538)'
+                elif chunk['ROUTE'][i]==571:  chunk['ROUTEA'][i] = '71L (571)'
+                elif chunk['ROUTE'][i]==601:  chunk['ROUTEA'][i] = 'KOWL (601)'
+                elif chunk['ROUTE'][i]==602:  chunk['ROUTEA'][i] = 'LOWL (602)'
+                elif chunk['ROUTE'][i]==603:  chunk['ROUTEA'][i] = 'MOWL (603)'
+                elif chunk['ROUTE'][i]==604:  chunk['ROUTEA'][i] = 'NOWL (604)'
+                elif chunk['ROUTE'][i]==605:  chunk['ROUTEA'][i] = 'N (605)'
+                elif chunk['ROUTE'][i]==606:  chunk['ROUTEA'][i] = 'J (606)'
+                elif chunk['ROUTE'][i]==607:  chunk['ROUTEA'][i] = 'F (607)'
+                elif chunk['ROUTE'][i]==608:  chunk['ROUTEA'][i] = 'K (608)'
+                elif chunk['ROUTE'][i]==609:  chunk['ROUTEA'][i] = 'L (609)'
+                elif chunk['ROUTE'][i]==610:  chunk['ROUTEA'][i] = 'M (610)'
+                elif chunk['ROUTE'][i]==611:  chunk['ROUTEA'][i] = 'S (611)'
+                elif chunk['ROUTE'][i]==612:  chunk['ROUTEA'][i] = 'T (612)'
+                elif chunk['ROUTE'][i]==708:  chunk['ROUTEA'][i] = '8X (708)'
+                elif chunk['ROUTE'][i]==709:  chunk['ROUTEA'][i] = '9X (709)'
+                elif chunk['ROUTE'][i]==714:  chunk['ROUTEA'][i] = '14X (714)'
+                elif chunk['ROUTE'][i]==716:  chunk['ROUTEA'][i] = '16X (716)'
+                elif chunk['ROUTE'][i]==730:  chunk['ROUTEA'][i] = '30X (730)'
+                elif chunk['ROUTE'][i]==780:  chunk['ROUTEA'][i] = '80X (780)'
+                elif chunk['ROUTE'][i]==781:  chunk['ROUTEA'][i] = '81X (781)'
+                elif chunk['ROUTE'][i]==782:  chunk['ROUTEA'][i] = '82X (782)'
+                elif chunk['ROUTE'][i]==797:  chunk['ROUTEA'][i] = 'NX (797)'
+                elif chunk['ROUTE'][i]==801:  chunk['ROUTEA'][i] = '1BX (801)'
+                elif chunk['ROUTE'][i]==808:  chunk['ROUTEA'][i] = '8BX (808)'
+                elif chunk['ROUTE'][i]==809:  chunk['ROUTEA'][i] = '9BX (809)'
+                elif chunk['ROUTE'][i]==816:  chunk['ROUTEA'][i] = '16BX (816)'
+                elif chunk['ROUTE'][i]==831:  chunk['ROUTEA'][i] = '31BX (831)'
+                elif chunk['ROUTE'][i]==838:  chunk['ROUTEA'][i] = '38BX (838)'
+                elif chunk['ROUTE'][i]==901:  chunk['ROUTEA'][i] = '1AX (901)'
+                elif chunk['ROUTE'][i]==908:  chunk['ROUTEA'][i] = '8AX (908)'
+                elif chunk['ROUTE'][i]==909:  chunk['ROUTEA'][i] = '9AX (909)'
+                elif chunk['ROUTE'][i]==914:  chunk['ROUTEA'][i] = '14X (914)'
+                elif chunk['ROUTE'][i]==916:  chunk['ROUTEA'][i] = '16AX (916)'
+                elif chunk['ROUTE'][i]==931:  chunk['ROUTEA'][i] = '31AX (931)'
+                elif chunk['ROUTE'][i]==938:  chunk['ROUTEA'][i] = '38AX (938)'
+            
+            # convert to timedate formats
+            # trick here is that the MUNI service day starts and ends at 3 am, 
+            # so boardings from midnight to 3 have a service date of the day before
+            chunk['DATE']        = ''
+            chunk['TIMESTOP']    = ''
+            chunk['DOORCLOSE']   = ''
+            chunk['PULLOUT']     = ''
+            chunk['TIMESTOP_S']  = '0101010101'
+            chunk['DOORCLOSE_S'] = '0101010101'
+            chunk['PULLDWELL']   = 0.0
+    
+            # convert to string formats
+            for i, row in chunk.iterrows():        
+                chunk['DATE'][i] = "{0:0>6}".format(chunk['DATE_INT'][i])   
+                
+                if (chunk['TIMESTOP_INT'][i] >= 240000): 
+                    chunk['TIMESTOP_INT'][i] = chunk['TIMESTOP_INT'][i] - 240000
+                chunk['TIMESTOP'][i] = (chunk['DATE'][i] + 
+                    "{0:0>6}".format(chunk['TIMESTOP_INT'][i]))         
+    
+                if (chunk['DOORCLOSE_INT'][i] >= 240000): 
+                    chunk['DOORCLOSE_INT'][i] = chunk['DOORCLOSE_INT'][i] - 240000
+                chunk['DOORCLOSE'][i] = (chunk['DATE'][i] + 
+                    "{0:0>6}".format(chunk['DOORCLOSE_INT'][i]))
+    
+                if (chunk['PULLOUT_INT'][i] >= 240000): 
+                    chunk['PULLOUT_INT'][i] = chunk['PULLOUT_INT'][i] - 240000
+                chunk['PULLOUT'][i] = (chunk['DATE'][i] + 
+                    "{0:0>6}".format(chunk['PULLOUT_INT'][i]))
+                
+                # schedule times only at timepoints
+                if (chunk['TIMEPOINT'][i]==1): 
+                    if (chunk['TIMESTOP_S_INT'][i] >= 2400): 
+                        chunk['TIMESTOP_S_INT'][i] = chunk['TIMESTOP_S_INT'][i] - 2400
+                    chunk['TIMESTOP_S'][i] = (chunk['DATE'][i] + 
+                        "{0:0>4}".format(chunk['TIMESTOP_S_INT'][i]))           
+    
+                    if (chunk['DOORCLOSE_S_INT'][i] >= 2400): 
+                        chunk['DOORCLOSE_S_INT'][i] = chunk['DOORCLOSE_S_INT'][i] - 2400
+                    chunk['DOORCLOSE_S'][i] = (chunk['DATE'][i] + 
+                        "{0:0>4}".format(chunk['DOORCLOSE_S_INT'][i]))
+    
+            # convert to timedate formats
+            chunk['DATE'] = pd.to_datetime(chunk['DATE'], format="%m%d%y")
+            chunk['TIMESTOP']    = pd.to_datetime(chunk['TIMESTOP'],    format="%m%d%y%H%M%S")        
+            chunk['DOORCLOSE']   = pd.to_datetime(chunk['DOORCLOSE'],   format="%m%d%y%H%M%S")    
+            chunk['PULLOUT']     = pd.to_datetime(chunk['PULLOUT'],     format="%m%d%y%H%M%S")
+            chunk['TIMESTOP_S']  = pd.to_datetime(chunk['TIMESTOP_S'],  format="%m%d%y%H%M")        
+            chunk['DOORCLOSE_S'] = pd.to_datetime(chunk['DOORCLOSE_S'], format="%m%d%y%H%M")    
+    
+            # deal with offsets for midnight to 3 am
+            for i, row in chunk.iterrows():       
+                if (chunk['TIMESTOP'][i].hour < 3): 
+                    chunk['TIMESTOP'][i] = chunk['TIMESTOP'][i] + pd.DateOffset(days=1)
+    
+                if (chunk['DOORCLOSE'][i].hour < 3): 
+                    chunk['DOORCLOSE'][i] = chunk['DOORCLOSE'][i] + pd.DateOffset(days=1)
+    
+                if (chunk['PULLOUT'][i].hour < 3): 
+                    chunk['PULLOUT'][i]   = chunk['PULLOUT'][i] + pd.DateOffset(days=1)
+                
+                # schedule only valide at timepoints
+                if (chunk['TIMEPOINT'][i] == 0): 
+    
+                    chunk['TIMESTOP_S'][i]    = pd.NaT
+                    chunk['DOORCLOSE_S'][i]   = pd.NaT
+                    chunk['TIMESTOP_DEV'][i]  = np.NaN
+                    chunk['DOORCLOSE_DEV'][i] = np.NaN
+                    chunk['RUNTIME'][i]       = np.NaN
+                    chunk['RUNTIME_S'][i]     = np.NaN
+    
+                else:     
+                    
+                    if (chunk['TIMESTOP_S'][i].hour < 3): 
+                        chunk['TIMESTOP_S'][i] = chunk['TIMESTOP_S'][i] + pd.DateOffset(days=1)
+    
+                    if (chunk['DOORCLOSE_S'][i].hour < 3): 
+                        chunk['DOORCLOSE_S'][i] = chunk['DOORCLOSE_S'][i] + pd.DateOffset(days=1)
+            
+                # PULLDWELL = pullout dwell (time interval between door close and movement)
+                if (chunk['EOL'][i]==0):
+                    pulldwell = chunk['PULLOUT'][i] - chunk['DOORCLOSE'][i]
+                    chunk['PULLDWELL'][i] = round(pulldwell.seconds / 60.0, 2)
+              
+            # because of misalinged row, it sometimes auto-detects inconsistent
+            # data types, so force them as needed
+            chunk['NEXTTRIP']      = chunk['NEXTTRIP'].astype('int64')
+            chunk['DOORCLOSE_DEV'] = chunk['DOORCLOSE_DEV'].astype('float64')
+            chunk['DELTAA']        = chunk['DELTAA'].astype('int64')   
+            chunk['DWELL_S']       = chunk['DWELL_S'].astype('int64')  
+            chunk['DWDI']          = chunk['DWDI'].astype('int64')
+            
 
-        # re-order the columns
-        df2 = df[self.REORDERED_COLUMNS]
+            # drop duplicates (not sure why these occur)
+            chunk.drop_duplicates(cols=self.INDEX_COLUMNS, inplace=True) 
 
-        return df2
+            # set the index 
+            for i in range(len(self.INDEX_COLUMNS)):
+                chunk[self.INDEX_NAMES[i]] = chunk[self.INDEX_COLUMNS[i]]
+            chunk.set_index(self.INDEX_NAMES, drop=True, inplace=True, 
+                verify_integrity=True)
+            chunk.sort_index()
+                            
+            # re-order the columns
+            df = chunk[self.REORDERED_COLUMNS]
+
+            # write the data
+            try: 
+                df.to_hdf(outfile, 'df', append=True)
+            except ValueError: 
+                store = pd.HDFStore(outfile)
+                print 'Structure of HDF5 file is: '
+                print store.df.dtypes
+                store.close()
+                
+                print 'Structure of current dataframe is: '
+                print df.dtypes
+                
+                raise
+                
+
+            rowsWritten += len(df)
+            print 'Read %i rows and kept %i rows.' % (rowsRead, rowsWritten)
     
     
     def write_hdf(self, df, filename):
@@ -608,7 +650,7 @@ class SFMuniDataHelper():
         
         filename - output file to write
         """
-        df.to_hdf(filename, 'table', append=False)        
+        df.to_hdf(filename, 'df', append=False)        
     
     
     def read_hdf(self, filename):
@@ -617,6 +659,6 @@ class SFMuniDataHelper():
         
         filename - in converted hdf5 format
         """
-        df  = pd.read_hdf(filename, 'table')
+        df  = pd.read_hdf(filename, 'df')
         
         return df

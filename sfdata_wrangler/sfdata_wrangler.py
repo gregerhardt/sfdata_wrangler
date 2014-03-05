@@ -28,16 +28,18 @@ from DataFrameViewer import DataFrameViewer
 
 if __name__ == "__main__":
     
-    # read the data
+    # eventually convert filenames to arguments
+    infile  = "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp"
+    outfile = "C:/CASA/DataExploration/sfmuni.h5"
+    
+    # convert the data
     sfmuniHelper = SFMuniDataHelper()
-    df1 = sfmuniHelper.read_stp("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp")
+    sfmuniHelper.processRawData(infile, outfile)
         
-    # write the data
-    sfmuniHelper.write_hdf(df1, "C:/CASA/DataExploration/sfmuni.h5")
-
     # read it back in
-    df2 = sfmuniHelper.read_hdf("C:/CASA/DataExploration/sfmuni.h5")    
+    store = pd.HDFStore(outfile)
+    df = store.df[500:1500]    
 
     # let the user view the first 1000 rows
     vw = DataFrameViewer()
-    vw.view(df2[1:1000])
+    vw.view(df)
