@@ -42,9 +42,9 @@ if __name__ == "__main__":
     print 'Finished converting data in ', elapsedTime
         
     # read it back in
-    store = pd.HDFStore(outfile)
-    df = store.df[500:1500]    
+    #store = pd.HDFStore(outfile)
+    #df = store.df[500:1500]    
 
     # let the user view the first 1000 rows
-    vw = DataFrameViewer()
-    vw.view(df)
+    #vw = DataFrameViewer()
+    #vw.view(df)

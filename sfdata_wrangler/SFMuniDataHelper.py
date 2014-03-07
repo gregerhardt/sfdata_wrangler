@@ -340,17 +340,16 @@ class SFMuniDataHelper():
 		    
     # uniquely define the records
     INDEX_COLUMNS=['DATE', 'ROUTE', 'DIR', 'TRIP','SEQ'] 
-    INDEX_NAMES  =['DATE_IDX', 'ROUTE_IDX', 'DIR_IDX', 'TRIP_IDX','SEQ_IDX'] 
-    
+
     # define string lengths (otherwise would be set by first chunk)    
-    STRING_LENGTHS={  
-		'ROUTEA'   :10,   #            - alphanumeric route name
-		'PATTCODE' :10,   # (305, 315) - pattern code
-		'STOPNAME' :32,   # ( 15,  47) - stop name	
-		'NS'       : 2,   # (289, 290) - north/south
-		'EW'       : 2,   # (291, 292) - east/west
-                } 
-        
+    STRING_LENGTHS=[  
+		('ROUTEA'   ,10),   #            - alphanumeric route name
+		('PATTCODE' ,10),   # (305, 315) - pattern code
+		('STOPNAME' ,32),   # ( 15,  47) - stop name	
+		('NS'       , 2),   # (289, 290) - north/south		
+		('EW'       , 2)    # (291, 292) - east/west
+                ]
+                    
 
     def processRawData(self, infile, outfile):
         """
@@ -622,23 +621,17 @@ class SFMuniDataHelper():
             chunk['DWDI']          = chunk['DWDI'].astype('int64')
             
 
-            # drop duplicates (not sure why these occur)
+            # drop duplicates (not sure why these occur) and sort
             chunk.drop_duplicates(cols=self.INDEX_COLUMNS, inplace=True) 
-
-            # set the index 
-            for i in range(len(self.INDEX_COLUMNS)):
-                chunk[self.INDEX_NAMES[i]] = chunk[self.INDEX_COLUMNS[i]]
-            chunk.set_index(self.INDEX_NAMES, drop=True, inplace=True, 
-                verify_integrity=True)
-            chunk.sort_index()
+            chunk.sort(self.INDEX_COLUMNS, inplace=True)
                             
             # re-order the columns
             df = chunk[self.REORDERED_COLUMNS]
-
+        
             # write the data
             try: 
                 store.append('df', df, data_columns=True, 
-                    min_itemsize=self.STRING_LENGTHS)
+                    min_itemsize=dict(self.STRING_LENGTHS))
             except ValueError: 
                 store = pd.HDFStore(outfile)
                 print 'Structure of HDF5 file is: '
