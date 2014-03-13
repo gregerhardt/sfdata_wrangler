@@ -33,14 +33,24 @@ if __name__ == "__main__":
     
     startTime = datetime.datetime.now()   
     print 'Started at ', startTime
+    sfmuniHelper = SFMuniDataHelper()
 
     # convert the data
-    sfmuniHelper = SFMuniDataHelper()
     sfmuniHelper.processRawData(infile, outfile)
         
-    elapsedTime = datetime.datetime.now() - startTime
-    print 'Finished converting data in ', elapsedTime
+    convertedTime = datetime.datetime.now() 
+    print 'Finished converting data in ', (convertedTime - startTime)
+    
+    # aggregate to period totals
+    #sfmuniHelper.aggregateTotals(outfile, 'daily', 
+    #    ['ROUTE', 'DIR', 'SEQ'])
         
+    #sfmuniHelper.aggregateTotals(outfile, 'period', 
+    #    ['ROUTE', 'DIR', 'TEPPER', 'SEQ'])
+        
+    #aggregatedTime = datetime.datetime.now()
+    #print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 
+                
     # read it back in
     #store = pd.HDFStore(outfile)
     #df = store.df[500:1500]    

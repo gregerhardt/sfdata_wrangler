@@ -68,7 +68,7 @@ class SFMuniDataHelper():
 		(119, 123), # 'TRIP'     - trip
 		(124, 125), # 'DOORCYCLES'- door cycles
 		(126, 130), # 'DELTA'    - delta
-		(131, 132), # 'DOW'      - day of week
+		(131, 132), # 'DOW'      - day of week -- input data is not reliable
 		(133, 134), # 'DIR'      
 		(135, 140), # 'VEHMILES' - delta vehicle miles  - miles bus travels from last stop
 		(141, 145), # 'DLPMIN'   - delta minutes
@@ -259,13 +259,13 @@ class SFMuniDataHelper():
                 'SEQ'       ,   # (  0,   5) - stop sequence
                 
                 # route/trip attributes
+                'DOW'       ,   #            - day of week (1=Monday, 7=Sunday)
 		'ROUTEA'    ,   #            - alphanumeric route name
 		'PATTCODE'  ,   # (305, 315) - pattern code
 		'VEHNO'     ,   # (161, 165) - bus number
 		'SCHOOL'    ,   # (329, 335) - school trip
 		'LASTTRIP'  ,   # (417, 421) - previous trip
 		'NEXTTRIP'  ,   # (422, 426) - next trip
-		'DOW'       ,   # (131, 132) - day of week
 		'TEPPER'    ,   #            - aggregate time period
 		
 		# stop attributes
@@ -350,10 +350,74 @@ class SFMuniDataHelper():
 		('EW'       , 2)    # (291, 292) - east/west
                 ]
                     
+    # define the mechanism for aggregation
+    AGGREGATION_METHOD = [
+            ('DATE'         , 'first'),
+            ('TRIP'         , 'count'),            
+            ('ROUTEA'       , 'first'), 
+            ('DOW'          , 'first'), 
+            ('QSTOP'        , 'first'), 
+            ('STOPNAME'     , 'first'), 
+            ('TIMEPOINT'    , 'first'), 
+            ('EOL'          , 'first'), 
+            ('VEHMILES'     , 'sum'), 
+            ('ON'           , 'sum'),
+            ('OFF'          , 'sum'), 
+            ('LOAD_ARR'     , 'sum'), 
+            ('LOAD_DEP'     , 'sum'), 
+            ('PASSMILES'    , 'sum'), 
+            ('RDBRDNGS'     , 'sum'),
+            ('CAPACITY'     , 'sum'), 
+            ('DOORCYCLES'   , 'sum'),
+            ('WHEELCHAIR'   , 'sum'),
+            ('BIKERACK'     , 'sum'),
+            ('TIMESTOP_DEV' , 'mean'), 
+            ('DOORCLOSE_DEV', 'mean'), 
+            ('DWELL'        , 'mean'), 
+            ('DWELL_S'      , 'mean'), 
+            ('PULLDWELL'    , 'mean'), 
+            ('RUNTIME'      , 'mean'), 
+            ('RUNTIME_S'    , 'mean'), 
+            ('RECOVERY'     , 'mean'), 
+            ('RECOVERY_S'   , 'mean'), 
+            ('DLPMIN'       , 'mean')
+            ]
+            
+    AGGREGATION_ORDER = [
+            'DATE', 
+            'NUMTRIPS', 
+            'ROUTEA', 
+            'DOW', 
+            'QSTOP', 
+            'STOPNAME', 
+            'TIMEPOINT', 
+            'EOL', 
+            'VEHMILES', 
+            'ON',
+            'OFF', 
+            'LOAD_ARR', 
+            'LOAD_DEP', 
+            'PASSMILES', 
+            'RDBRDNGS',
+            'CAPACITY', 
+            'DOORCYCLES',
+            'WHEELCHAIR',
+            'BIKERACK',
+            'TIMESTOP_DEV', 
+            'DOORCLOSE_DEV', 
+            'DWELL', 
+            'DWELL_S', 
+            'PULLDWELL', 
+            'RUNTIME', 
+            'RUNTIME_S', 
+            'RECOVERY', 
+            'RECOVERY_S', 
+            'DLPMIN'
+            ]
 
     def processRawData(self, infile, outfile):
         """
-        Read SFMuniData and return it as a pandas dataframe
+        Read SFMuniData, cleans it, processes it, and writes it to an HDF5 file.
         
         infile  - in "raw STP" format
         outfile - output file name in h5 format
@@ -611,7 +675,10 @@ class SFMuniDataHelper():
                 if (chunk['EOL'][i]==0):
                     pulldwell = chunk['PULLOUT'][i] - chunk['DOORCLOSE'][i]
                     chunk['PULLDWELL'][i] = round(pulldwell.seconds / 60.0, 2)
-              
+            
+                # input day of week is unreliable, so re-calculate
+                chunk['DOW'][i] = (chunk['DATE'][i]).isoweekday()
+                  
             # because of misalinged row, it sometimes auto-detects inconsistent
             # data types, so force them as needed
             chunk['NEXTTRIP']      = chunk['NEXTTRIP'].astype('int64')
@@ -650,22 +717,48 @@ class SFMuniDataHelper():
         # close the writer
         store.close()
     
-    
-    def write_hdf(self, df, filename):
+
+    def aggregateTotals(self, hdffile, outkey, groupby):
         """
-        Writes processed SFMuniData to a HDF5 file. 
+        Read disaggregate transit records, and aggregates to 5 period totals.
         
-        filename - output file to write
-        """
-        df.to_hdf(filename, 'df', append=False)        
-    
-    
-    def read_hdf(self, filename):
-        """
-        Read SFMuniData and return it as a pandas dataframe
+        hdffile - HDF5 file to aggregate
+        outkey  - string - key for writing the aggregated dataframe to the store
+        groupby - list - columns to group the data by
         
-        filename - in converted hdf5 format
+        notes: 
+
+        'df'    - key for input disaggregate dataframe in h5store, as a string
+                           
         """
-        df  = pd.read_hdf(filename, 'df')
+
+        # open and initialize the store
+        store = pd.HDFStore(hdffile)
+        try: 
+            store.remove(outkey)
+        except KeyError: 
+            print "HDFStore does not contain object ", outkey
         
-        return df
+        # get the list of all dates in data set
+        dates = store.select_column('df', 'DATE').unique()
+        print 'Retrieved a total of %i dates to process' % len(dates)
+
+        # loop through the dates, and aggregate each individually
+        for date in dates: 
+            print 'Processing ', date            
+            df = store.select('df', where='DATE==Timestamp(date)')
+
+            # group
+            grouped = df.groupby(groupby)
+            aggregated = grouped.aggregate(dict(self.AGGREGATION_METHOD))
+            
+            # clean-up
+            aggregated['NUMTRIPS'] = aggregated['TRIP']
+            aggregated = aggregated[self.AGGREGATION_ORDER]
+            aggregated = aggregated.sort_index()
+            aggregated = aggregated.reset_index()            
+            
+            # write
+            store.append(outkey, aggregated, data_columns=True)
+            
+        store.close()

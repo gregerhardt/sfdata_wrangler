@@ -42,7 +42,8 @@ class DataFrameViewer():
 
         # Create the widget and set the DataFrame
         mw = QtGui.QWidget()
-        mw.widget = DataFrameWidget(df)
+        df_withIndexView = df.reset_index()
+        mw.widget = DataFrameWidget(df_withIndexView)
 
         # Set the layout
         vbox = QtGui.QVBoxLayout()
