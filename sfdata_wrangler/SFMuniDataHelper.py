@@ -18,12 +18,8 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import sys
-
 import pandas as pd
 import numpy as np
-
-from DataFrameViewer import DataFrameViewer
 
 class SFMuniDataHelper():
     """ 
@@ -43,7 +39,7 @@ class SFMuniDataHelper():
     HEADERROWS = 2
     
     # number of rows to read at a time
-    CHUNKSIZE = 100000
+    CHUNKSIZE = 10000
 
     # by default, read the first 75 columns, through NEXTTRIP
     COLUMNS_TO_READ = [i for i in range(75)]
@@ -103,8 +99,8 @@ class SFMuniDataHelper():
 		(289, 290), # 'NS'       - north/south
 		(291, 292), # 'EW'       - east/west
 		(293, 296), # 'MAXVEL'   - max velocity on previous link
-		(297, 300), # 'RDBRDNGS' - rear door boardings
-		(301, 304), # 'DV'       - division
+		(297, 301), # 'RDBRDNGS' - rear door boardings (if 4 digits, the remaining columns get mis-aligned)
+		(302, 304), # 'DV'       - division
 		(305, 315), # 'PATTCODE' - pattern code
 		(316, 320), # 'DWDI'     - distance traveled durign dwell
 		(321, 328), # 'RUN'      - run
@@ -254,6 +250,7 @@ class SFMuniDataHelper():
                 # index attributes
 		'DATE'      ,   # ( 68,  74) - date
 		'ROUTE'     ,   # ( 75,  79)
+		'PATTCODE'  ,   # (305, 315) - pattern code
 		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
 		'TRIP'      ,   # (119, 123) - trip 
                 'SEQ'       ,   # (  0,   5) - stop sequence
@@ -261,7 +258,6 @@ class SFMuniDataHelper():
                 # route/trip attributes
                 'DOW'       ,   #            - day of week (1=Monday, 7=Sunday)
 		'ROUTEA'    ,   #            - alphanumeric route name
-		'PATTCODE'  ,   # (305, 315) - pattern code
 		'VEHNO'     ,   # (161, 165) - bus number
 		'SCHOOL'    ,   # (329, 335) - school trip
 		'LASTTRIP'  ,   # (417, 421) - previous trip
@@ -339,7 +335,7 @@ class SFMuniDataHelper():
 		]         
 		    
     # uniquely define the records
-    INDEX_COLUMNS=['DATE', 'ROUTE', 'DIR', 'TRIP','SEQ'] 
+    INDEX_COLUMNS=['DATE', 'ROUTE', 'PATTCODE', 'DIR', 'TRIP','SEQ'] 
 
     # define string lengths (otherwise would be set by first chunk)    
     STRING_LENGTHS=[  
@@ -350,71 +346,6 @@ class SFMuniDataHelper():
 		('EW'       , 2)    # (291, 292) - east/west
                 ]
                     
-    # define the mechanism for aggregation
-    AGGREGATION_METHOD = [
-            ('DATE'         , 'first'),
-            ('TRIP'         , 'count'),            
-            ('ROUTEA'       , 'first'), 
-            ('DOW'          , 'first'), 
-            ('QSTOP'        , 'first'), 
-            ('STOPNAME'     , 'first'), 
-            ('TIMEPOINT'    , 'first'), 
-            ('EOL'          , 'first'), 
-            ('VEHMILES'     , 'sum'), 
-            ('ON'           , 'sum'),
-            ('OFF'          , 'sum'), 
-            ('LOAD_ARR'     , 'sum'), 
-            ('LOAD_DEP'     , 'sum'), 
-            ('PASSMILES'    , 'sum'), 
-            ('RDBRDNGS'     , 'sum'),
-            ('CAPACITY'     , 'sum'), 
-            ('DOORCYCLES'   , 'sum'),
-            ('WHEELCHAIR'   , 'sum'),
-            ('BIKERACK'     , 'sum'),
-            ('TIMESTOP_DEV' , 'mean'), 
-            ('DOORCLOSE_DEV', 'mean'), 
-            ('DWELL'        , 'mean'), 
-            ('DWELL_S'      , 'mean'), 
-            ('PULLDWELL'    , 'mean'), 
-            ('RUNTIME'      , 'mean'), 
-            ('RUNTIME_S'    , 'mean'), 
-            ('RECOVERY'     , 'mean'), 
-            ('RECOVERY_S'   , 'mean'), 
-            ('DLPMIN'       , 'mean')
-            ]
-            
-    AGGREGATION_ORDER = [
-            'DATE', 
-            'NUMTRIPS', 
-            'ROUTEA', 
-            'DOW', 
-            'QSTOP', 
-            'STOPNAME', 
-            'TIMEPOINT', 
-            'EOL', 
-            'VEHMILES', 
-            'ON',
-            'OFF', 
-            'LOAD_ARR', 
-            'LOAD_DEP', 
-            'PASSMILES', 
-            'RDBRDNGS',
-            'CAPACITY', 
-            'DOORCYCLES',
-            'WHEELCHAIR',
-            'BIKERACK',
-            'TIMESTOP_DEV', 
-            'DOORCLOSE_DEV', 
-            'DWELL', 
-            'DWELL_S', 
-            'PULLDWELL', 
-            'RUNTIME', 
-            'RUNTIME_S', 
-            'RECOVERY', 
-            'RECOVERY_S', 
-            'DLPMIN'
-            ]
-
     def processRawData(self, infile, outfile):
         """
         Read SFMuniData, cleans it, processes it, and writes it to an HDF5 file.
@@ -422,6 +353,8 @@ class SFMuniDataHelper():
         infile  - in "raw STP" format
         outfile - output file name in h5 format
         """
+        
+        print 'Converting raw data in file: ', infile
         
         # set up the reader
         reader = pd.read_fwf(infile, 
@@ -442,9 +375,9 @@ class SFMuniDataHelper():
                         
             rowsRead    += len(chunk)
 
-            # in at least 1 row, the fixed format text file gets misaligned
-            # so test for specfic values being 999 instead of 9999
-            chunk = chunk[chunk['NEXTTRIP'] != 999]
+            # sometimes the rear-door boardings is 4 digits, in which case 
+            # the remaining columns get mis-alinged
+            chunk = chunk[chunk['RDBRDNGS']<1000]
 
             # only include revenue service
             # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
@@ -641,6 +574,7 @@ class SFMuniDataHelper():
             chunk['PULLOUT']     = pd.to_datetime(chunk['PULLOUT'],     format="%m%d%y%H%M%S")
             chunk['TIMESTOP_S']  = pd.to_datetime(chunk['TIMESTOP_S'],  format="%m%d%y%H%M")        
             chunk['DOORCLOSE_S'] = pd.to_datetime(chunk['DOORCLOSE_S'], format="%m%d%y%H%M")    
+
     
             # deal with offsets for midnight to 3 am
             for i, row in chunk.iterrows():       
@@ -684,6 +618,7 @@ class SFMuniDataHelper():
             chunk['NEXTTRIP']      = chunk['NEXTTRIP'].astype('int64')
             chunk['DOORCLOSE_DEV'] = chunk['DOORCLOSE_DEV'].astype('float64')
             chunk['DELTAA']        = chunk['DELTAA'].astype('int64')   
+            chunk['DELTAD']        = chunk['DELTAD'].astype('int64')   
             chunk['DWELL_S']       = chunk['DWELL_S'].astype('int64')  
             chunk['DWDI']          = chunk['DWDI'].astype('int64')
             
@@ -718,9 +653,9 @@ class SFMuniDataHelper():
         store.close()
     
 
-    def aggregateTotals(self, hdffile, outkey, groupby):
+    def aggregateTrips(self, hdffile, outkey, groupby):
         """
-        Read disaggregate transit records, and aggregates to 5 period totals.
+        Read disaggregate transit records, and aggregates across trips.
         
         hdffile - HDF5 file to aggregate
         outkey  - string - key for writing the aggregated dataframe to the store
@@ -731,6 +666,77 @@ class SFMuniDataHelper():
         'df'    - key for input disaggregate dataframe in h5store, as a string
                            
         """
+
+        # define the mechanism for aggregation
+        aggregationMethod = [
+            ('DATE'         , 'first'),
+            ('TRIP'         , 'count'),            
+            ('ROUTEA'       , 'first'), 
+            ('DOW'          , 'first'), 
+            ('QSTOP'        , 'first'), 
+            ('STOPNAME'     , 'first'), 
+            ('TIMEPOINT'    , 'first'), 
+            ('EOL'          , 'first'), 
+            ('VEHMILES'     , 'sum'), 
+            ('ON'           , 'sum'),
+            ('OFF'          , 'sum'), 
+            ('LOAD_ARR'     , 'sum'), 
+            ('LOAD_DEP'     , 'sum'), 
+            ('PASSMILES'    , 'sum'), 
+            ('RDBRDNGS'     , 'sum'),
+            ('CAPACITY'     , 'sum'), 
+            ('DOORCYCLES'   , 'sum'),
+            ('WHEELCHAIR'   , 'sum'),
+            ('BIKERACK'     , 'sum'),
+            ('TIMESTOP_DEV' , 'mean'), 
+            ('DOORCLOSE_DEV', 'mean'), 
+            ('DWELL'        , 'mean'), 
+            ('DWELL_S'      , 'mean'), 
+            ('PULLDWELL'    , 'mean'), 
+            ('RUNTIME'      , 'mean'), 
+            ('RUNTIME_S'    , 'mean'), 
+            ('RECOVERY'     , 'mean'), 
+            ('RECOVERY_S'   , 'mean'), 
+            ('DLPMIN'       , 'mean')
+            ]
+            
+        aggregationOrder = [
+            'DATE', 
+            'NUMTRIPS', 
+            'ROUTEA', 
+            'DOW', 
+            'QSTOP', 
+            'STOPNAME', 
+            'TIMEPOINT', 
+            'EOL', 
+            'VEHMILES', 
+            'ON',
+            'OFF', 
+            'LOAD_ARR', 
+            'LOAD_DEP', 
+            'PASSMILES', 
+            'RDBRDNGS',
+            'CAPACITY', 
+            'DOORCYCLES',
+            'WHEELCHAIR',
+            'BIKERACK',
+            'TIMESTOP_DEV', 
+            'DOORCLOSE_DEV', 
+            'DWELL', 
+            'DWELL_S', 
+            'PULLDWELL', 
+            'RUNTIME', 
+            'RUNTIME_S', 
+            'RECOVERY', 
+            'RECOVERY_S', 
+            'DLPMIN'
+            ]
+
+        stringLengths=[  
+		('ROUTEA'   ,10),   #            - alphanumeric route name
+		('PATTCODE' ,10),   # (305, 315) - pattern code
+		('STOPNAME' ,32)   # ( 15,  47) - stop name	
+                ]
 
         # open and initialize the store
         store = pd.HDFStore(hdffile)
@@ -750,15 +756,226 @@ class SFMuniDataHelper():
 
             # group
             grouped = df.groupby(groupby)
-            aggregated = grouped.aggregate(dict(self.AGGREGATION_METHOD))
+            aggregated = grouped.aggregate(dict(aggregationMethod))
             
             # clean-up
             aggregated['NUMTRIPS'] = aggregated['TRIP']
-            aggregated = aggregated[self.AGGREGATION_ORDER]
+            aggregated = aggregated[aggregationOrder]
             aggregated = aggregated.sort_index()
             aggregated = aggregated.reset_index()            
             
             # write
-            store.append(outkey, aggregated, data_columns=True)
+            store.append(outkey, aggregated, data_columns=True,  
+                min_itemsize=dict(stringLengths))
+            
+        store.close()
+
+
+    def aggregateStops(self, hdffile, outkey, groupby):
+        """
+        Read disaggregate transit records, and aggregates across stops.
+        
+        hdffile - HDF5 file to aggregate
+        outkey  - string - key for writing the aggregated dataframe to the store
+        groupby - list - columns to group the data by
+        
+        notes: 
+
+        'df'    - key for input disaggregate dataframe in h5store, as a string
+                           
+        """
+
+        # define the mechanism for aggregation
+        aggregationMethod = [
+            ('DATE'         , 'first'),
+            ('QSTOP'        , 'count'),            
+            ('ROUTEA'       , 'first'), 
+            ('DOW'          , 'first'),           
+            ('LASTTRIP'     , 'first'), 
+            ('NEXTTRIP'     , 'first'), 
+            ('VEHMILES'     , 'sum'), 
+            ('ON'           , 'sum'),
+            ('OFF'          , 'sum'), 
+            ('PASSMILES'    , 'sum'), 
+            ('RDBRDNGS'     , 'sum'),
+            ('CAPACITY'     , 'sum'), 
+            ('DOORCYCLES'   , 'sum'),
+            ('WHEELCHAIR'   , 'sum'),
+            ('BIKERACK'     , 'sum'),
+            ('TIMESTOP_DEV' , 'sum'), 
+            ('DOORCLOSE_DEV', 'sum'), 
+            ('DWELL'        , 'sum'), 
+            ('DWELL_S'      , 'sum'), 
+            ('PULLDWELL'    , 'sum'), 
+            ('RUNTIME'      , 'sum'), 
+            ('RUNTIME_S'    , 'sum'), 
+            ('RECOVERY'     , 'sum'), 
+            ('RECOVERY_S'   , 'sum'), 
+            ('DLPMIN'       , 'sum')
+            ]
+            
+        aggregationOrder = [
+            'DATE'         , 
+            'NUMSTOPS'     ,            
+            'ROUTEA'       , 
+            'DOW'          ,          
+            'LASTTRIP'     , 
+            'NEXTTRIP'     , 
+            'VEHMILES'     , 
+            'ON'           , 
+            'OFF'          , 
+            'PASSMILES'    , 
+            'RDBRDNGS'     , 
+            'CAPACITY'     , 
+            'DOORCYCLES'   , 
+            'WHEELCHAIR'   , 
+            'BIKERACK'     , 
+            'TIMESTOP_DEV' , 
+            'DOORCLOSE_DEV', 
+            'DWELL'        , 
+            'DWELL_S'      , 
+            'PULLDWELL'    , 
+            'RUNTIME'      , 
+            'RUNTIME_S'    , 
+            'RECOVERY'     , 
+            'RECOVERY_S'   , 
+            'DLPMIN'       
+            ]
+
+        stringLengths=[  
+		('ROUTEA'   ,10),   #            - alphanumeric route name
+		('PATTCODE' ,10)    # (305, 315) - pattern code
+                ]
+
+        # open and initialize the store
+        store = pd.HDFStore(hdffile)
+        try: 
+            store.remove(outkey)
+        except KeyError: 
+            print "HDFStore does not contain object ", outkey
+        
+        # get the list of all dates in data set
+        dates = store.select_column('df', 'DATE').unique()
+        print 'Retrieved a total of %i dates to process' % len(dates)
+
+        # loop through the dates, and aggregate each individually
+        for date in dates: 
+            print 'Processing ', date            
+            df = store.select('df', where='DATE==Timestamp(date)')
+
+            # group
+            grouped = df.groupby(groupby)
+            aggregated = grouped.aggregate(dict(aggregationMethod))
+            
+            # clean-up
+            aggregated['NUMSTOPS'] = aggregated['QSTOP']
+            aggregated = aggregated[aggregationOrder]
+            aggregated = aggregated.sort_index()
+            aggregated = aggregated.reset_index()            
+            
+            # write
+            store.append(outkey, aggregated, data_columns=True,  
+                min_itemsize=dict(stringLengths))
+            
+        store.close()
+
+    def aggregateStopsAndTrips(self, hdffile, outkey, groupby):
+        """
+        Read disaggregate transit records, and aggregates across stops and trips.
+        
+        hdffile - HDF5 file to aggregate
+        outkey  - string - key for writing the aggregated dataframe to the store
+        groupby - list - columns to group the data by
+        
+        notes: 
+
+        'df'    - key for input disaggregate dataframe in h5store, as a string
+                           
+        """
+
+        # define the mechanism for aggregation
+        aggregationMethod = [
+            ('DATE'         , 'first'),
+            ('TRIP'         , 'count'),            
+            ('ROUTEA'       , 'first'), 
+            ('DOW'          , 'first'), 
+            ('VEHMILES'     , 'sum'), 
+            ('ON'           , 'sum'),
+            ('OFF'          , 'sum'), 
+            ('PASSMILES'    , 'sum'), 
+            ('RDBRDNGS'     , 'sum'),
+            ('DOORCYCLES'   , 'sum'),
+            ('WHEELCHAIR'   , 'sum'),
+            ('BIKERACK'     , 'sum'),
+            ('TIMESTOP_DEV' , 'mean'), 
+            ('DOORCLOSE_DEV', 'mean'), 
+            ('DWELL'        , 'sum'), 
+            ('DWELL_S'      , 'sum'), 
+            ('PULLDWELL'    , 'sum'), 
+            ('RUNTIME'      , 'sum'), 
+            ('RUNTIME_S'    , 'sum'), 
+            ('RECOVERY'     , 'sum'), 
+            ('RECOVERY_S'   , 'sum'), 
+            ('DLPMIN'       , 'sum')
+            ]
+            
+        aggregationOrder = [
+            'DATE', 
+            'NUMTRIPS', 
+            'ROUTEA', 
+            'DOW', 
+            'VEHMILES', 
+            'ON',
+            'OFF', 
+            'PASSMILES', 
+            'RDBRDNGS',
+            'DOORCYCLES',
+            'WHEELCHAIR',
+            'BIKERACK',
+            'TIMESTOP_DEV', 
+            'DOORCLOSE_DEV', 
+            'DWELL', 
+            'DWELL_S', 
+            'PULLDWELL', 
+            'RUNTIME', 
+            'RUNTIME_S', 
+            'RECOVERY', 
+            'RECOVERY_S', 
+            'DLPMIN'
+            ]
+
+        stringLengths=[  
+		('ROUTEA'   ,10)   #            - alphanumeric route name
+                ]
+
+        # open and initialize the store
+        store = pd.HDFStore(hdffile)
+        try: 
+            store.remove(outkey)
+        except KeyError: 
+            print "HDFStore does not contain object ", outkey
+        
+        # get the list of all dates in data set
+        dates = store.select_column('df', 'DATE').unique()
+        print 'Retrieved a total of %i dates to process' % len(dates)
+
+        # loop through the dates, and aggregate each individually
+        for date in dates: 
+            print 'Processing ', date            
+            df = store.select('df', where='DATE==Timestamp(date)')
+
+            # group
+            grouped = df.groupby(groupby)
+            aggregated = grouped.aggregate(dict(aggregationMethod))
+            
+            # clean-up
+            aggregated['NUMTRIPS'] = aggregated['TRIP']
+            aggregated = aggregated[aggregationOrder]
+            aggregated = aggregated.sort_index()
+            aggregated = aggregated.reset_index()            
+            
+            # write
+            store.append(outkey, aggregated, data_columns=True,  
+                min_itemsize=dict(stringLengths))
             
         store.close()
