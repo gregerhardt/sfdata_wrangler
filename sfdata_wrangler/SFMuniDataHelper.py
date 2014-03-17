@@ -39,7 +39,7 @@ class SFMuniDataHelper():
     HEADERROWS = 2
     
     # number of rows to read at a time
-    CHUNKSIZE = 10000
+    CHUNKSIZE = 100000
 
     # by default, read the first 75 columns, through NEXTTRIP
     COLUMNS_TO_READ = [i for i in range(75)]
@@ -378,6 +378,12 @@ class SFMuniDataHelper():
             # sometimes the rear-door boardings is 4 digits, in which case 
             # the remaining columns get mis-alinged
             chunk = chunk[chunk['RDBRDNGS']<1000]
+            
+            # check for further data mis-alignments
+            if (chunk['NEXTTRIP'].dtype == np.dtype('int64')):
+                chunk = chunk[chunk['NEXTTRIP']!=999]
+            else:
+                chunk = chunk[(chunk['NEXTTRIP'].str.strip()).str.count(' ')==0]
 
             # only include revenue service
             # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
