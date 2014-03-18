@@ -249,6 +249,10 @@ class SFMuniDataHelper():
     REORDERED_COLUMNS=[  
                 # index attributes
 		'DATE'      ,   # ( 68,  74) - date
+		'MONTH'     ,   #            - year and month
+                'DOW'       ,   #            - day of week (1=Monday, 7=Sunday)
+		
+		# index attributes
 		'ROUTE'     ,   # ( 75,  79)
 		'PATTCODE'  ,   # (305, 315) - pattern code
 		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
@@ -256,7 +260,6 @@ class SFMuniDataHelper():
                 'SEQ'       ,   # (  0,   5) - stop sequence
                 
                 # route/trip attributes
-                'DOW'       ,   #            - day of week (1=Monday, 7=Sunday)
 		'ROUTEA'    ,   #            - alphanumeric route name
 		'VEHNO'     ,   # (161, 165) - bus number
 		'SCHOOL'    ,   # (329, 335) - school trip
@@ -535,6 +538,7 @@ class SFMuniDataHelper():
             # trick here is that the MUNI service day starts and ends at 3 am, 
             # so boardings from midnight to 3 have a service date of the day before
             chunk['DATE']        = ''
+            chunk['MONTH']       = ''
             chunk['TIMESTOP']    = ''
             chunk['DOORCLOSE']   = ''
             chunk['PULLOUT']     = ''
@@ -574,7 +578,8 @@ class SFMuniDataHelper():
                         "{0:0>4}".format(chunk['DOORCLOSE_S_INT'][i]))
     
             # convert to timedate formats
-            chunk['DATE'] = pd.to_datetime(chunk['DATE'], format="%m%d%y")
+            chunk['DATE']   = pd.to_datetime(chunk['DATE'], format="%m%d%y")
+            
             chunk['TIMESTOP']    = pd.to_datetime(chunk['TIMESTOP'],    format="%m%d%y%H%M%S")        
             chunk['DOORCLOSE']   = pd.to_datetime(chunk['DOORCLOSE'],   format="%m%d%y%H%M%S")    
             chunk['PULLOUT']     = pd.to_datetime(chunk['PULLOUT'],     format="%m%d%y%H%M%S")
@@ -615,10 +620,11 @@ class SFMuniDataHelper():
                 if (chunk['EOL'][i]==0):
                     pulldwell = chunk['PULLOUT'][i] - chunk['DOORCLOSE'][i]
                     chunk['PULLDWELL'][i] = round(pulldwell.seconds / 60.0, 2)
-            
-                # input day of week is unreliable, so re-calculate
-                chunk['DOW'][i] = (chunk['DATE'][i]).isoweekday()
-                  
+                    
+                # to make it easier to look up dates    
+                chunk['MONTH'][i] = ((chunk['DATE'][i]).to_period('month')).to_timestamp()
+                chunk['DOW'][i]   = (chunk['DATE'][i]).isoweekday()    
+                              
             # because of misalinged row, it sometimes auto-detects inconsistent
             # data types, so force them as needed
             chunk['NEXTTRIP']      = chunk['NEXTTRIP'].astype('int64')
