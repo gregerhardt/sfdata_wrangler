@@ -35,31 +35,37 @@ if __name__ == "__main__":
     sfmuniHelper = SFMuniDataHelper()
 
     # convert the data
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1201.stp", outfile)    
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1203.stp", outfile)
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1206.stp", outfile)
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1209.stp", outfile)
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1212.stp", outfile)
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp", outfile)
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp", outfile)
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1306.stp", outfile)
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1308.stp", outfile)
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1201.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1203.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1206.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1209.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1212.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1306.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1308.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp", outfile)
         
     convertedTime = datetime.datetime.now() 
     print 'Finished converting data in ', (convertedTime - startTime)
     
+    # calculate monthly averages
+    sfmuniHelper.calcMonthlyAverages(outfile, 'weekday2')
+    sfmuniHelper.calcMonthlyAverages(outfile, 'saturday')
+    sfmuniHelper.calcMonthlyAverages(outfile, 'sunday')
+
+    
     # aggregate different dimensions
-    sfmuniHelper.aggregateStops(outfile, 'daily_trips', 
-        ['ROUTE', 'PATTCODE', 'DIR', 'TRIP'])
-        
-    sfmuniHelper.aggregateTrips(outfile, 'daily_route_stops', 
-        ['ROUTE', 'PATTCODE', 'DIR', 'SEQ'])
-        
-    sfmuniHelper.aggregateStopsAndTrips(outfile, 'daily', ['ROUTE'])
-        
-    aggregatedTime = datetime.datetime.now()
-    print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 
+    #sfmuniHelper.aggregateStops(outfile, 'daily_trips', 
+    #    ['ROUTE', 'PATTCODE', 'DIR', 'TRIP'])
+    #    
+    #sfmuniHelper.aggregateTrips(outfile, 'daily_route_stops', 
+    #    ['ROUTE', 'PATTCODE', 'DIR', 'SEQ'])
+    #    
+    #sfmuniHelper.aggregateStopsAndTrips(outfile, 'daily', ['ROUTE'])
+    #    
+    #aggregatedTime = datetime.datetime.now()
+    #print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 
                 
     # read it back in
     #store = pd.HDFStore(outfile)

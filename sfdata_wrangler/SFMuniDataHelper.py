@@ -20,6 +20,7 @@ __license__     = """
 
 import pandas as pd
 import numpy as np
+import datetime
 
 class SFMuniDataHelper():
     """ 
@@ -301,6 +302,8 @@ class SFMuniDataHelper():
 		'TIMESTOP'  ,   # ( 48,  54) - arrival time
 		'TIMESTOP_S',   # (176, 180) - schedule time
 		'TIMESTOP_DEV', # (205, 211) - schedule deviation (TIMESTOP - TIMESTOP_S) in decimal minutes
+		'ONTIME1'   ,   #            - within 1 minute of scheduled TIMESTOP
+		'ONTIME5'   ,   #            - within 5 minutes of scheduled TIMESTOP
 		'DOORCLOSE' ,   # (264, 270) - departure time	
 		'DOORCLOSE_S',  # (352, 356) - scheduled departure time	
 		'DOORCLOSE_DEV',# (357, 363) - schedule deviation (DOORCLOSE - DOORCLOSE_S) in decimal minutes
@@ -357,7 +360,7 @@ class SFMuniDataHelper():
         outfile - output file name in h5 format
         """
         
-        print 'Converting raw data in file: ', infile
+        print datetime.datetime.now(), 'Converting raw data in file: ', infile
         
         # set up the reader
         reader = pd.read_fwf(infile, 
@@ -408,6 +411,8 @@ class SFMuniDataHelper():
             chunk['EOL'] = 0
             chunk['TEPPER'] = 9
             chunk['ROUTEA'] = ''
+            chunk['ONTIME1'] = np.NaN
+            chunk['ONTIME5'] = np.NaN            
             
             # iterate through the rows for computed fields
             for i, row in chunk.iterrows():
@@ -416,6 +421,17 @@ class SFMuniDataHelper():
                 if (chunk['TIMESTOP_S_INT'][i] < 9999): 
                     chunk['TIMEPOINT'][i] = 1
                 
+                    # ontime performance
+                    if (chunk['TIMESTOP_DEV'][i] < 1.0): 
+                        chunk['ONTIME1'][i] = 1
+                    else: 
+                        chunk['ONTIME1'][i] = 0
+                        
+                    if (chunk['TIMESTOP_DEV'][i] < 5.0): 
+                        chunk['ONTIME5'][i] = 1
+                    else: 
+                        chunk['ONTIME5'][i] = 0
+                        
                 # identify end-of-line stops
                 chunk['EOL'][i] = str(chunk['STOPNAME'][i]).count("- EOL")            
                 
@@ -568,7 +584,7 @@ class SFMuniDataHelper():
                 # schedule times only at timepoints
                 if (chunk['TIMEPOINT'][i]==1): 
                     if (chunk['TIMESTOP_S_INT'][i] >= 2400): 
-                        chunk['TIMESTOP_S_INT'][i] = chunk['TIMESTOP_S_INT'][i] - 2400
+                        chunk['TIMESTOP_S_INT'][i] = chunk['TIMESTOP_S_INT'][i] - 2400                        
                     chunk['TIMESTOP_S'][i] = (chunk['DATE'][i] + 
                         "{0:0>4}".format(chunk['TIMESTOP_S_INT'][i]))           
     
@@ -608,13 +624,15 @@ class SFMuniDataHelper():
                     chunk['RUNTIME'][i]       = np.NaN
                     chunk['RUNTIME_S'][i]     = np.NaN
     
-                else:     
-                    
+                else:  
+                    # offsets
                     if (chunk['TIMESTOP_S'][i].hour < 3): 
                         chunk['TIMESTOP_S'][i] = chunk['TIMESTOP_S'][i] + pd.DateOffset(days=1)
     
                     if (chunk['DOORCLOSE_S'][i].hour < 3): 
                         chunk['DOORCLOSE_S'][i] = chunk['DOORCLOSE_S'][i] + pd.DateOffset(days=1)
+                                              
+                    
             
                 # PULLDWELL = pullout dwell (time interval between door close and movement)
                 if (chunk['EOL'][i]==0):
@@ -664,6 +682,231 @@ class SFMuniDataHelper():
         # close the writer
         store.close()
     
+
+    def calcMonthlyAverages(self, hdffile, outkey):
+        """
+        Calculates monthly averages.  The counting equipment is only on about
+        25% of the busses, so we need to average across multiple days (in this
+        case the whole month) to account for all of the trips made on each route.
+        
+        hdffile - HDF5 file to aggregate
+        outkey  - one of: 'weekday', 'saturday', or 'sunday'
+                  This determines both the name of the dataframe written to the
+                  HDFStore, and also the days selected for averaging. 
+
+        notes: 
+        'df'    - key for input disaggregate dataframe in h5store, as a string
+                           
+        """        
+       
+        
+        # define how each field will be aggregated
+        aggregationMethod = {
+		'ROUTEA'       : {'ROUTEA'        : 'first'},          # route/trip attributes
+		'VEHNO'        : {'VEHNO'         : 'first'},   
+		'SCHOOL'       : {'SCHOOL'        : 'first'},   
+		'LASTTRIP'     : {'LASTTRIP'      : 'first'},   
+		'NEXTTRIP'     : {'NEXTTRIP'      : 'first'},   
+		'TEPPER'       : {'TEPPER'        : 'first'},   
+		'QSTOP'        : {'QSTOP'         : 'first'},          # stop attributes
+		'STOPNAME'     : {'STOPNAME'      : 'first'},   
+		'TIMEPOINT'    : {'TIMEPOINT'     : 'first'},   
+		'EOL'          : {'EOL'           : 'first'},   
+		'LAT'          : {'LAT'           : 'mean',   'LAT_STD'           :'std'},    # location information
+		'LON'          : {'LON'           : 'mean',   'LON_STD'           :'std'},   
+		'NS'           : {'NS'            : 'first'},       
+		'EW'           : {'EW'            : 'first'},       
+		'MAXVEL'       : {'MAXVEL'        : 'mean',   'MAXVEL_STD'        :'std'},   
+		'MILES'        : {'MILES'         : 'mean',   'MILES_STD'         :'std'},   
+		'GODOM'        : {'GODOM'         : 'mean',   'GODOM_STD'         :'std'},   
+		'VEHMILES'     : {'VEHMILES'      : 'mean',   'VEHMILES_STD'      :'std'},  
+		'ON'           : {'ON'            : 'mean',   'ON_STD'            :'std'},    # ridership
+		'OFF'          : {'OFF'           : 'mean',   'OFF_STD'           :'std'},  
+		'LOAD_ARR'     : {'LOAD_ARR'      : 'mean',   'LOAD_ARR_STD'      :'std'},  
+		'LOAD_DEP'     : {'LOAD_DEP'      : 'mean',   'LOAD_DEP_STD'      :'std'},  
+		'PASSMILES'    : {'PASSMILES'     : 'mean',   'PASSMILES_STD'     :'std'},  
+		'PASSHOURS'    : {'PASSHOURS'     : 'mean',   'PASSHOURS_STD'     :'std'},  
+		'RDBRDNGS'     : {'RDBRDNGS'      : 'mean',   'RDBRDNGS_STD'      :'std'},  
+		'LOADCODE'     : {'LOADCODE'      : 'mean',   'LOADCODE_STD'      :'std'},  
+		'CAPACITY'     : {'CAPACITY'      : 'mean',   'CAPACITY_STD'      :'std'},  
+		'DOORCYCLES'   : {'DOORCYCLES'    : 'mean',   'DOORCYCLES_STD'    :'std'},  
+		'WHEELCHAIR'   : {'WHEELCHAIR'    : 'mean',   'WHEELCHAIR_STD'    :'std'},  
+		'BIKERACK'     : {'BIKERACK'      : 'mean',   'BIKERACK_STD'      :'std'},   
+		'TIMESTOP_S'   : {'TIMESTOP_S'    : 'first'},                                  # times
+		'TIMESTOP_DEV' : {'TIMESTOP_DEV'  : 'mean',   'TIMESTOP_DEV_STD'  :'std'},   
+		'ONTIME1'      : {'ONTIME1'       : 'mean',   'ONTIME1_STD'       :'std'},   
+		'ONTIME5'      : {'ONTIME5'       : 'mean',   'ONTIME5_STD'       :'std'},  
+		'DOORCLOSE_S'  : {'DOORCLOSE_S'   : 'first'},  
+		'DOORCLOSE_DEV': {'DOORCLOSE_DEV' : 'mean',   'DOORCLOSE_DEV_STD' :'std'}, 
+		'DWELL'        : {'DWELL'         : 'mean',   'DWELL_STD'         :'std'},   
+		'DWELL_S'      : {'DWELL_S'       : 'mean'},
+		'PULLDWELL'    : {'PULLDWELL'     : 'mean',   'PULLDWELL_STD'     :'std'},   
+		'RUNTIME'      : {'RUNTIME'       : 'mean',   'RUNTIME_STD'       :'std'},   
+		'RUNTIME_S'    : {'RUNTIME_S'     : 'mean'},     
+		'RECOVERY'     : {'RECOVERY'      : 'mean',   'RECOVERY_STD'      :'std'},    
+		'RECOVERY_S'   : {'RECOVERY_S'    : 'mean'},   
+		'DLPMIN'       : {'DLPMIN'        : 'mean',   'DLPMIN_STD'        :'std'}   
+		}
+
+
+
+        # define the order in the final dataframe
+        aggregationOrder = [
+                'MONTH'        , 
+                'NUMDAYS'      , 
+                'OBSTRIPS'     , 
+		'ROUTEA'       , 
+		'ROUTE'        , 
+		'PATTCODE'     , 
+		'DIR'          , 
+		'TRIP'         , 
+		'SEQ'          , 
+		'VEHNO'        , 
+		'SCHOOL'       , 
+		'LASTTRIP'     , 
+		'NEXTTRIP'     , 
+		'TEPPER'       , 
+		'QSTOP'        , 
+		'STOPNAME'     , 
+		'TIMEPOINT'    , 
+		'EOL'          , 
+		'LAT'          , 'LAT_STD', 
+		'LON'          , 'LON_STD', 
+		'NS'           , 
+		'EW'           , 
+		'MAXVEL'       , 'MAXVEL_STD',       
+		'MILES'        , 'MILES_STD',        
+		'GODOM'        , 'GODOM_STD',        
+		'VEHMILES'     , 'VEHMILES_STD',     
+		'ON'           , 'ON_STD',           
+		'OFF'          , 'OFF_STD',          
+		'LOAD_ARR'     , 'LOAD_ARR_STD',     
+		'LOAD_DEP'     , 'LOAD_DEP_STD',     
+		'PASSMILES'    , 'PASSMILES_STD',    
+		'PASSHOURS'    , 'PASSHOURS_STD',    
+		'RDBRDNGS'     , 'RDBRDNGS_STD',     
+		'LOADCODE'     , 'LOADCODE_STD',     
+		'CAPACITY'     , 'CAPACITY_STD',     
+		'DOORCYCLES'   , 'DOORCYCLES_STD',   
+		'WHEELCHAIR'   , 'WHEELCHAIR_STD',   
+		'BIKERACK'     , 'BIKERACK_STD',     
+		'TIMESTOP'     ,      
+		'TIMESTOP_S'   , 
+		'TIMESTOP_DEV' , 'TIMESTOP_DEV_STD', 
+		'ONTIME1'      , 'ONTIME1_STD', 
+		'ONTIME5'      , 'ONTIME5_STD', 
+		'DOORCLOSE'    ,  
+		'DOORCLOSE_S'  ,  
+		'DOORCLOSE_DEV', 'DOORCLOSE_DEV_STD',
+		'DWELL'        , 'DWELL_STD',        
+		'DWELL_S'      ,      
+		'PULLOUT'      ,     
+		'PULLDWELL'    , 'PULLDWELL_STD',    
+		'RUNTIME'      , 'RUNTIME_STD',      
+		'RUNTIME_S'    ,     
+		'RECOVERY'     , 'RECOVERY_STD',     
+		'RECOVERY_S'   ,    
+		'DLPMIN'       , 'DLPMIN_STD'       
+		]
+
+        # open and initialize the store
+        store = pd.HDFStore(hdffile)
+        try: 
+            store.remove(outkey)
+        except KeyError: 
+            print "HDFStore does not contain object ", outkey
+        
+        # get the list of all months in data set
+        months = store.select_column('df', 'MONTH').unique()
+        months.sort()
+        print 'Retrieved a total of %i months to process' % len(months)
+
+        # loop through the dates, and aggregate each individually
+        for month in months: 
+            print 'Processing ', month            
+
+            # define the query for this part of week
+            if outkey=='weekday2':
+                query = 'MONTH==Timestamp(month) & DOW<=5'
+            if outkey=='saturday':
+                query = 'MONTH==Timestamp(month) & DOW==6'
+            if outkey=='sunday':
+                query = 'MONTH==Timestamp(month) & DOW==7'        
+        
+            df = store.select('df', where=query)
+            
+            # group
+            grouped = df.groupby(['ROUTE', 'PATTCODE', 'DIR', 'TRIP', 'SEQ'])
+            aggregated = grouped.aggregate(aggregationMethod)
+            
+            # drop multi-level columns
+            levels = aggregated.columns.levels
+            labels = aggregated.columns.labels
+            aggregated.columns = levels[1][labels[1]]
+
+            # additional calculations
+            aggregated['MONTH']    = month
+            aggregated['NUMDAYS']  = len(df['DATE'].unique())
+            aggregated['OBSTRIPS'] = grouped.size()
+            
+            aggregated['TIMESTOP']  = ''
+            aggregated['DOORCLOSE'] = ''
+            aggregated['PULLOUT']   = ''
+
+            for i, row in aggregated.iterrows(): 
+                if aggregated['TIMEPOINT'][i]==1:
+                    aggregated['TIMESTOP'][i] = (aggregated['TIMESTOP_S'][i] + 
+                        pd.DateOffset(minutes=aggregated['TIMESTOP_DEV'][i]))
+
+                    aggregated['DOORCLOSE'][i] = (aggregated['DOORCLOSE_S'][i] + 
+                        pd.DateOffset(minutes=aggregated['DOORCLOSE_DEV'][i]))
+
+                    aggregated['PULLOUT'][i] = (aggregated['DOORCLOSE'][i] + 
+                        pd.DateOffset(minutes=aggregated['PULLDWELL'][i]))
+            
+            # force column types as needed
+            aggregated['LAT']           = aggregated['LAT'].astype('float64')             
+            aggregated['LON']           = aggregated['LON'].astype('float64')           
+            aggregated['MAXVEL']        = aggregated['MAXVEL'].astype('float64')        
+            aggregated['MILES']         = aggregated['MILES'].astype('float64')         
+            aggregated['GODOM']         = aggregated['GODOM'].astype('float64')         
+            aggregated['VEHMILES']      = aggregated['VEHMILES'].astype('float64')      
+            aggregated['ON']            = aggregated['ON'].astype('float64')            
+            aggregated['OFF']           = aggregated['OFF'].astype('float64')           
+            aggregated['LOAD_ARR']      = aggregated['LOAD_ARR'].astype('float64')      
+            aggregated['LOAD_DEP']      = aggregated['LOAD_DEP'].astype('float64')      
+            aggregated['PASSMILES']     = aggregated['PASSMILES'].astype('float64')     
+            aggregated['PASSHOURS']     = aggregated['PASSHOURS'].astype('float64')     
+            aggregated['RDBRDNGS']      = aggregated['RDBRDNGS'].astype('float64')      
+            aggregated['LOADCODE']      = aggregated['LOADCODE'].astype('float64')      
+            aggregated['CAPACITY']      = aggregated['CAPACITY'].astype('float64')      
+            aggregated['DOORCYCLES']    = aggregated['DOORCYCLES'].astype('float64')    
+            aggregated['WHEELCHAIR']    = aggregated['WHEELCHAIR'].astype('float64')    
+            aggregated['BIKERACK']      = aggregated['BIKERACK'].astype('float64')      
+            aggregated['TIMESTOP_DEV']  = aggregated['TIMESTOP_DEV'].astype('float64')   
+            aggregated['ONTIME1']       = aggregated['ONTIME1'].astype('float64')  
+            aggregated['ONTIME5']       = aggregated['ONTIME5'].astype('float64')  
+            aggregated['DOORCLOSE_DEV'] = aggregated['DOORCLOSE_DEV'].astype('float64') 
+            aggregated['DWELL']         = aggregated['DWELL'].astype('float64')         
+            aggregated['DWELL_S']       = aggregated['DWELL_S'].astype('float64')       
+            aggregated['PULLDWELL']     = aggregated['PULLDWELL'].astype('float64')     
+            aggregated['RUNTIME']       = aggregated['RUNTIME'].astype('float64')       
+            aggregated['RUNTIME_S']     = aggregated['RUNTIME_S'].astype('float64')     
+            aggregated['RECOVERY']      = aggregated['RECOVERY'].astype('float64')      
+            aggregated['RECOVERY_S']    = aggregated['RECOVERY_S'].astype('float64')    
+            aggregated['DLPMIN']        = aggregated['DLPMIN'].astype('float64')  
+            
+            # clean up structure of dataframe
+            aggregated = aggregated.sort_index()
+            aggregated = aggregated.reset_index()     
+            aggregated = aggregated[aggregationOrder]       
+            
+            # write
+            store.append(outkey, aggregated, data_columns=True, 
+                min_itemsize=dict(self.STRING_LENGTHS))
+            
+        store.close()
+
 
     def aggregateTrips(self, hdffile, outkey, groupby):
         """
