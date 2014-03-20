@@ -35,35 +35,47 @@ if __name__ == "__main__":
     sfmuniHelper = SFMuniDataHelper()
 
     # convert the data
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1201.stp", outfile)
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1203.stp", outfile)
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1206.stp", outfile)
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1209.stp", outfile)
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1212.stp", outfile)
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp", outfile)
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp", outfile)
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1306.stp", outfile)
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1308.stp", outfile)
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1005.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1009.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1101.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1110.stp", outfile)    
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1201.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1203.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1206.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1209.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1212.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1306.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1308.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp", outfile)
         
     convertedTime = datetime.datetime.now() 
     print 'Finished converting data in ', (convertedTime - startTime)
     
     # calculate monthly averages
-    sfmuniHelper.calcMonthlyAverages(outfile, 'weekday2')
+    sfmuniHelper.calcMonthlyAverages(outfile, 'weekday')
     sfmuniHelper.calcMonthlyAverages(outfile, 'saturday')
     sfmuniHelper.calcMonthlyAverages(outfile, 'sunday')
 
+    # aggregate trips into daily totals        
+    sfmuniHelper.aggregateTrips(outfile, 'weekday',  'weekday_total')
+    sfmuniHelper.aggregateTrips(outfile, 'saturday', 'saturday_total')
+    sfmuniHelper.aggregateTrips(outfile, 'sunday',   'sunday_total')
+
+        
     
     # aggregate different dimensions
     #sfmuniHelper.aggregateStops(outfile, 'daily_trips', 
     #    ['ROUTE', 'PATTCODE', 'DIR', 'TRIP'])
-    #    
-    #sfmuniHelper.aggregateTrips(outfile, 'daily_route_stops', 
-    #    ['ROUTE', 'PATTCODE', 'DIR', 'SEQ'])
-    #    
-    #sfmuniHelper.aggregateStopsAndTrips(outfile, 'daily', ['ROUTE'])
-    #    
+            
+    #sfmuniHelper.aggregateStopsAndTrips(outfile, 'weekday', 'weekday_routes', 
+    #    ['ROUTE'])
+        
     #aggregatedTime = datetime.datetime.now()
     #print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 
                 

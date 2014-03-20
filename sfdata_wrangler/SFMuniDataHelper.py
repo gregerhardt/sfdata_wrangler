@@ -266,6 +266,7 @@ class SFMuniDataHelper():
 		'SCHOOL'    ,   # (329, 335) - school trip
 		'LASTTRIP'  ,   # (417, 421) - previous trip
 		'NEXTTRIP'  ,   # (422, 426) - next trip
+		'HEADWAY'   ,   #            - headway (calculated from previous trip)
 		'TEPPER'    ,   #            - aggregate time period
 		
 		# stop attributes
@@ -302,8 +303,6 @@ class SFMuniDataHelper():
 		'TIMESTOP'  ,   # ( 48,  54) - arrival time
 		'TIMESTOP_S',   # (176, 180) - schedule time
 		'TIMESTOP_DEV', # (205, 211) - schedule deviation (TIMESTOP - TIMESTOP_S) in decimal minutes
-		'ONTIME1'   ,   #            - within 1 minute of scheduled TIMESTOP
-		'ONTIME5'   ,   #            - within 5 minutes of scheduled TIMESTOP
 		'DOORCLOSE' ,   # (264, 270) - departure time	
 		'DOORCLOSE_S',  # (352, 356) - scheduled departure time	
 		'DOORCLOSE_DEV',# (357, 363) - schedule deviation (DOORCLOSE - DOORCLOSE_S) in decimal minutes
@@ -316,6 +315,8 @@ class SFMuniDataHelper():
 		'RECOVERY'  ,   # (375, 380) - EOL recovery time
 		'RECOVERY_S',   # (369, 374) - scheduled EOL recovery			
 		'DLPMIN'    ,   # (141, 145) - delta minutes - minutes traveled from last stop -- THIS DOESN'T SEEM TO ADD UP
+		'ONTIME2'   ,   #            - within 2 minutes of scheduled TIMESTOP
+		'ONTIME10'  ,   #            - within 10 minutes of scheduled TIMESTOP
 		
 		# quality control stuff
 		'QC104'     ,   # (231, 234) - GPS QC
@@ -391,6 +392,16 @@ class SFMuniDataHelper():
             else:
                 chunk = chunk[(chunk['NEXTTRIP'].str.strip()).str.count(' ')==0]
 
+            # because of misalinged row, it sometimes auto-detects inconsistent
+            # data types, so force them as needed
+            chunk['NEXTTRIP']      = chunk['NEXTTRIP'].astype('int64')
+            chunk['DOORCLOSE_DEV'] = chunk['DOORCLOSE_DEV'].astype('float64')
+            chunk['DELTAA']        = chunk['DELTAA'].astype('int64')   
+            chunk['DELTAD']        = chunk['DELTAD'].astype('int64')   
+            chunk['DWELL_S']       = chunk['DWELL_S'].astype('int64')  
+            chunk['DWDI']          = chunk['DWDI'].astype('int64')
+            chunk['PULLOUT_INT']   = chunk['PULLOUT_INT'].astype('int64')
+            
             # only include revenue service
             # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
             chunk = chunk[chunk['DIR'] < 2]
@@ -411,8 +422,8 @@ class SFMuniDataHelper():
             chunk['EOL'] = 0
             chunk['TEPPER'] = 9
             chunk['ROUTEA'] = ''
-            chunk['ONTIME1'] = np.NaN
-            chunk['ONTIME5'] = np.NaN            
+            chunk['ONTIME2'] = np.NaN
+            chunk['ONTIME10'] = np.NaN            
             
             # iterate through the rows for computed fields
             for i, row in chunk.iterrows():
@@ -422,15 +433,15 @@ class SFMuniDataHelper():
                     chunk['TIMEPOINT'][i] = 1
                 
                     # ontime performance
-                    if (chunk['TIMESTOP_DEV'][i] < 1.0): 
-                        chunk['ONTIME1'][i] = 1
+                    if (chunk['TIMESTOP_DEV'][i] < 2.0): 
+                        chunk['ONTIME2'][i] = 1
                     else: 
-                        chunk['ONTIME1'][i] = 0
+                        chunk['ONTIME2'][i] = 0
                         
-                    if (chunk['TIMESTOP_DEV'][i] < 5.0): 
-                        chunk['ONTIME5'][i] = 1
+                    if (chunk['TIMESTOP_DEV'][i] < 10.0): 
+                        chunk['ONTIME10'][i] = 1
                     else: 
-                        chunk['ONTIME5'][i] = 0
+                        chunk['ONTIME10'][i] = 0
                         
                 # identify end-of-line stops
                 chunk['EOL'][i] = str(chunk['STOPNAME'][i]).count("- EOL")            
@@ -561,6 +572,10 @@ class SFMuniDataHelper():
             chunk['TIMESTOP_S']  = '0101010101'
             chunk['DOORCLOSE_S'] = '0101010101'
             chunk['PULLDWELL']   = 0.0
+            chunk['HEADWAY']     = 0.0
+            chunk['TRIP_STR']    = ''
+            chunk['LASTTRIP_STR']= ''
+            chunk['NEXTTRIP_STR']= ''
     
             # convert to string formats
             for i, row in chunk.iterrows():        
@@ -579,7 +594,7 @@ class SFMuniDataHelper():
                 if (chunk['PULLOUT_INT'][i] >= 240000): 
                     chunk['PULLOUT_INT'][i] = chunk['PULLOUT_INT'][i] - 240000
                 chunk['PULLOUT'][i] = (chunk['DATE'][i] + 
-                    "{0:0>6}".format(chunk['PULLOUT_INT'][i]))
+                    "{0:0>6}".format(chunk['PULLOUT_INT'][i]))               
                 
                 # schedule times only at timepoints
                 if (chunk['TIMEPOINT'][i]==1): 
@@ -631,7 +646,16 @@ class SFMuniDataHelper():
     
                     if (chunk['DOORCLOSE_S'][i].hour < 3): 
                         chunk['DOORCLOSE_S'][i] = chunk['DOORCLOSE_S'][i] + pd.DateOffset(days=1)
-                                              
+                
+                # calculate headway
+                trip = 60*(chunk['TRIP'][i] // 100.0) + (chunk['TRIP'][i] % 100.0)
+                if (chunk['LASTTRIP'][i]<9999): 
+                    lasttrip = 60*(chunk['LASTTRIP'][i] // 100.0) + (chunk['LASTTRIP'][i] % 100.0)
+                    headway = trip - lasttrip
+                else: 
+                    nexttrip = 60*(chunk['NEXTTRIP'][i] // 100.0) + (chunk['NEXTTRIP'][i] % 100.0) 
+                    headway = nexttrip - trip
+                chunk['HEADWAY'][i] = round(headway, 2)
                     
             
                 # PULLDWELL = pullout dwell (time interval between door close and movement)
@@ -643,15 +667,6 @@ class SFMuniDataHelper():
                 chunk['MONTH'][i] = ((chunk['DATE'][i]).to_period('month')).to_timestamp()
                 chunk['DOW'][i]   = (chunk['DATE'][i]).isoweekday()    
                               
-            # because of misalinged row, it sometimes auto-detects inconsistent
-            # data types, so force them as needed
-            chunk['NEXTTRIP']      = chunk['NEXTTRIP'].astype('int64')
-            chunk['DOORCLOSE_DEV'] = chunk['DOORCLOSE_DEV'].astype('float64')
-            chunk['DELTAA']        = chunk['DELTAA'].astype('int64')   
-            chunk['DELTAD']        = chunk['DELTAD'].astype('int64')   
-            chunk['DWELL_S']       = chunk['DWELL_S'].astype('int64')  
-            chunk['DWDI']          = chunk['DWDI'].astype('int64')
-            
 
             # drop duplicates (not sure why these occur) and sort
             chunk.drop_duplicates(cols=self.INDEX_COLUMNS, inplace=True) 
@@ -706,7 +721,8 @@ class SFMuniDataHelper():
 		'VEHNO'        : {'VEHNO'         : 'first'},   
 		'SCHOOL'       : {'SCHOOL'        : 'first'},   
 		'LASTTRIP'     : {'LASTTRIP'      : 'first'},   
-		'NEXTTRIP'     : {'NEXTTRIP'      : 'first'},   
+		'NEXTTRIP'     : {'NEXTTRIP'      : 'first'}, 
+		'HEADWAY'      : {'HEADWAY'       : 'mean',   'HEADWAY_STD'       : 'std'},   
 		'TEPPER'       : {'TEPPER'        : 'first'},   
 		'QSTOP'        : {'QSTOP'         : 'first'},          # stop attributes
 		'STOPNAME'     : {'STOPNAME'      : 'first'},   
@@ -733,9 +749,7 @@ class SFMuniDataHelper():
 		'WHEELCHAIR'   : {'WHEELCHAIR'    : 'mean',   'WHEELCHAIR_STD'    :'std'},  
 		'BIKERACK'     : {'BIKERACK'      : 'mean',   'BIKERACK_STD'      :'std'},   
 		'TIMESTOP_S'   : {'TIMESTOP_S'    : 'first'},                                  # times
-		'TIMESTOP_DEV' : {'TIMESTOP_DEV'  : 'mean',   'TIMESTOP_DEV_STD'  :'std'},   
-		'ONTIME1'      : {'ONTIME1'       : 'mean',   'ONTIME1_STD'       :'std'},   
-		'ONTIME5'      : {'ONTIME5'       : 'mean',   'ONTIME5_STD'       :'std'},  
+		'TIMESTOP_DEV' : {'TIMESTOP_DEV'  : 'mean',   'TIMESTOP_DEV_STD'  :'std'},  
 		'DOORCLOSE_S'  : {'DOORCLOSE_S'   : 'first'},  
 		'DOORCLOSE_DEV': {'DOORCLOSE_DEV' : 'mean',   'DOORCLOSE_DEV_STD' :'std'}, 
 		'DWELL'        : {'DWELL'         : 'mean',   'DWELL_STD'         :'std'},   
@@ -745,7 +759,9 @@ class SFMuniDataHelper():
 		'RUNTIME_S'    : {'RUNTIME_S'     : 'mean'},     
 		'RECOVERY'     : {'RECOVERY'      : 'mean',   'RECOVERY_STD'      :'std'},    
 		'RECOVERY_S'   : {'RECOVERY_S'    : 'mean'},   
-		'DLPMIN'       : {'DLPMIN'        : 'mean',   'DLPMIN_STD'        :'std'}   
+		'DLPMIN'       : {'DLPMIN'        : 'mean',   'DLPMIN_STD'        :'std'},     
+		'ONTIME2'      : {'ONTIME2'       : 'mean',   'ONTIME2_STD'       :'std'},   
+		'ONTIME10'     : {'ONTIME10'      : 'mean',   'ONTIME10_STD'      :'std'} 
 		}
 
 
@@ -753,18 +769,19 @@ class SFMuniDataHelper():
         # define the order in the final dataframe
         aggregationOrder = [
                 'MONTH'        , 
-                'NUMDAYS'      , 
-                'OBSTRIPS'     , 
-		'ROUTEA'       , 
 		'ROUTE'        , 
 		'PATTCODE'     , 
 		'DIR'          , 
 		'TRIP'         , 
 		'SEQ'          , 
+                'NUMDAYS'      , 
+                'OBSTRIPS'     , 
+		'ROUTEA'       , 
 		'VEHNO'        , 
 		'SCHOOL'       , 
 		'LASTTRIP'     , 
 		'NEXTTRIP'     , 
+		'HEADWAY'      , 'HEADWAY_STD', 
 		'TEPPER'       , 
 		'QSTOP'        , 
 		'STOPNAME'     , 
@@ -793,8 +810,6 @@ class SFMuniDataHelper():
 		'TIMESTOP'     ,      
 		'TIMESTOP_S'   , 
 		'TIMESTOP_DEV' , 'TIMESTOP_DEV_STD', 
-		'ONTIME1'      , 'ONTIME1_STD', 
-		'ONTIME5'      , 'ONTIME5_STD', 
 		'DOORCLOSE'    ,  
 		'DOORCLOSE_S'  ,  
 		'DOORCLOSE_DEV', 'DOORCLOSE_DEV_STD',
@@ -806,7 +821,9 @@ class SFMuniDataHelper():
 		'RUNTIME_S'    ,     
 		'RECOVERY'     , 'RECOVERY_STD',     
 		'RECOVERY_S'   ,    
-		'DLPMIN'       , 'DLPMIN_STD'       
+		'DLPMIN'       , 'DLPMIN_STD', 
+		'ONTIME2'      , 'ONTIME2_STD', 
+		'ONTIME10'     , 'ONTIME10_STD'       
 		]
 
         # open and initialize the store
@@ -826,7 +843,7 @@ class SFMuniDataHelper():
             print 'Processing ', month            
 
             # define the query for this part of week
-            if outkey=='weekday2':
+            if outkey=='weekday':
                 query = 'MONTH==Timestamp(month) & DOW<=5'
             if outkey=='saturday':
                 query = 'MONTH==Timestamp(month) & DOW==6'
@@ -865,6 +882,7 @@ class SFMuniDataHelper():
                         pd.DateOffset(minutes=aggregated['PULLDWELL'][i]))
             
             # force column types as needed
+            aggregated['HEADWAY']       = aggregated['HEADWAY'].astype('float64')   
             aggregated['LAT']           = aggregated['LAT'].astype('float64')             
             aggregated['LON']           = aggregated['LON'].astype('float64')           
             aggregated['MAXVEL']        = aggregated['MAXVEL'].astype('float64')        
@@ -884,8 +902,6 @@ class SFMuniDataHelper():
             aggregated['WHEELCHAIR']    = aggregated['WHEELCHAIR'].astype('float64')    
             aggregated['BIKERACK']      = aggregated['BIKERACK'].astype('float64')      
             aggregated['TIMESTOP_DEV']  = aggregated['TIMESTOP_DEV'].astype('float64')   
-            aggregated['ONTIME1']       = aggregated['ONTIME1'].astype('float64')  
-            aggregated['ONTIME5']       = aggregated['ONTIME5'].astype('float64')  
             aggregated['DOORCLOSE_DEV'] = aggregated['DOORCLOSE_DEV'].astype('float64') 
             aggregated['DWELL']         = aggregated['DWELL'].astype('float64')         
             aggregated['DWELL_S']       = aggregated['DWELL_S'].astype('float64')       
@@ -895,6 +911,8 @@ class SFMuniDataHelper():
             aggregated['RECOVERY']      = aggregated['RECOVERY'].astype('float64')      
             aggregated['RECOVERY_S']    = aggregated['RECOVERY_S'].astype('float64')    
             aggregated['DLPMIN']        = aggregated['DLPMIN'].astype('float64')  
+            aggregated['ONTIME2']       = aggregated['ONTIME2'].astype('float64')  
+            aggregated['ONTIME10']      = aggregated['ONTIME10'].astype('float64')  
             
             # clean up structure of dataframe
             aggregated = aggregated.sort_index()
@@ -908,90 +926,110 @@ class SFMuniDataHelper():
         store.close()
 
 
-    def aggregateTrips(self, hdffile, outkey, groupby):
+    def aggregateTrips(self, hdffile, inkey, outkey):
         """
-        Read disaggregate transit records, and aggregates across trips.
+        Read disaggregate transit records, and aggregates across trips to a
+        daily total. 
         
         hdffile - HDF5 file to aggregate
+        inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
         groupby - list - columns to group the data by
-        
-        notes: 
-
-        'df'    - key for input disaggregate dataframe in h5store, as a string
-                           
+                                   
         """
 
         # define the mechanism for aggregation
-        aggregationMethod = [
-            ('DATE'         , 'first'),
-            ('TRIP'         , 'count'),            
-            ('ROUTEA'       , 'first'), 
-            ('DOW'          , 'first'), 
-            ('QSTOP'        , 'first'), 
-            ('STOPNAME'     , 'first'), 
-            ('TIMEPOINT'    , 'first'), 
-            ('EOL'          , 'first'), 
-            ('VEHMILES'     , 'sum'), 
-            ('ON'           , 'sum'),
-            ('OFF'          , 'sum'), 
-            ('LOAD_ARR'     , 'sum'), 
-            ('LOAD_DEP'     , 'sum'), 
-            ('PASSMILES'    , 'sum'), 
-            ('RDBRDNGS'     , 'sum'),
-            ('CAPACITY'     , 'sum'), 
-            ('DOORCYCLES'   , 'sum'),
-            ('WHEELCHAIR'   , 'sum'),
-            ('BIKERACK'     , 'sum'),
-            ('TIMESTOP_DEV' , 'mean'), 
-            ('DOORCLOSE_DEV', 'mean'), 
-            ('DWELL'        , 'mean'), 
-            ('DWELL_S'      , 'mean'), 
-            ('PULLDWELL'    , 'mean'), 
-            ('RUNTIME'      , 'mean'), 
-            ('RUNTIME_S'    , 'mean'), 
-            ('RECOVERY'     , 'mean'), 
-            ('RECOVERY_S'   , 'mean'), 
-            ('DLPMIN'       , 'mean')
-            ]
+        aggregationMethod = {
+                'NUMDAYS'      : {'TOTTRIPS'      : 'sum', 'NUMDAYS'       : 'first'},
+                'OBSTRIPS'     : {'OBSTRIPS'      : 'sum'},
+		'ROUTEA'       : {'ROUTEA'        : 'first'},          # route/trip attributes
+		'HEADWAY'      : {'HEADWAY'       : 'mean'}, 
+		'QSTOP'        : {'QSTOP'         : 'first'},          # stop attributes
+		'STOPNAME'     : {'STOPNAME'      : 'first'},   
+		'TIMEPOINT'    : {'TIMEPOINT'     : 'first'},   
+		'EOL'          : {'EOL'           : 'first'},   
+		'LAT'          : {'LAT'           : 'mean'},    # location information
+		'LON'          : {'LON'           : 'mean'},   
+		'NS'           : {'NS'            : 'first'},       
+		'EW'           : {'EW'            : 'first'},       
+		'MAXVEL'       : {'MAXVEL'        : 'mean'},   
+		'MILES'        : {'MILES'         : 'mean'},   
+		'GODOM'        : {'GODOM'         : 'mean'},   
+		'VEHMILES'     : {'VEHMILES'      : 'sum'},  
+		'ON'           : {'ON'            : 'sum'},    # ridership
+		'OFF'          : {'OFF'           : 'sum'},  
+		'LOAD_ARR'     : {'LOAD_ARR'      : 'sum'},  
+		'LOAD_DEP'     : {'LOAD_DEP'      : 'sum'},  
+		'PASSMILES'    : {'PASSMILES'     : 'sum'},  
+		'PASSHOURS'    : {'PASSHOURS'     : 'sum'},  
+		'RDBRDNGS'     : {'RDBRDNGS'      : 'sum'},  
+		'CAPACITY'     : {'CAPACITY'      : 'sum'},  
+		'DOORCYCLES'   : {'DOORCYCLES'    : 'mean'},  
+		'WHEELCHAIR'   : {'WHEELCHAIR'    : 'sum'},  
+		'BIKERACK'     : {'BIKERACK'      : 'sum'},                                  # times
+		'TIMESTOP_DEV' : {'TIMESTOP_DEV'  : 'mean'},  
+		'DOORCLOSE_DEV': {'DOORCLOSE_DEV' : 'mean'}, 
+		'DWELL'        : {'DWELL'         : 'mean'},   
+		'DWELL_S'      : {'DWELL_S'       : 'mean'},
+		'PULLDWELL'    : {'PULLDWELL'     : 'mean'},   
+		'RUNTIME'      : {'RUNTIME'       : 'mean'},   
+		'RUNTIME_S'    : {'RUNTIME_S'     : 'mean'},     
+		'RECOVERY'     : {'RECOVERY'      : 'mean'},    
+		'RECOVERY_S'   : {'RECOVERY_S'    : 'mean'},   
+		'DLPMIN'       : {'DLPMIN'        : 'mean'},      
+		'ONTIME2'      : {'ONTIME2'       : 'mean'},   
+		'ONTIME10'     : {'ONTIME10'      : 'mean'}, 
+		}
             
+        # define the order in the final dataframe
         aggregationOrder = [
-            'DATE', 
-            'NUMTRIPS', 
-            'ROUTEA', 
-            'DOW', 
-            'QSTOP', 
-            'STOPNAME', 
-            'TIMEPOINT', 
-            'EOL', 
-            'VEHMILES', 
-            'ON',
-            'OFF', 
-            'LOAD_ARR', 
-            'LOAD_DEP', 
-            'PASSMILES', 
-            'RDBRDNGS',
-            'CAPACITY', 
-            'DOORCYCLES',
-            'WHEELCHAIR',
-            'BIKERACK',
-            'TIMESTOP_DEV', 
-            'DOORCLOSE_DEV', 
-            'DWELL', 
-            'DWELL_S', 
-            'PULLDWELL', 
-            'RUNTIME', 
-            'RUNTIME_S', 
-            'RECOVERY', 
-            'RECOVERY_S', 
-            'DLPMIN'
-            ]
-
-        stringLengths=[  
-		('ROUTEA'   ,10),   #            - alphanumeric route name
-		('PATTCODE' ,10),   # (305, 315) - pattern code
-		('STOPNAME' ,32)   # ( 15,  47) - stop name	
-                ]
+                'MONTH'        , 
+		'ROUTE'        , 
+		'PATTCODE'     , 
+		'DIR'          , 
+		'SEQ'          , 
+                'NUMDAYS'      , 
+                'DAILYTRIPS'   , 
+                'TOTTRIPS'     , 
+                'OBSTRIPS'     , 
+		'ROUTEA'       , 
+		'HEADWAY'      , 
+		'QSTOP'        , 
+		'STOPNAME'     , 
+		'TIMEPOINT'    , 
+		'EOL'          , 
+		'LAT'          , 
+		'LON'          , 
+		'NS'           , 
+		'EW'           , 
+		'MAXVEL'       , 
+		'MILES'        , 
+		'GODOM'        , 
+		'VEHMILES'     , 
+		'ON'           , 
+		'OFF'          , 
+		'LOAD_ARR'     , 
+		'LOAD_DEP'     , 
+		'PASSMILES'    , 
+		'PASSHOURS'    , 
+		'RDBRDNGS'     , 
+		'CAPACITY'     , 
+		'DOORCYCLES'   , 
+		'WHEELCHAIR'   , 
+		'BIKERACK'     , 
+		'TIMESTOP_DEV' , 
+		'DOORCLOSE_DEV', 
+		'DWELL'        , 
+		'DWELL_S'      , 
+		'PULLDWELL'    , 
+		'RUNTIME'      , 
+		'RUNTIME_S'    , 
+		'RECOVERY'     , 
+		'RECOVERY_S'   , 
+		'DLPMIN'       , 
+		'ONTIME2'      ,
+		'ONTIME10'     
+		]
 
         # open and initialize the store
         store = pd.HDFStore(hdffile)
@@ -1000,28 +1038,70 @@ class SFMuniDataHelper():
         except KeyError: 
             print "HDFStore does not contain object ", outkey
         
-        # get the list of all dates in data set
-        dates = store.select_column('df', 'DATE').unique()
-        print 'Retrieved a total of %i dates to process' % len(dates)
+        # get the list of all months in data set
+        months = store.select_column(inkey, 'MONTH').unique()
+        months.sort()
+        print 'Retrieved a total of %i months to process' % len(months)
 
         # loop through the dates, and aggregate each individually
-        for date in dates: 
-            print 'Processing ', date            
-            df = store.select('df', where='DATE==Timestamp(date)')
+        for month in months: 
+            print 'Processing ', month            
 
-            # group
-            grouped = df.groupby(groupby)
-            aggregated = grouped.aggregate(dict(aggregationMethod))
+            df = store.select(inkey, where='MONTH==Timestamp(month)')
             
-            # clean-up
-            aggregated['NUMTRIPS'] = aggregated['TRIP']
-            aggregated = aggregated[aggregationOrder]
+            # group
+            grouped = df.groupby(['ROUTE', 'PATTCODE', 'DIR', 'SEQ'])
+            aggregated = grouped.aggregate(aggregationMethod)
+            
+            # drop multi-level columns
+            levels = aggregated.columns.levels
+            labels = aggregated.columns.labels
+            aggregated.columns = levels[1][labels[1]]
+
+            # additional calculations
+            aggregated['MONTH']    = month
+            aggregated['DAILYTRIPS'] = grouped.size()
+                        
+            # force column types as needed
+            aggregated['HEADWAY']       = aggregated['HEADWAY'].astype('float64')   
+            aggregated['LAT']           = aggregated['LAT'].astype('float64')             
+            aggregated['LON']           = aggregated['LON'].astype('float64')           
+            aggregated['MAXVEL']        = aggregated['MAXVEL'].astype('float64')        
+            aggregated['MILES']         = aggregated['MILES'].astype('float64')         
+            aggregated['GODOM']         = aggregated['GODOM'].astype('float64')         
+            aggregated['VEHMILES']      = aggregated['VEHMILES'].astype('float64')      
+            aggregated['ON']            = aggregated['ON'].astype('float64')            
+            aggregated['OFF']           = aggregated['OFF'].astype('float64')           
+            aggregated['LOAD_ARR']      = aggregated['LOAD_ARR'].astype('float64')      
+            aggregated['LOAD_DEP']      = aggregated['LOAD_DEP'].astype('float64')      
+            aggregated['PASSMILES']     = aggregated['PASSMILES'].astype('float64')     
+            aggregated['PASSHOURS']     = aggregated['PASSHOURS'].astype('float64')     
+            aggregated['RDBRDNGS']      = aggregated['RDBRDNGS'].astype('float64')     
+            aggregated['CAPACITY']      = aggregated['CAPACITY'].astype('float64')      
+            aggregated['DOORCYCLES']    = aggregated['DOORCYCLES'].astype('float64')    
+            aggregated['WHEELCHAIR']    = aggregated['WHEELCHAIR'].astype('float64')    
+            aggregated['BIKERACK']      = aggregated['BIKERACK'].astype('float64')      
+            aggregated['TIMESTOP_DEV']  = aggregated['TIMESTOP_DEV'].astype('float64')   
+            aggregated['DOORCLOSE_DEV'] = aggregated['DOORCLOSE_DEV'].astype('float64') 
+            aggregated['DWELL']         = aggregated['DWELL'].astype('float64')         
+            aggregated['DWELL_S']       = aggregated['DWELL_S'].astype('float64')       
+            aggregated['PULLDWELL']     = aggregated['PULLDWELL'].astype('float64')     
+            aggregated['RUNTIME']       = aggregated['RUNTIME'].astype('float64')       
+            aggregated['RUNTIME_S']     = aggregated['RUNTIME_S'].astype('float64')     
+            aggregated['RECOVERY']      = aggregated['RECOVERY'].astype('float64')      
+            aggregated['RECOVERY_S']    = aggregated['RECOVERY_S'].astype('float64')    
+            aggregated['DLPMIN']        = aggregated['DLPMIN'].astype('float64')  
+            aggregated['ONTIME2']       = aggregated['ONTIME2'].astype('float64')  
+            aggregated['ONTIME10']      = aggregated['ONTIME10'].astype('float64')  
+            
+            # clean up structure of dataframe
             aggregated = aggregated.sort_index()
-            aggregated = aggregated.reset_index()            
+            aggregated = aggregated.reset_index()     
+            aggregated = aggregated[aggregationOrder]       
             
             # write
-            store.append(outkey, aggregated, data_columns=True,  
-                min_itemsize=dict(stringLengths))
+            store.append(outkey, aggregated, data_columns=True, 
+                min_itemsize=dict(self.STRING_LENGTHS))
             
         store.close()
 
@@ -1134,45 +1214,45 @@ class SFMuniDataHelper():
             
         store.close()
 
-    def aggregateStopsAndTrips(self, hdffile, outkey, groupby):
+    def aggregateStopsAndTrips(self, hdffile, inkey, outkey, groupby):
         """
         Read disaggregate transit records, and aggregates across stops and trips.
         
         hdffile - HDF5 file to aggregate
+        inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
         groupby - list - columns to group the data by
-        
-        notes: 
-
-        'df'    - key for input disaggregate dataframe in h5store, as a string
-                           
+                                   
         """
 
-        # define the mechanism for aggregation
-        aggregationMethod = [
-            ('DATE'         , 'first'),
-            ('TRIP'         , 'count'),            
-            ('ROUTEA'       , 'first'), 
-            ('DOW'          , 'first'), 
-            ('VEHMILES'     , 'sum'), 
-            ('ON'           , 'sum'),
-            ('OFF'          , 'sum'), 
-            ('PASSMILES'    , 'sum'), 
-            ('RDBRDNGS'     , 'sum'),
-            ('DOORCYCLES'   , 'sum'),
-            ('WHEELCHAIR'   , 'sum'),
-            ('BIKERACK'     , 'sum'),
-            ('TIMESTOP_DEV' , 'mean'), 
-            ('DOORCLOSE_DEV', 'mean'), 
-            ('DWELL'        , 'sum'), 
-            ('DWELL_S'      , 'sum'), 
-            ('PULLDWELL'    , 'sum'), 
-            ('RUNTIME'      , 'sum'), 
-            ('RUNTIME_S'    , 'sum'), 
-            ('RECOVERY'     , 'sum'), 
-            ('RECOVERY_S'   , 'sum'), 
-            ('DLPMIN'       , 'sum')
-            ]
+        # define how each field will be aggregated
+        aggregationMethod = {
+		'ROUTEA'       : {'ROUTEA'        : 'first'},          # route/trip attributes
+		'VEHMILES'     : {'VEHMILES'      : 'sum'},  
+		'ON'           : {'ON'            : 'sum'},    # ridership
+		'OFF'          : {'OFF'           : 'sum'},  
+		'LOAD_ARR'     : {'LOAD_ARR'      : 'sum'},  
+		'LOAD_DEP'     : {'LOAD_DEP'      : 'sum'},  
+		'PASSMILES'    : {'PASSMILES'     : 'sum'},  
+		'PASSHOURS'    : {'PASSHOURS'     : 'sum'},  
+		'RDBRDNGS'     : {'RDBRDNGS'      : 'sum'},  
+		'CAPACITY'     : {'CAPACITY'      : 'sum'},  
+		'DOORCYCLES'   : {'DOORCYCLES'    : 'sum'},  
+		'WHEELCHAIR'   : {'WHEELCHAIR'    : 'sum'},  
+		'BIKERACK'     : {'BIKERACK'      : 'sum'},  
+		'TIMESTOP_DEV' : {'TIMESTOP_DEV'  : 'mean'},   
+		'DOORCLOSE_DEV': {'DOORCLOSE_DEV' : 'mean'}, 
+		'DWELL'        : {'DWELL'         : 'sum'},   
+		'DWELL_S'      : {'DWELL_S'       : 'sum'},
+		'PULLDWELL'    : {'PULLDWELL'     : 'sum'},   
+		'RUNTIME'      : {'RUNTIME'       : 'sum'},   
+		'RUNTIME_S'    : {'RUNTIME_S'     : 'sum'},     
+		'RECOVERY'     : {'RECOVERY'      : 'sum'},    
+		'RECOVERY_S'   : {'RECOVERY_S'    : 'mean'},   
+		'DLPMIN'       : {'DLPMIN'        : 'mean'},     
+		'ONTIME2'      : {'ONTIME2'       : 'mean'},   
+		'ONTIME10'     : {'ONTIME10'      : 'mean'}, 
+		}
             
         aggregationOrder = [
             'DATE', 
@@ -1196,7 +1276,9 @@ class SFMuniDataHelper():
             'RUNTIME_S', 
             'RECOVERY', 
             'RECOVERY_S', 
-            'DLPMIN'
+            'DLPMIN', 
+            'ONTIME2', 
+            'ONTIME10'
             ]
 
         stringLengths=[  
