@@ -17,11 +17,9 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import pandas as pd
 import datetime
 
 from SFMuniDataHelper import SFMuniDataHelper
-from DataFrameViewer import DataFrameViewer
 
 
 
@@ -63,26 +61,21 @@ if __name__ == "__main__":
     sfmuniHelper.calcMonthlyAverages(outfile, 'sunday')
 
     # aggregate trips into daily totals        
-    sfmuniHelper.aggregateTrips(outfile, 'weekday',  'weekday_total')
-    sfmuniHelper.aggregateTrips(outfile, 'saturday', 'saturday_total')
-    sfmuniHelper.aggregateTrips(outfile, 'sunday',   'sunday_total')
+    sfmuniHelper.aggregateTrips(outfile, 'weekday',  'weekday_route_stops')
+    sfmuniHelper.aggregateTrips(outfile, 'saturday', 'saturday_route_stops')
+    sfmuniHelper.aggregateTrips(outfile, 'sunday',   'sunday_route_stops')
 
-        
+    # sum route totals
+    sfmuniHelper.calculateRouteTotals(outfile, 'weekday_route_stops',  'weekday_routes')
+    sfmuniHelper.calculateRouteTotals(outfile, 'saturday_route_stops', 'saturday_routes')
+    sfmuniHelper.calculateRouteTotals(outfile, 'sunday_route_stops',   'sunday_routes')    
     
-    # aggregate different dimensions
-    #sfmuniHelper.aggregateStops(outfile, 'daily_trips', 
-    #    ['ROUTE', 'PATTCODE', 'DIR', 'TRIP'])
-            
-    #sfmuniHelper.aggregateStopsAndTrips(outfile, 'weekday', 'weekday_routes', 
-    #    ['ROUTE'])
+    # sum stop totals    
+    sfmuniHelper.calculateStopTotals(outfile, 'weekday_route_stops',  'weekday_stops')
+    sfmuniHelper.calculateStopTotals(outfile, 'saturday_route_stops', 'saturday_stops')
+    sfmuniHelper.calculateStopTotals(outfile, 'sunday_route_stops',   'sunday_stops')    
+    
         
-    #aggregatedTime = datetime.datetime.now()
-    #print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 
+    aggregatedTime = datetime.datetime.now()
+    print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 
                 
-    # read it back in
-    #store = pd.HDFStore(outfile)
-    #df = store.df[500:1500]    
-
-    # let the user view the first 1000 rows
-    #vw = DataFrameViewer()
-    #vw.view(df)

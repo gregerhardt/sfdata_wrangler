@@ -934,7 +934,6 @@ class SFMuniDataHelper():
         hdffile - HDF5 file to aggregate
         inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
-        groupby - list - columns to group the data by
                                    
         """
 
@@ -1106,141 +1105,34 @@ class SFMuniDataHelper():
         store.close()
 
 
-    def aggregateStops(self, hdffile, outkey, groupby):
+    def calculateRouteTotals(self, hdffile, inkey, outkey):
         """
-        Read disaggregate transit records, and aggregates across stops.
-        
-        hdffile - HDF5 file to aggregate
-        outkey  - string - key for writing the aggregated dataframe to the store
-        groupby - list - columns to group the data by
-        
-        notes: 
-
-        'df'    - key for input disaggregate dataframe in h5store, as a string
-                           
-        """
-
-        # define the mechanism for aggregation
-        aggregationMethod = [
-            ('DATE'         , 'first'),
-            ('QSTOP'        , 'count'),            
-            ('ROUTEA'       , 'first'), 
-            ('DOW'          , 'first'),           
-            ('LASTTRIP'     , 'first'), 
-            ('NEXTTRIP'     , 'first'), 
-            ('VEHMILES'     , 'sum'), 
-            ('ON'           , 'sum'),
-            ('OFF'          , 'sum'), 
-            ('PASSMILES'    , 'sum'), 
-            ('RDBRDNGS'     , 'sum'),
-            ('CAPACITY'     , 'sum'), 
-            ('DOORCYCLES'   , 'sum'),
-            ('WHEELCHAIR'   , 'sum'),
-            ('BIKERACK'     , 'sum'),
-            ('TIMESTOP_DEV' , 'sum'), 
-            ('DOORCLOSE_DEV', 'sum'), 
-            ('DWELL'        , 'sum'), 
-            ('DWELL_S'      , 'sum'), 
-            ('PULLDWELL'    , 'sum'), 
-            ('RUNTIME'      , 'sum'), 
-            ('RUNTIME_S'    , 'sum'), 
-            ('RECOVERY'     , 'sum'), 
-            ('RECOVERY_S'   , 'sum'), 
-            ('DLPMIN'       , 'sum')
-            ]
-            
-        aggregationOrder = [
-            'DATE'         , 
-            'NUMSTOPS'     ,            
-            'ROUTEA'       , 
-            'DOW'          ,          
-            'LASTTRIP'     , 
-            'NEXTTRIP'     , 
-            'VEHMILES'     , 
-            'ON'           , 
-            'OFF'          , 
-            'PASSMILES'    , 
-            'RDBRDNGS'     , 
-            'CAPACITY'     , 
-            'DOORCYCLES'   , 
-            'WHEELCHAIR'   , 
-            'BIKERACK'     , 
-            'TIMESTOP_DEV' , 
-            'DOORCLOSE_DEV', 
-            'DWELL'        , 
-            'DWELL_S'      , 
-            'PULLDWELL'    , 
-            'RUNTIME'      , 
-            'RUNTIME_S'    , 
-            'RECOVERY'     , 
-            'RECOVERY_S'   , 
-            'DLPMIN'       
-            ]
-
-        stringLengths=[  
-		('ROUTEA'   ,10),   #            - alphanumeric route name
-		('PATTCODE' ,10)    # (305, 315) - pattern code
-                ]
-
-        # open and initialize the store
-        store = pd.HDFStore(hdffile)
-        try: 
-            store.remove(outkey)
-        except KeyError: 
-            print "HDFStore does not contain object ", outkey
-        
-        # get the list of all dates in data set
-        dates = store.select_column('df', 'DATE').unique()
-        print 'Retrieved a total of %i dates to process' % len(dates)
-
-        # loop through the dates, and aggregate each individually
-        for date in dates: 
-            print 'Processing ', date            
-            df = store.select('df', where='DATE==Timestamp(date)')
-
-            # group
-            grouped = df.groupby(groupby)
-            aggregated = grouped.aggregate(dict(aggregationMethod))
-            
-            # clean-up
-            aggregated['NUMSTOPS'] = aggregated['QSTOP']
-            aggregated = aggregated[aggregationOrder]
-            aggregated = aggregated.sort_index()
-            aggregated = aggregated.reset_index()            
-            
-            # write
-            store.append(outkey, aggregated, data_columns=True,  
-                min_itemsize=dict(stringLengths))
-            
-        store.close()
-
-    def aggregateStopsAndTrips(self, hdffile, inkey, outkey, groupby):
-        """
-        Read disaggregate transit records, and aggregates across stops and trips.
+        Sum across stops to get route totals
         
         hdffile - HDF5 file to aggregate
         inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
-        groupby - list - columns to group the data by
                                    
         """
 
-        # define how each field will be aggregated
+        # define the mechanism for aggregation
         aggregationMethod = {
+                'NUMDAYS'      : {'TOTTRIPS'      : 'first', 'NUMDAYS'       : 'first'},
+                'DAILYTRIPS'   : {'DAILYTRIPS'    : 'first'},
+                'OBSTRIPS'     : {'OBSTRIPS'      : 'first'},
 		'ROUTEA'       : {'ROUTEA'        : 'first'},          # route/trip attributes
+		'HEADWAY'      : {'HEADWAY'       : 'first'}, 
 		'VEHMILES'     : {'VEHMILES'      : 'sum'},  
 		'ON'           : {'ON'            : 'sum'},    # ridership
 		'OFF'          : {'OFF'           : 'sum'},  
-		'LOAD_ARR'     : {'LOAD_ARR'      : 'sum'},  
-		'LOAD_DEP'     : {'LOAD_DEP'      : 'sum'},  
 		'PASSMILES'    : {'PASSMILES'     : 'sum'},  
 		'PASSHOURS'    : {'PASSHOURS'     : 'sum'},  
 		'RDBRDNGS'     : {'RDBRDNGS'      : 'sum'},  
 		'CAPACITY'     : {'CAPACITY'      : 'sum'},  
 		'DOORCYCLES'   : {'DOORCYCLES'    : 'sum'},  
 		'WHEELCHAIR'   : {'WHEELCHAIR'    : 'sum'},  
-		'BIKERACK'     : {'BIKERACK'      : 'sum'},  
-		'TIMESTOP_DEV' : {'TIMESTOP_DEV'  : 'mean'},   
+		'BIKERACK'     : {'BIKERACK'      : 'sum'},                                  # times
+		'TIMESTOP_DEV' : {'TIMESTOP_DEV'  : 'mean'},  
 		'DOORCLOSE_DEV': {'DOORCLOSE_DEV' : 'mean'}, 
 		'DWELL'        : {'DWELL'         : 'sum'},   
 		'DWELL_S'      : {'DWELL_S'       : 'sum'},
@@ -1248,42 +1140,46 @@ class SFMuniDataHelper():
 		'RUNTIME'      : {'RUNTIME'       : 'sum'},   
 		'RUNTIME_S'    : {'RUNTIME_S'     : 'sum'},     
 		'RECOVERY'     : {'RECOVERY'      : 'sum'},    
-		'RECOVERY_S'   : {'RECOVERY_S'    : 'mean'},   
-		'DLPMIN'       : {'DLPMIN'        : 'mean'},     
+		'RECOVERY_S'   : {'RECOVERY_S'    : 'sum'},   
+		'DLPMIN'       : {'DLPMIN'        : 'sum'},      
 		'ONTIME2'      : {'ONTIME2'       : 'mean'},   
 		'ONTIME10'     : {'ONTIME10'      : 'mean'}, 
 		}
             
+        # define the order in the final dataframe
         aggregationOrder = [
-            'DATE', 
-            'NUMTRIPS', 
-            'ROUTEA', 
-            'DOW', 
-            'VEHMILES', 
-            'ON',
-            'OFF', 
-            'PASSMILES', 
-            'RDBRDNGS',
-            'DOORCYCLES',
-            'WHEELCHAIR',
-            'BIKERACK',
-            'TIMESTOP_DEV', 
-            'DOORCLOSE_DEV', 
-            'DWELL', 
-            'DWELL_S', 
-            'PULLDWELL', 
-            'RUNTIME', 
-            'RUNTIME_S', 
-            'RECOVERY', 
-            'RECOVERY_S', 
-            'DLPMIN', 
-            'ONTIME2', 
-            'ONTIME10'
-            ]
-
-        stringLengths=[  
-		('ROUTEA'   ,10)   #            - alphanumeric route name
-                ]
+                'MONTH'        , 
+		'ROUTE'        , 
+		'DIR'          , 
+                'NUMDAYS'      , 
+                'DAILYTRIPS'   , 
+                'TOTTRIPS'     , 
+                'OBSTRIPS'     , 
+		'ROUTEA'       , 
+		'HEADWAY'      , 
+		'VEHMILES'     , 
+		'ON'           , 
+		'OFF'          , 
+		'PASSMILES'    , 
+		'PASSHOURS'    , 
+		'RDBRDNGS'     , 
+		'CAPACITY'     , 
+		'DOORCYCLES'   , 
+		'WHEELCHAIR'   , 
+		'BIKERACK'     , 
+		'TIMESTOP_DEV' , 
+		'DOORCLOSE_DEV', 
+		'DWELL'        , 
+		'DWELL_S'      , 
+		'PULLDWELL'    , 
+		'RUNTIME'      , 
+		'RUNTIME_S'    , 
+		'RECOVERY'     , 
+		'RECOVERY_S'   , 
+		'DLPMIN'       , 
+		'ONTIME2'      ,
+		'ONTIME10'     
+		]
 
         # open and initialize the store
         store = pd.HDFStore(hdffile)
@@ -1292,27 +1188,183 @@ class SFMuniDataHelper():
         except KeyError: 
             print "HDFStore does not contain object ", outkey
         
-        # get the list of all dates in data set
-        dates = store.select_column('df', 'DATE').unique()
-        print 'Retrieved a total of %i dates to process' % len(dates)
+        # get the list of all months in data set
+        months = store.select_column(inkey, 'MONTH').unique()
+        months.sort()
+        print 'Retrieved a total of %i months to process' % len(months)
 
         # loop through the dates, and aggregate each individually
-        for date in dates: 
-            print 'Processing ', date            
-            df = store.select('df', where='DATE==Timestamp(date)')
+        for month in months: 
+            print 'Processing ', month            
 
-            # group
-            grouped = df.groupby(groupby)
-            aggregated = grouped.aggregate(dict(aggregationMethod))
+            df = store.select(inkey, where='MONTH==Timestamp(month)')
             
-            # clean-up
-            aggregated['NUMTRIPS'] = aggregated['TRIP']
-            aggregated = aggregated[aggregationOrder]
+            # group
+            grouped = df.groupby(['ROUTE', 'DIR'])
+            aggregated = grouped.aggregate(aggregationMethod)
+            
+            # drop multi-level columns
+            levels = aggregated.columns.levels
+            labels = aggregated.columns.labels
+            aggregated.columns = levels[1][labels[1]]
+
+            # additional calculations
+            aggregated['MONTH']    = month
+                        
+            # force column types as needed
+            aggregated['HEADWAY']       = aggregated['HEADWAY'].astype('float64')    
+            aggregated['VEHMILES']      = aggregated['VEHMILES'].astype('float64')      
+            aggregated['ON']            = aggregated['ON'].astype('float64')            
+            aggregated['OFF']           = aggregated['OFF'].astype('float64')         
+            aggregated['PASSMILES']     = aggregated['PASSMILES'].astype('float64')     
+            aggregated['PASSHOURS']     = aggregated['PASSHOURS'].astype('float64')     
+            aggregated['RDBRDNGS']      = aggregated['RDBRDNGS'].astype('float64')     
+            aggregated['CAPACITY']      = aggregated['CAPACITY'].astype('float64')      
+            aggregated['DOORCYCLES']    = aggregated['DOORCYCLES'].astype('float64')    
+            aggregated['WHEELCHAIR']    = aggregated['WHEELCHAIR'].astype('float64')    
+            aggregated['BIKERACK']      = aggregated['BIKERACK'].astype('float64')      
+            aggregated['TIMESTOP_DEV']  = aggregated['TIMESTOP_DEV'].astype('float64')   
+            aggregated['DOORCLOSE_DEV'] = aggregated['DOORCLOSE_DEV'].astype('float64') 
+            aggregated['DWELL']         = aggregated['DWELL'].astype('float64')         
+            aggregated['DWELL_S']       = aggregated['DWELL_S'].astype('float64')       
+            aggregated['PULLDWELL']     = aggregated['PULLDWELL'].astype('float64')     
+            aggregated['RUNTIME']       = aggregated['RUNTIME'].astype('float64')       
+            aggregated['RUNTIME_S']     = aggregated['RUNTIME_S'].astype('float64')     
+            aggregated['RECOVERY']      = aggregated['RECOVERY'].astype('float64')      
+            aggregated['RECOVERY_S']    = aggregated['RECOVERY_S'].astype('float64')    
+            aggregated['DLPMIN']        = aggregated['DLPMIN'].astype('float64')  
+            aggregated['ONTIME2']       = aggregated['ONTIME2'].astype('float64')  
+            aggregated['ONTIME10']      = aggregated['ONTIME10'].astype('float64')  
+            
+            # clean up structure of dataframe
             aggregated = aggregated.sort_index()
-            aggregated = aggregated.reset_index()            
+            aggregated = aggregated.reset_index()     
+            aggregated = aggregated[aggregationOrder]     
+  
+            # write
+            store.append(outkey, aggregated, data_columns=True, 
+                min_itemsize={'ROUTEA':10})
+            
+        store.close()
+
+
+    def calculateStopTotals(self, hdffile, inkey, outkey,):
+        """
+        Aggregates across routes to get totals at each stop. 
+        
+        hdffile - HDF5 file to aggregate
+        inkey   - string - key for reading detailed data from
+        outkey  - string - key for writing the aggregated dataframe to the store
+                                   
+        """
+
+        # define the mechanism for aggregation
+        aggregationMethod = {
+                'NUMDAYS'      : {'TOTTRIPS'      : 'sum', 'NUMDAYS'       : 'first'},
+                'DAILYTRIPS'   : {'DAILYTRIPS'    : 'first'},
+                'OBSTRIPS'     : {'OBSTRIPS'      : 'sum'},
+		'STOPNAME'     : {'STOPNAME'      : 'first'},   
+		'TIMEPOINT'    : {'TIMEPOINT'     : 'first'},   
+		'EOL'          : {'EOL'           : 'first'},   
+		'LAT'          : {'LAT'           : 'mean'},    # location information
+		'LON'          : {'LON'           : 'mean'},  
+		'ON'           : {'ON'            : 'sum'},    # ridership
+		'OFF'          : {'OFF'           : 'sum'},  
+		'RDBRDNGS'     : {'RDBRDNGS'      : 'sum'},  
+		'DOORCYCLES'   : {'DOORCYCLES'    : 'sum'},  
+		'WHEELCHAIR'   : {'WHEELCHAIR'    : 'sum'},  
+		'BIKERACK'     : {'BIKERACK'      : 'sum'},                                  # times
+		'TIMESTOP_DEV' : {'TIMESTOP_DEV'  : 'mean'},  
+		'DOORCLOSE_DEV': {'DOORCLOSE_DEV' : 'mean'}, 
+		'DWELL'        : {'DWELL'         : 'mean'},   
+		'DWELL_S'      : {'DWELL_S'       : 'mean'},
+		'PULLDWELL'    : {'PULLDWELL'     : 'mean'},   
+		'ONTIME2'      : {'ONTIME2'       : 'mean'},   
+		'ONTIME10'     : {'ONTIME10'      : 'mean'}
+		}
+            
+        # define the order in the final dataframe
+        aggregationOrder = [
+                'MONTH'        , 
+                'NUMDAYS'      , 
+                'DAILYTRIPS'   , 
+                'TOTTRIPS'     , 
+                'OBSTRIPS'     , 
+		'QSTOP'        , 
+		'STOPNAME'     , 
+		'TIMEPOINT'    , 
+		'EOL'          , 
+		'LAT'          , 
+		'LON'          , 
+		'ON'           , 
+		'OFF'          , 
+		'RDBRDNGS'     , 
+		'DOORCYCLES'   , 
+		'WHEELCHAIR'   , 
+		'BIKERACK'     , 
+		'TIMESTOP_DEV' , 
+		'DOORCLOSE_DEV', 
+		'DWELL'        , 
+		'DWELL_S'      , 
+		'PULLDWELL'    , 
+		'ONTIME2'      ,
+		'ONTIME10'     
+		]
+
+        # open and initialize the store
+        store = pd.HDFStore(hdffile)
+        try: 
+            store.remove(outkey)
+        except KeyError: 
+            print "HDFStore does not contain object ", outkey
+        
+        # get the list of all months in data set
+        months = store.select_column(inkey, 'MONTH').unique()
+        months.sort()
+        print 'Retrieved a total of %i months to process' % len(months)
+
+        # loop through the dates, and aggregate each individually
+        for month in months: 
+            print 'Processing ', month            
+
+            df = store.select(inkey, where='MONTH==Timestamp(month)')
+            
+            # group
+            grouped = df.groupby(['QSTOP'])
+            aggregated = grouped.aggregate(aggregationMethod)
+            
+            # drop multi-level columns
+            levels = aggregated.columns.levels
+            labels = aggregated.columns.labels
+            aggregated.columns = levels[1][labels[1]]
+
+            # additional calculations
+            aggregated['MONTH']    = month
+                        
+            # force column types as needed
+            aggregated['LAT']           = aggregated['LAT'].astype('float64')             
+            aggregated['LON']           = aggregated['LON'].astype('float64')       
+            aggregated['ON']            = aggregated['ON'].astype('float64')            
+            aggregated['OFF']           = aggregated['OFF'].astype('float64')       
+            aggregated['RDBRDNGS']      = aggregated['RDBRDNGS'].astype('float64')     
+            aggregated['DOORCYCLES']    = aggregated['DOORCYCLES'].astype('float64')    
+            aggregated['WHEELCHAIR']    = aggregated['WHEELCHAIR'].astype('float64')    
+            aggregated['BIKERACK']      = aggregated['BIKERACK'].astype('float64')      
+            aggregated['TIMESTOP_DEV']  = aggregated['TIMESTOP_DEV'].astype('float64')   
+            aggregated['DOORCLOSE_DEV'] = aggregated['DOORCLOSE_DEV'].astype('float64') 
+            aggregated['DWELL']         = aggregated['DWELL'].astype('float64')         
+            aggregated['DWELL_S']       = aggregated['DWELL_S'].astype('float64')       
+            aggregated['PULLDWELL']     = aggregated['PULLDWELL'].astype('float64')   
+            aggregated['ONTIME2']       = aggregated['ONTIME2'].astype('float64')  
+            aggregated['ONTIME10']      = aggregated['ONTIME10'].astype('float64')  
+            
+            # clean up structure of dataframe
+            aggregated = aggregated.sort_index()
+            aggregated = aggregated.reset_index()     
+            aggregated = aggregated[aggregationOrder]       
             
             # write
-            store.append(outkey, aggregated, data_columns=True,  
-                min_itemsize=dict(stringLengths))
+            store.append(outkey, aggregated, data_columns=True, 
+                min_itemsize={'STOPNAME':10})
             
         store.close()
