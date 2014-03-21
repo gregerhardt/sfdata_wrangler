@@ -65,7 +65,7 @@ class SFMuniDataHelper():
 		(119, 123), # 'TRIP'     - trip
 		(124, 125), # 'DOORCYCLES'- door cycles
 		(126, 130), # 'DELTA'    - delta
-		(131, 132), # 'DOW'      - day of week -- input data is not reliable
+		(131, 132), # 'DOW'      - day of week schedule operated: 1-weekday, 2-saturday, 3-sunday
 		(133, 134), # 'DIR'      
 		(135, 140), # 'VEHMILES' - delta vehicle miles  - miles bus travels from last stop
 		(141, 145), # 'DLPMIN'   - delta minutes
@@ -166,7 +166,7 @@ class SFMuniDataHelper():
 		'TRIP'      ,   # (119, 123) - trip
 		'DOORCYCLES',   # (124, 125) - door cycles
 		'DELTA'     ,   # (126, 130) - delta
-		'DOW'       ,   # (131, 132) - day of week
+		'DOW'       ,   # (131, 132) - day of week schedule operated: 1-weekday, 2-saturday, 3-sunday
 		'DIR'       ,   # (133, 134)
 		'VEHMILES'  ,   # (135, 140) - delta vehicle miles  - miles bus travels from last stop
 		'DLPMIN'    ,   # (141, 145) - delta minutes
@@ -251,7 +251,8 @@ class SFMuniDataHelper():
                 # index attributes
 		'DATE'      ,   # ( 68,  74) - date
 		'MONTH'     ,   #            - year and month
-                'DOW'       ,   #            - day of week (1=Monday, 7=Sunday)
+                'DOW'       ,   #            - day of week schedule operated: 1-weekday, 2-saturday, 3-sunday
+		'TOD'       ,   #            - aggregate time period
 		
 		# index attributes
 		'ROUTE'     ,   # ( 75,  79)
@@ -267,7 +268,6 @@ class SFMuniDataHelper():
 		'LASTTRIP'  ,   # (417, 421) - previous trip
 		'NEXTTRIP'  ,   # (422, 426) - next trip
 		'HEADWAY'   ,   #            - headway (calculated from previous trip)
-		'TEPPER'    ,   #            - aggregate time period
 		
 		# stop attributes
 		'QSTOP'     ,   # ( 10,  14) - unique stop no	
@@ -420,7 +420,7 @@ class SFMuniDataHelper():
             # generate empty fields        
             chunk['TIMEPOINT'] = 0 
             chunk['EOL'] = 0
-            chunk['TEPPER'] = 9
+            chunk['TOD'] = 9999
             chunk['ROUTEA'] = ''
             chunk['ONTIME2'] = np.NaN
             chunk['ONTIME10'] = np.NaN            
@@ -452,19 +452,19 @@ class SFMuniDataHelper():
             
                 # compute TEP time periods -- need to iterate
                 if (chunk['TRIP'][i] >= 300  and chunk['TRIP'][i] < 600):  
-                    chunk['TEPPER'][i]=300
+                    chunk['TOD'][i]=300
                 elif (chunk['TRIP'][i] >= 600  and chunk['TRIP'][i] < 900):  
-                    chunk['TEPPER'][i]=600
+                    chunk['TOD'][i]=600
                 elif (chunk['TRIP'][i] >= 900  and chunk['TRIP'][i] < 1400): 
-                    chunk['TEPPER'][i]=900
+                    chunk['TOD'][i]=900
                 elif (chunk['TRIP'][i] >= 1400 and chunk['TRIP'][i] < 1600): 
-                    chunk['TEPPER'][i]=1400
+                    chunk['TOD'][i]=1400
                 elif (chunk['TRIP'][i] >= 1600 and chunk['TRIP'][i] < 1900): 
-                    chunk['TEPPER'][i]=1600
+                    chunk['TOD'][i]=1600
                 elif (chunk['TRIP'][i] >= 1900 and chunk['TRIP'][i] < 2200): 
-                    chunk['TEPPER'][i]=1900
+                    chunk['TOD'][i]=1900
                 elif (chunk['TRIP'][i] >= 2200 and chunk['TRIP'][i] < 9999): 
-                    chunk['TEPPER'][i]=2200
+                    chunk['TOD'][i]=2200
                             
                 # compute numeric APC route to MUNI alpha -- need to iterate
                 if chunk['ROUTE'][i]==0:      chunk['ROUTEA'][i] = '0'
@@ -665,7 +665,6 @@ class SFMuniDataHelper():
                     
                 # to make it easier to look up dates    
                 chunk['MONTH'][i] = ((chunk['DATE'][i]).to_period('month')).to_timestamp()
-                chunk['DOW'][i]   = (chunk['DATE'][i]).isoweekday()    
                               
 
             # drop duplicates (not sure why these occur) and sort
@@ -677,7 +676,7 @@ class SFMuniDataHelper():
         
             # write the data
             try: 
-                store.append('df', df, data_columns=True, 
+                store.append('sample', df, data_columns=True, 
                     min_itemsize=dict(self.STRING_LENGTHS))
             except ValueError: 
                 store = pd.HDFStore(outfile)
@@ -698,19 +697,18 @@ class SFMuniDataHelper():
         store.close()
     
 
-    def calcMonthlyAverages(self, hdffile, outkey):
+    def calcMonthlyAverages(self, hdffile, inkey, outkey, split_tod):
         """
         Calculates monthly averages.  The counting equipment is only on about
         25% of the busses, so we need to average across multiple days (in this
         case the whole month) to account for all of the trips made on each route.
         
         hdffile - HDF5 file to aggregate
-        outkey  - one of: 'weekday', 'saturday', or 'sunday'
+        inkey   - key to read data from (i.e. 'sample')
+        outkey  - key to write out in HDFstore (i.e. 'avg_daily')
                   This determines both the name of the dataframe written to the
                   HDFStore, and also the days selected for averaging. 
-
-        notes: 
-        'df'    - key for input disaggregate dataframe in h5store, as a string
+        split_tod - True to keeptime periods separate, False to group to daily
                            
         """        
        
@@ -723,7 +721,7 @@ class SFMuniDataHelper():
 		'LASTTRIP'     : {'LASTTRIP'      : 'first'},   
 		'NEXTTRIP'     : {'NEXTTRIP'      : 'first'}, 
 		'HEADWAY'      : {'HEADWAY'       : 'mean',   'HEADWAY_STD'       : 'std'},   
-		'TEPPER'       : {'TEPPER'        : 'first'},   
+		'TOD'          : {'TOD'           : 'first'},   
 		'QSTOP'        : {'QSTOP'         : 'first'},          # stop attributes
 		'STOPNAME'     : {'STOPNAME'      : 'first'},   
 		'TIMEPOINT'    : {'TIMEPOINT'     : 'first'},   
@@ -769,6 +767,7 @@ class SFMuniDataHelper():
         # define the order in the final dataframe
         aggregationOrder = [
                 'MONTH'        , 
+                'DOW'          , 
 		'ROUTE'        , 
 		'PATTCODE'     , 
 		'DIR'          , 
@@ -782,7 +781,7 @@ class SFMuniDataHelper():
 		'LASTTRIP'     , 
 		'NEXTTRIP'     , 
 		'HEADWAY'      , 'HEADWAY_STD', 
-		'TEPPER'       , 
+		'TOD'          , 
 		'QSTOP'        , 
 		'STOPNAME'     , 
 		'TIMEPOINT'    , 
@@ -825,7 +824,7 @@ class SFMuniDataHelper():
 		'ONTIME2'      , 'ONTIME2_STD', 
 		'ONTIME10'     , 'ONTIME10_STD'       
 		]
-
+		
         # open and initialize the store
         store = pd.HDFStore(hdffile)
         try: 
@@ -834,7 +833,7 @@ class SFMuniDataHelper():
             print "HDFStore does not contain object ", outkey
         
         # get the list of all months in data set
-        months = store.select_column('df', 'MONTH').unique()
+        months = store.select_column('sample', 'MONTH').unique()
         months.sort()
         print 'Retrieved a total of %i months to process' % len(months)
 
@@ -842,18 +841,10 @@ class SFMuniDataHelper():
         for month in months: 
             print 'Processing ', month            
 
-            # define the query for this part of week
-            if outkey=='weekday':
-                query = 'MONTH==Timestamp(month) & DOW<=5'
-            if outkey=='saturday':
-                query = 'MONTH==Timestamp(month) & DOW==6'
-            if outkey=='sunday':
-                query = 'MONTH==Timestamp(month) & DOW==7'        
-        
-            df = store.select('df', where=query)
+            df = store.select('sample', where='MONTH==Timestamp(month)')
             
             # group
-            grouped = df.groupby(['ROUTE', 'PATTCODE', 'DIR', 'TRIP', 'SEQ'])
+            grouped = df.groupby(['DOW', 'ROUTE', 'PATTCODE', 'DIR', 'TRIP', 'SEQ'])
             aggregated = grouped.aggregate(aggregationMethod)
             
             # drop multi-level columns
@@ -926,7 +917,7 @@ class SFMuniDataHelper():
         store.close()
 
 
-    def aggregateTrips(self, hdffile, inkey, outkey):
+    def aggregateTrips(self, hdffile, inkey, outkey, split_tod):
         """
         Read disaggregate transit records, and aggregates across trips to a
         daily total. 
@@ -934,7 +925,8 @@ class SFMuniDataHelper():
         hdffile - HDF5 file to aggregate
         inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
-                                   
+        split_tod - True to keeptime periods separate, False to group to daily
+                                                              
         """
 
         # define the mechanism for aggregation
@@ -983,6 +975,7 @@ class SFMuniDataHelper():
         # define the order in the final dataframe
         aggregationOrder = [
                 'MONTH'        , 
+                'DOW'          , 
 		'ROUTE'        , 
 		'PATTCODE'     , 
 		'DIR'          , 
@@ -1029,6 +1022,9 @@ class SFMuniDataHelper():
 		'ONTIME2'      ,
 		'ONTIME10'     
 		]
+		
+	if split_tod: 
+	    aggregationOrder = ['TOD'] + aggregationOrder
 
         # open and initialize the store
         store = pd.HDFStore(hdffile)
@@ -1049,7 +1045,10 @@ class SFMuniDataHelper():
             df = store.select(inkey, where='MONTH==Timestamp(month)')
             
             # group
-            grouped = df.groupby(['ROUTE', 'PATTCODE', 'DIR', 'SEQ'])
+            if split_tod:
+                grouped = df.groupby(['DOW', 'TOD', 'ROUTE', 'PATTCODE', 'DIR', 'SEQ'])
+            else: 
+                grouped = df.groupby(['DOW', 'ROUTE', 'PATTCODE', 'DIR', 'SEQ'])
             aggregated = grouped.aggregate(aggregationMethod)
             
             # drop multi-level columns
@@ -1105,13 +1104,14 @@ class SFMuniDataHelper():
         store.close()
 
 
-    def calculateRouteTotals(self, hdffile, inkey, outkey):
+    def calculateRouteTotals(self, hdffile, inkey, outkey, split_tod):
         """
         Sum across stops to get route totals
         
         hdffile - HDF5 file to aggregate
         inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
+        split_tod - True to keeptime periods separate, False to group to daily
                                    
         """
 
@@ -1149,6 +1149,7 @@ class SFMuniDataHelper():
         # define the order in the final dataframe
         aggregationOrder = [
                 'MONTH'        , 
+                'DOW'          , 
 		'ROUTE'        , 
 		'DIR'          , 
                 'NUMDAYS'      , 
@@ -1180,6 +1181,9 @@ class SFMuniDataHelper():
 		'ONTIME2'      ,
 		'ONTIME10'     
 		]
+		
+	if split_tod: 
+	    aggregationOrder = ['TOD'] + aggregationOrder
 
         # open and initialize the store
         store = pd.HDFStore(hdffile)
@@ -1200,7 +1204,10 @@ class SFMuniDataHelper():
             df = store.select(inkey, where='MONTH==Timestamp(month)')
             
             # group
-            grouped = df.groupby(['ROUTE', 'DIR'])
+            if split_tod: 
+                grouped = df.groupby(['DOW', 'TOD', 'ROUTE', 'DIR'])
+            else: 
+                grouped = df.groupby(['DOW', 'ROUTE', 'DIR'])
             aggregated = grouped.aggregate(aggregationMethod)
             
             # drop multi-level columns
@@ -1248,13 +1255,14 @@ class SFMuniDataHelper():
         store.close()
 
 
-    def calculateStopTotals(self, hdffile, inkey, outkey,):
+    def calculateStopTotals(self, hdffile, inkey, outkey, split_tod):
         """
         Aggregates across routes to get totals at each stop. 
         
         hdffile - HDF5 file to aggregate
         inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
+        split_tod - True to keeptime periods separate, False to group to daily
                                    
         """
 
@@ -1286,6 +1294,7 @@ class SFMuniDataHelper():
         # define the order in the final dataframe
         aggregationOrder = [
                 'MONTH'        , 
+                'DOW'          , 
                 'NUMDAYS'      , 
                 'DAILYTRIPS'   , 
                 'TOTTRIPS'     , 
@@ -1310,6 +1319,9 @@ class SFMuniDataHelper():
 		'ONTIME2'      ,
 		'ONTIME10'     
 		]
+	
+	if split_tod: 
+	    aggregationOrder = ['TOD'] + aggregationOrder
 
         # open and initialize the store
         store = pd.HDFStore(hdffile)
@@ -1330,7 +1342,10 @@ class SFMuniDataHelper():
             df = store.select(inkey, where='MONTH==Timestamp(month)')
             
             # group
-            grouped = df.groupby(['QSTOP'])
+            if split_tod: 
+                grouped = df.groupby(['TOD', 'QSTOP'])
+            else: 
+                grouped = df.groupby(['QSTOP'])
             aggregated = grouped.aggregate(aggregationMethod)
             
             # drop multi-level columns

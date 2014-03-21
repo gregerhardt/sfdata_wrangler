@@ -56,25 +56,19 @@ if __name__ == "__main__":
     print 'Finished converting data in ', (convertedTime - startTime)
     
     # calculate monthly averages
-    sfmuniHelper.calcMonthlyAverages(outfile, 'weekday')
-    sfmuniHelper.calcMonthlyAverages(outfile, 'saturday')
-    sfmuniHelper.calcMonthlyAverages(outfile, 'sunday')
+    sfmuniHelper.calcMonthlyAverages(outfile, 'sample', 'average', False)
 
     # aggregate trips into daily totals        
-    sfmuniHelper.aggregateTrips(outfile, 'weekday',  'weekday_route_stops')
-    sfmuniHelper.aggregateTrips(outfile, 'saturday', 'saturday_route_stops')
-    sfmuniHelper.aggregateTrips(outfile, 'sunday',   'sunday_route_stops')
+    sfmuniHelper.aggregateTrips(outfile, 'average',  'daily_route_stops', False)
+    sfmuniHelper.aggregateTrips(outfile, 'average',  'tod_route_stops', True)
 
     # sum route totals
-    sfmuniHelper.calculateRouteTotals(outfile, 'weekday_route_stops',  'weekday_routes')
-    sfmuniHelper.calculateRouteTotals(outfile, 'saturday_route_stops', 'saturday_routes')
-    sfmuniHelper.calculateRouteTotals(outfile, 'sunday_route_stops',   'sunday_routes')    
+    sfmuniHelper.calculateRouteTotals(outfile, 'daily_route_stops',  'daily_routes', False)  
+    sfmuniHelper.calculateRouteTotals(outfile, 'tod_route_stops',  'tod_routes', True)     
     
     # sum stop totals    
-    sfmuniHelper.calculateStopTotals(outfile, 'weekday_route_stops',  'weekday_stops')
-    sfmuniHelper.calculateStopTotals(outfile, 'saturday_route_stops', 'saturday_stops')
-    sfmuniHelper.calculateStopTotals(outfile, 'sunday_route_stops',   'sunday_stops')    
-    
+    sfmuniHelper.calculateStopTotals(outfile, 'daily_route_stops',  'daily_stops', False)
+    sfmuniHelper.calculateStopTotals(outfile, 'tod_route_stops',  'tod_stops', True)
         
     aggregatedTime = datetime.datetime.now()
     print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 
