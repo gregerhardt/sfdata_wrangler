@@ -602,11 +602,19 @@ class SFMuniDataHelper():
                         chunk['TIMESTOP_S_INT'][i] = chunk['TIMESTOP_S_INT'][i] - 2400                        
                     chunk['TIMESTOP_S'][i] = (chunk['DATE'][i] + 
                         "{0:0>4}".format(chunk['TIMESTOP_S_INT'][i]))           
+                    if chunk['TIMESTOP_S'][i].endswith('60'): 
+                        chunk['TIMESTOP_S_INT'][i] = chunk['TIMESTOP_S_INT'][i] + 40
+                        chunk['TIMESTOP_S'][i] = (chunk['DATE'][i] + 
+                            "{0:0>4}".format(chunk['TIMESTOP_S_INT'][i])) 
     
                     if (chunk['DOORCLOSE_S_INT'][i] >= 2400): 
                         chunk['DOORCLOSE_S_INT'][i] = chunk['DOORCLOSE_S_INT'][i] - 2400
                     chunk['DOORCLOSE_S'][i] = (chunk['DATE'][i] + 
-                        "{0:0>4}".format(chunk['DOORCLOSE_S_INT'][i]))
+                        "{0:0>4}".format(chunk['DOORCLOSE_S_INT'][i]))          
+                    if chunk['DOORCLOSE_S'][i].endswith('60'): 
+                        chunk['DOORCLOSE_S_INT'][i] = chunk['DOORCLOSE_S_INT'][i] + 40
+                        chunk['DOORCLOSE_S'][i] = (chunk['DATE'][i] + 
+                            "{0:0>4}".format(chunk['DOORCLOSE_S_INT'][i]))
     
             # convert to timedate formats
             chunk['DATE']   = pd.to_datetime(chunk['DATE'], format="%m%d%y")
@@ -614,7 +622,7 @@ class SFMuniDataHelper():
             chunk['TIMESTOP']    = pd.to_datetime(chunk['TIMESTOP'],    format="%m%d%y%H%M%S")        
             chunk['DOORCLOSE']   = pd.to_datetime(chunk['DOORCLOSE'],   format="%m%d%y%H%M%S")    
             chunk['PULLOUT']     = pd.to_datetime(chunk['PULLOUT'],     format="%m%d%y%H%M%S")
-            chunk['TIMESTOP_S']  = pd.to_datetime(chunk['TIMESTOP_S'],  format="%m%d%y%H%M")        
+            chunk['TIMESTOP_S']  = pd.to_datetime(chunk['TIMESTOP_S'],  format="%m%d%y%H%M") 
             chunk['DOORCLOSE_S'] = pd.to_datetime(chunk['DOORCLOSE_S'], format="%m%d%y%H%M")    
 
     
@@ -833,7 +841,7 @@ class SFMuniDataHelper():
             print "HDFStore does not contain object ", outkey
         
         # get the list of all months in data set
-        months = store.select_column('sample', 'MONTH').unique()
+        months = store.select_column(inkey, 'MONTH').unique()
         months.sort()
         print 'Retrieved a total of %i months to process' % len(months)
 
@@ -841,7 +849,7 @@ class SFMuniDataHelper():
         for month in months: 
             print 'Processing ', month            
 
-            df = store.select('sample', where='MONTH==Timestamp(month)')
+            df = store.select(inkey, where='MONTH==Timestamp(month)')
             
             # group
             grouped = df.groupby(['DOW', 'ROUTE', 'PATTCODE', 'DIR', 'TRIP', 'SEQ'])
@@ -1343,9 +1351,9 @@ class SFMuniDataHelper():
             
             # group
             if split_tod: 
-                grouped = df.groupby(['TOD', 'QSTOP'])
+                grouped = df.groupby(['DOW', 'TOD', 'QSTOP'])
             else: 
-                grouped = df.groupby(['QSTOP'])
+                grouped = df.groupby(['DOW', 'QSTOP'])
             aggregated = grouped.aggregate(aggregationMethod)
             
             # drop multi-level columns
