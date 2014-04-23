@@ -705,13 +705,14 @@ class SFMuniDataHelper():
         store.close()
     
 
-    def calcMonthlyAverages(self, hdffile, inkey, outkey, split_tod):
+    def calcMonthlyAverages(self, hdf_infile, hdf_aggfile, inkey, outkey, split_tod):
         """
         Calculates monthly averages.  The counting equipment is only on about
         25% of the busses, so we need to average across multiple days (in this
         case the whole month) to account for all of the trips made on each route.
         
-        hdffile - HDF5 file to aggregate
+        hdf_infile - HDF5 file with detailed sample data to aggregate
+        hdf_aggfile- HDF5 file for writing monthly averages
         inkey   - key to read data from (i.e. 'sample')
         outkey  - key to write out in HDFstore (i.e. 'avg_daily')
                   This determines both the name of the dataframe written to the
@@ -834,14 +835,15 @@ class SFMuniDataHelper():
 		]
 		
         # open and initialize the store
-        store = pd.HDFStore(hdffile)
+        instore = pd.HDFStore(hdf_infile)
+        outstore = pd.HDFStore(hdf_aggfile)
         try: 
-            store.remove(outkey)
+            outstore.remove(outkey)
         except KeyError: 
             print "HDFStore does not contain object ", outkey
         
         # get the list of all months in data set
-        months = store.select_column(inkey, 'MONTH').unique()
+        months = instore.select_column(inkey, 'MONTH').unique()
         months.sort()
         print 'Retrieved a total of %i months to process' % len(months)
 
@@ -849,7 +851,7 @@ class SFMuniDataHelper():
         for month in months: 
             print 'Processing ', month            
 
-            df = store.select(inkey, where='MONTH==Timestamp(month)')
+            df = instore.select(inkey, where='MONTH==Timestamp(month)')
             
             # group
             grouped = df.groupby(['DOW', 'ROUTE', 'PATTCODE', 'DIR', 'TRIP', 'SEQ'])
@@ -919,10 +921,11 @@ class SFMuniDataHelper():
             aggregated = aggregated[aggregationOrder]       
             
             # write
-            store.append(outkey, aggregated, data_columns=True, 
+            outstore.append(outkey, aggregated, data_columns=True, 
                 min_itemsize=dict(self.STRING_LENGTHS))
             
-        store.close()
+        instore.close()
+        outstore.close()
 
 
     def aggregateTrips(self, hdffile, inkey, outkey, split_tod):
@@ -1389,5 +1392,150 @@ class SFMuniDataHelper():
             # write
             store.append(outkey, aggregated, data_columns=True, 
                 min_itemsize={'STOPNAME':10})
+            
+        store.close()
+
+
+
+    def calculateSystemTotals(self, hdffile, inkey, outkey, split_tod):
+        """
+        Sum across stops to get system totals
+        
+        hdffile - HDF5 file to aggregate
+        inkey   - string - key for reading detailed data from
+        outkey  - string - key for writing the aggregated dataframe to the store
+        split_tod - True to keeptime periods separate, False to group to daily
+                                   
+        """
+
+        # define the mechanism for aggregation
+        aggregationMethod = {
+                'NUMDAYS'      : {'NUMDAYS'       : 'first'},
+                'TOTTRIPS'     : {'TOTTRIPS'      : 'sum'},
+                'DAILYTRIPS'   : {'DAILYTRIPS'    : 'sum'},
+                'OBSTRIPS'     : {'OBSTRIPS'      : 'sum'}, 
+		'VEHMILES'     : {'VEHMILES'      : 'sum'},  
+		'ON'           : {'ON'            : 'sum'},    # ridership
+		'OFF'          : {'OFF'           : 'sum'},  
+		'PASSMILES'    : {'PASSMILES'     : 'sum'},  
+		'PASSHOURS'    : {'PASSHOURS'     : 'sum'},  
+		'RDBRDNGS'     : {'RDBRDNGS'      : 'sum'},  
+		'CAPACITY'     : {'CAPACITY'      : 'sum'},  
+		'DOORCYCLES'   : {'DOORCYCLES'    : 'sum'},  
+		'WHEELCHAIR'   : {'WHEELCHAIR'    : 'sum'},  
+		'BIKERACK'     : {'BIKERACK'      : 'sum'},                                  # times
+		'TIMESTOP_DEV' : {'TIMESTOP_DEV'  : 'mean'},  
+		'DOORCLOSE_DEV': {'DOORCLOSE_DEV' : 'mean'}, 
+		'DWELL'        : {'DWELL'         : 'sum'},   
+		'DWELL_S'      : {'DWELL_S'       : 'sum'},
+		'PULLDWELL'    : {'PULLDWELL'     : 'sum'},   
+		'RUNTIME'      : {'RUNTIME'       : 'sum'},   
+		'RUNTIME_S'    : {'RUNTIME_S'     : 'sum'},     
+		'RECOVERY'     : {'RECOVERY'      : 'sum'},    
+		'RECOVERY_S'   : {'RECOVERY_S'    : 'sum'},   
+		'DLPMIN'       : {'DLPMIN'        : 'sum'},      
+		'ONTIME2'      : {'ONTIME2'       : 'mean'},   
+		'ONTIME10'     : {'ONTIME10'      : 'mean'}, 
+		}
+            
+        # define the order in the final dataframe
+        aggregationOrder = [
+                'MONTH'        , 
+                'DOW'          , 
+                'NUMDAYS'      , 
+                'DAILYTRIPS'   , 
+                'TOTTRIPS'     , 
+                'OBSTRIPS'     , 
+		'VEHMILES'     , 
+		'ON'           , 
+		'OFF'          , 
+		'PASSMILES'    , 
+		'PASSHOURS'    , 
+		'RDBRDNGS'     , 
+		'CAPACITY'     , 
+		'DOORCYCLES'   , 
+		'WHEELCHAIR'   , 
+		'BIKERACK'     , 
+		'TIMESTOP_DEV' , 
+		'DOORCLOSE_DEV', 
+		'DWELL'        , 
+		'DWELL_S'      , 
+		'PULLDWELL'    , 
+		'RUNTIME'      , 
+		'RUNTIME_S'    , 
+		'RECOVERY'     , 
+		'RECOVERY_S'   , 
+		'DLPMIN'       , 
+		'ONTIME2'      ,
+		'ONTIME10'     
+		]
+		
+	if split_tod: 
+	    aggregationOrder = ['TOD'] + aggregationOrder
+
+        # open and initialize the store
+        store = pd.HDFStore(hdffile)
+        try: 
+            store.remove(outkey)
+        except KeyError: 
+            print "HDFStore does not contain object ", outkey
+        
+        # get the list of all months in data set
+        months = store.select_column(inkey, 'MONTH').unique()
+        months.sort()
+        print 'Retrieved a total of %i months to process' % len(months)
+
+        # loop through the dates, and aggregate each individually
+        for month in months: 
+            print 'Processing ', month            
+
+            df = store.select(inkey, where='MONTH==Timestamp(month)')
+            
+            # group
+            if split_tod: 
+                grouped = df.groupby(['DOW', 'TOD'])
+            else: 
+                grouped = df.groupby(['DOW'])
+            aggregated = grouped.aggregate(aggregationMethod)
+            
+            # drop multi-level columns
+            levels = aggregated.columns.levels
+            labels = aggregated.columns.labels
+            aggregated.columns = levels[1][labels[1]]
+
+            # additional calculations
+            aggregated['MONTH']    = month
+                        
+            # force column types as needed  
+            aggregated['VEHMILES']      = aggregated['VEHMILES'].astype('float64')      
+            aggregated['ON']            = aggregated['ON'].astype('float64')            
+            aggregated['OFF']           = aggregated['OFF'].astype('float64')         
+            aggregated['PASSMILES']     = aggregated['PASSMILES'].astype('float64')     
+            aggregated['PASSHOURS']     = aggregated['PASSHOURS'].astype('float64')     
+            aggregated['RDBRDNGS']      = aggregated['RDBRDNGS'].astype('float64')     
+            aggregated['CAPACITY']      = aggregated['CAPACITY'].astype('float64')      
+            aggregated['DOORCYCLES']    = aggregated['DOORCYCLES'].astype('float64')    
+            aggregated['WHEELCHAIR']    = aggregated['WHEELCHAIR'].astype('float64')    
+            aggregated['BIKERACK']      = aggregated['BIKERACK'].astype('float64')      
+            aggregated['TIMESTOP_DEV']  = aggregated['TIMESTOP_DEV'].astype('float64')   
+            aggregated['DOORCLOSE_DEV'] = aggregated['DOORCLOSE_DEV'].astype('float64') 
+            aggregated['DWELL']         = aggregated['DWELL'].astype('float64')         
+            aggregated['DWELL_S']       = aggregated['DWELL_S'].astype('float64')       
+            aggregated['PULLDWELL']     = aggregated['PULLDWELL'].astype('float64')     
+            aggregated['RUNTIME']       = aggregated['RUNTIME'].astype('float64')       
+            aggregated['RUNTIME_S']     = aggregated['RUNTIME_S'].astype('float64')     
+            aggregated['RECOVERY']      = aggregated['RECOVERY'].astype('float64')      
+            aggregated['RECOVERY_S']    = aggregated['RECOVERY_S'].astype('float64')    
+            aggregated['DLPMIN']        = aggregated['DLPMIN'].astype('float64')  
+            aggregated['ONTIME2']       = aggregated['ONTIME2'].astype('float64')  
+            aggregated['ONTIME10']      = aggregated['ONTIME10'].astype('float64')  
+            
+            # clean up structure of dataframe
+            aggregated = aggregated.sort_index()
+            aggregated = aggregated.reset_index()     
+            aggregated = aggregated[aggregationOrder]     
+  
+            # write
+            store.append(outkey, aggregated, data_columns=True)
             
         store.close()
