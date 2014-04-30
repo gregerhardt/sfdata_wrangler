@@ -34,7 +34,7 @@ if __name__ == "__main__":
     sfmuniHelper = SFMuniDataHelper()
 
     # convert the data
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp", outfile)
@@ -72,8 +72,8 @@ if __name__ == "__main__":
     #sfmuniHelper.calculateStopTotals(aggfile, 'tod_route_stops',  'tod_stops', True)
     
     # sum system totals    
-    sfmuniHelper.calculateSystemTotals(aggfile, 'daily_route_stops',  'daily_system', False)
-    sfmuniHelper.calculateSystemTotals(aggfile, 'tod_route_stops',  'tod_system', True)
+    #sfmuniHelper.calculateSystemTotals(aggfile, 'daily_route_stops',  'daily_system', False)
+    #sfmuniHelper.calculateSystemTotals(aggfile, 'tod_route_stops',  'tod_system', True)
         
     aggregatedTime = datetime.datetime.now()
     print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 

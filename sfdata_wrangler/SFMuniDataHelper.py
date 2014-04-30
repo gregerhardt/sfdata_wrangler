@@ -37,7 +37,7 @@ class SFMuniDataHelper():
     """
     
     # number of rows at top of file to skip
-    HEADERROWS = 2
+    HEADERROWS = 900002
     
     # number of rows to read at a time
     CHUNKSIZE = 100000
@@ -45,206 +45,108 @@ class SFMuniDataHelper():
     # by default, read the first 75 columns, through NEXTTRIP
     COLUMNS_TO_READ = [i for i in range(75)]
 
-    # specifies columns for fixed-format text input
-    COLSPECS=[  (  0,   5), # SEQ     - stop sequence
-		(  6,  10), # 'V2'       - not used
-		( 10,  14), # 'QSTOP'    - unique stop no	
-		( 15,  47), # 'STOPNAME' - stop name
-		( 48,  54), # 'TIMESTOP_INT' - arrival time
-		( 55,  58), # 'ON'       - on 
-		( 59,  62), # 'OFF'      - off
-		( 63,  66), # 'LOAD_DEP' - departing load
-		( 67,  67), # 'LOADCODE' - ADJ=*, BAL=B
-		( 68,  74), # 'DATE_INT' - date
-		( 75,  79), # 'ROUTE'    
-		( 80,  86), # 'PATTERN'  - schedule pattern
-		( 87,  93), # 'BLOCK'  
-		( 94, 102), # 'LAT'      - latitude
-		(103, 112), # 'LON'      - longitude 
-		(113, 118), # 'MILES'    - odometer reading (miles)
-		(119, 123), # 'TRIP'     - trip
-		(124, 125), # 'DOORCYCLES'- door cycles
-		(126, 130), # 'DELTA'    - delta
-		(131, 132), # 'DOW'      - day of week schedule operated: 1-weekday, 2-saturday, 3-sunday
-		(133, 134), # 'DIR'      
-		(135, 140), # 'VEHMILES' - delta vehicle miles  - miles bus travels from last stop
-		(141, 145), # 'DLPMIN'   - delta minutes
-		(146, 153), # 'PASSMILES'- delta passenger miles
-		(154, 160), # 'PASSHOURS'- delta passenger minutes
-		(161, 165), # 'VEHNO'    - bus number
-		(166, 170), # 'LINE'     - route (APC numeric code)
-		(171, 175), # 'DBNN'     - data batch
-		(176, 180), # 'TIMESTOP_S_INT' - schedule time
-		(181, 186), # 'RUNTIME_S'- schedule run time, in decimal minutes
-		(187, 192), # 'RUNTIME'  - runtime from the last schedule point--TIMESTOP - DOORCLOSE of previous time point. (Excludes DWELL at the time points.), in decimal minutes
-		(193, 198), # 'ODOM'     - not used
-		(199, 204), # 'GODOM'    - distance (GPS)
-		(205, 211), # 'TIMESTOP_DEV'- schedule deviation
-		(212, 217), # 'DWELL'    - dwell time interval (decimal minutes) -- (DOORCLOSE - TIMESTOP)
-		(218, 226), # 'MSFILE'   - sign up YYMM
-		(227, 230), # 'QC101'    - not used
-		(231, 234), # 'QC104'    - GPS QC
-		(235, 238), # 'QC201'    - count QC
-		(239, 242), # 'AQC'      - assignment QC
-		(243, 244), # 'RECORD'   - record type
-		(245, 246), # 'WHEELCHAIR'- wheelchair
-		(247, 248), # 'BIKERACK' - bike rack
-		(249, 250), # 'SP2'      - not used
-		(251, 257), # 'V51'      - not used
-		(258, 263), # 'VERSN'    - import version
-		(264, 270), # 'DOORCLOSE_INT'   - departure time
-		(271, 274), # 'UON'      - unadjusted on
-		(275, 278), # 'UOFF'     - unadjusted off
-		(279, 283), # 'CAPACITY' - capacity
-		(284, 288), # 'OVER'     - 5 over cap
-		(289, 290), # 'NS'       - north/south
-		(291, 292), # 'EW'       - east/west
-		(293, 296), # 'MAXVEL'   - max velocity on previous link
-		(297, 301), # 'RDBRDNGS' - rear door boardings (if 4 digits, the remaining columns get mis-aligned)
-		(302, 304), # 'DV'       - division
-		(305, 315), # 'PATTCODE' - pattern code
-		(316, 320), # 'DWDI'     - distance traveled durign dwell
-		(321, 328), # 'RUN'      - run
-		(329, 335), # 'SCHOOL'   - school trip
-		(336, 344), # 'TRIPID_2' - long trip ID
-		(345, 351), # 'PULLOUT_INT'  - movement time
-		(352, 356), # 'DOORCLOSE_S_INT'- scheduled departure time
-		(357, 363), # 'DOORCLOSE_DEV' - schedule deviation
-		(364, 368), # 'DWELL_S'  - scheduled dwell time
-		(369, 374), # 'RECOVERY_S'- scheduled EOL recovery
-		(375, 380), # 'RECOVERY'     
-		(381, 390), # 'POLITICAL'- not used
-		(391, 397), # 'DELTAA'   - distance from stop at arrival
-		(398, 404), # 'DELTAD'   - distance from stop at departure
-		(405, 409), # 'ECNT'     - error count
-		(410, 412), # 'MC'       - municipal code
-		(413, 416), # 'DIV'      - division
-		(417, 421), # 'LASTTRIP' - previous trip
-		(422, 426), # 'NEXTTRIP' - next trip
-		(427, 430), # 'V86'      - not used
-		(431, 441), # 'TRIPID_3' 
-		(442, 445), # 'WCC'      
-		(446, 449), # 'BRC'      
-		(450, 455), # 'DWELLI'   
-		(456, 459), # 'QC202'    
-		(460, 463), # 'QC302'    
-		(464, 467), # 'QC303'    
-		(468, 471), # 'QC206'    
-                (472, 475), # 'QC207'   
-		(476, 481), # 'DGFT'     
-		(482, 485), # 'DGM'      
-		(486, 489), # 'DGH'      
-		(490, 494), # 'LRSE'     
-		(495, 499), # 'LRFT'     
-		(500, 507), # 'ARRIVEP'  
-		(508, 515), # 'DEPARTP'  
-		(516, 522), # 'DWELLP'   
-		(523, 527), # 'NRSE'     
-		(528, 533), # 'NRFT'     
-		(534, 536), # 'SC'       
-		(537, 543), # 'T_MILE'   
-		(544, 547)] # 'CARS'
-
-
-    # the column name for each variable
-    COLNAMES=[  'SEQ'       ,   # (  0,   5) - stop sequence
-		'V2'        ,   # (  6,  10) - not used
-		'QSTOP'     ,   # ( 10,  14) - unique stop no	
-		'STOPNAME'  ,   # ( 15,  47) - stop name
-		'TIMESTOP_INT', # ( 48,  54) - arrival time
-		'ON'        ,   # ( 55,  58) - on 
-		'OFF'       ,   # ( 59,  62) - off
-		'LOAD_DEP'  ,   # ( 63,  66) - departing load
-		'LOADCODE'  ,   # ( 67,  67) - ADJ=*, BAL=B
-		'DATE_INT'  ,   # ( 68,  74) - date
-		'ROUTE'     ,   # ( 75,  79)
-		'PATTERN'   ,   # ( 80,  86) - schedule pattern
-		'BLOCK'     ,   # ( 87,  93) 
-		'LAT'       ,   # ( 94, 102) - latitude
-		'LON'       ,   # (103, 112) - longitude 
-		'MILES'     ,   # (113, 118) - odometer reading (miles)
-		'TRIP'      ,   # (119, 123) - trip
-		'DOORCYCLES',   # (124, 125) - door cycles
-		'DELTA'     ,   # (126, 130) - delta
-		'DOW'       ,   # (131, 132) - day of week schedule operated: 1-weekday, 2-saturday, 3-sunday
-		'DIR'       ,   # (133, 134)
-		'VEHMILES'  ,   # (135, 140) - delta vehicle miles  - miles bus travels from last stop
-		'DLPMIN'    ,   # (141, 145) - delta minutes
-		'PASSMILES' ,   # (146, 153) - delta passenger miles
-		'PASSHOURS' ,   # (154, 160) - delta passenger minutes
-		'VEHNO'     ,   # (161, 165) - bus number
-		'LINE'      ,   # (166, 170) - route (APC numeric code)
-		'DBNN'      ,   # (171, 175) - data batch
-		'TIMESTOP_S_INT',# (176, 180) - schedule time
-		'RUNTIME_S' ,   # (181, 186) - schedule run time, in decimal minutes
-		'RUNTIME'   ,   # (187, 192) - runtime from the last schedule point--TIMESTOP - DOORCLOSE of previous time point. (Excludes DWELL at the time points.), in decimal minutes
-		'ODOM'      ,   # (193, 198) - not used
-		'GODOM'     ,   # (199, 204) - distance (GPS)
-		'TIMESTOP_DEV', # (205, 211) - schedule deviation
-		'DWELL'     ,   # (212, 217) - dwell time interval (decimal minutes) -- (DOORCLOSE - TIMESTOP)
-		'MSFILE'    ,   # (218, 226) - sign up YYMM
-		'QC101'     ,   # (227, 230) - not used
-		'QC104'     ,   # (231, 234) - GPS QC
-		'QC201'     ,   # (235, 238) - count QC
-		'AQC'       ,   # (239, 242) - assignment QC
-		'RECORD'    ,   # (243, 244) - record type
-		'WHEELCHAIR',   # (245, 246) - wheelchair
-		'BIKERACK'  ,   # (247, 248) - bike rack
-		'SP2'       ,   # (249, 250) - not used
-		'V51'       ,   # (251, 257) - not used
-		'VERSN'     ,   # (258, 263) - import version
-		'DOORCLOSE_INT',# (264, 270) - departure time
-		'UON'       ,   # (271, 274) - unadjusted on
-		'UOFF'      ,   # (275, 278) - unadjusted off
-		'CAPACITY'  ,   # (279, 283) - capacity
-		'OVER'      ,   # (284, 288) - 5 over cap
-		'NS'        ,   # (289, 290) - north/south
-		'EW'        ,   # (291, 292) - east/west
-		'MAXVEL'    ,   # (293, 296) - max velocity on previous link
-		'RDBRDNGS'  ,   # (297, 300) - rear door boardings
-		'DV'        ,   # (301, 304) - division
-		'PATTCODE'  ,   # (305, 315) - pattern code
-		'DWDI'      ,   # (316, 320) - distance traveled durign dwell
-		'RUN'       ,   # (321, 328) - run
-		'SCHOOL'    ,   # (329, 335) - school trip
-		'TRIPID_2'  ,   # (336, 344) - long trip ID
-		'PULLOUT_INT',  # (345, 351) - movement time
-		'DOORCLOSE_S_INT',# (352, 356) - scheduled departure time
-		'DOORCLOSE_DEV',# (357, 363) - schedule deviation
-		'DWELL_S'   ,   # (364, 368) - scheduled dwell time
-		'RECOVERY_S',   # (369, 374) - scheduled EOL recovery
-		'RECOVERY'  ,   # (375, 380) 
-		'POLITICAL' ,   # (381, 390) - not used
-		'DELTAA'    ,   # (391, 397) - distance from stop at arrival
-		'DELTAD'    ,   # (398, 404) - distance from stop at departure
-		'ECNT'      ,   # (405, 409) - error count
-		'MC'        ,   # (410, 412) - municipal code
-		'DIV'       ,   # (413, 416) - division
-		'LASTTRIP'  ,   # (417, 421) - previous trip
-		'NEXTTRIP'  ,   # (422, 426) - next trip
-		'V86'       ,   # (427, 430) - not used
-		'TRIPID_3'  ,   # (431, 441)
-		'WCC'       ,   # (442, 445)
-		'BRC'       ,   # (446, 449)
-		'DWELLI'    ,   # (450, 455)
-		'QC202'     ,   # (456, 459)
-		'QC302'     ,   # (460, 463)
-		'QC303'     ,   # (464, 467)
-		'QC206'     ,   # (468, 471)
-	        'QC207'     ,   # (472, 475)
-		'DGFT'      ,   # (476, 481)
-		'DGM'       ,   # (482, 485)
-		'DGH'       ,   # (486, 489)
-		'LRSE'      ,   # (490, 494)
-		'LRFT'      ,   # (495, 499)
-		'ARRIVEP'   ,   # (500, 507)
-		'DEPARTP'   ,   # (508, 515)
-		'DWELLP'    ,   # (516, 522)
-		'NRSE'      ,   # (523, 527)
-		'NRFT'      ,   # (528, 533)
-		'SC'        ,   # (534, 536)
-		'T_MILE'    ,   # (537, 543)
-		'CARS']         # (544, 547)
+    # specifies how to read in each column from raw input files
+    #   columnName,        inputColumns, dataType, stringLength
+    COLUMNS = [
+        ['SEQ',            (  0,   5),   'int64',   0],    # stop sequence
+	['V2',             (  6,  10),   'int64',   0],    # not used
+	['QSTOP',          ( 10,  14),   'int64',   0],    # unique stop no	
+	['STOPNAME',       ( 15,  47),   'object', 32],    # stop name
+	['TIMESTOP_INT',   ( 48,  54),   'int64',   0],    # arrival time
+	['ON',             ( 55,  58),   'int64',   0],    # on 
+	['OFF',            ( 59,  62),   'int64',   0],    # off
+	['LOAD_DEP',       ( 63,  66),   'int64',   0],    # departing load
+	['LOADCODE',       ( 67,  67),   'int64',   0],    # ADJ=*, BAL=B
+	['DATE_INT',       ( 68,  74),   'int64',   0],    # date
+	['ROUTE',          ( 75,  79),   'int64',   0],   
+	['PATTERN',        ( 80,  86),   'int64',   0],    # schedule pattern
+	['BLOCK',          ( 87,  93),   'int64',   0],    
+	['LAT',            ( 94, 102),   'float64', 0],    # latitude
+	['LON',            (103, 112),   'float64', 0],    # longitude 
+	['MILES',          (113, 118),   'float64', 0],    # odometer reading (miles)
+	['TRIP',           (119, 123),   'int64',   0],    # trip
+	['DOORCYCLES',     (124, 125),   'int64',   0],    # door cycles
+	['DELTA',          (126, 130),   'int64',   0],    # delta
+	['DOW',            (131, 132),   'int64',   0],    # day of week schedule operated: 1-weekday, 2-saturday, 3-sunday
+	['DIR',            (133, 134),   'int64',   0],   
+	['VEHMILES',       (135, 140),   'float64', 0],    # delta vehicle miles  - miles bus travels from last stop
+	['DLPMIN',         (141, 145),   'float64', 0],    # delta minutes
+	['PASSMILES',      (146, 153),   'float64', 0],    # delta passenger miles
+	['PASSHOURS',      (154, 160),   'float64', 0],    # delta passenger minutes
+	['VEHNO',          (161, 165),   'int64',   0],    # bus number
+	['LINE',           (166, 170),   'int64',   0],    # route (APC numeric code)
+	['DBNN',           (171, 175),   'int64',   0],    # data batch
+	['TIMESTOP_S_INT', (176, 180),   'int64',   0],    # schedule time
+	['RUNTIME_S',      (181, 186),   'float64', 0],    # schedule run time, in decimal minutes
+	['RUNTIME',        (187, 192),   'float64', 0],    # runtime from the last schedule point--TIMESTOP - DOORCLOSE of previous time point. (Excludes DWELL at the time points.), in decimal minutes
+	['ODOM',           (193, 198),   'float64', 0],    # not used
+	['GODOM',          (199, 204),   'float64', 0],    # distance (GPS)
+	['TIMESTOP_DEV',   (205, 211),   'float64', 0],    # schedule deviation
+	['DWELL',          (212, 217),   'float64', 0],    # dwell time interval (decimal minutes) -- (DOORCLOSE - TIMESTOP)
+	['MSFILE',         (218, 226),   'int64',   0],    # sign up YYMM
+	['QC101',          (227, 230),   'int64',   0],    # not used
+	['QC104',          (231, 234),   'int64',   0],    # GPS QC
+	['QC201',          (235, 238),   'int64',   0],    # count QC
+	['AQC',            (239, 242),   'int64',   0],    # assignment QC
+	['RECORD',         (243, 244),   'int64',   0],    # record type
+	['WHEELCHAIR',     (245, 246),   'int64',   0],    # wheelchair
+	['BIKERACK',       (247, 248),   'int64',   0],    # bike rack
+	['SP2',            (249, 250),   'int64',   0],    # not used
+	['V51',            (251, 257),   'int64',   0],    # not used
+	['VERSN',          (258, 263),   'int64',   0],    # import version
+	['DOORCLOSE_INT',  (264, 270),   'int64',   0],    # departure time
+	['UON',            (271, 274),   'int64',   0],    # unadjusted on
+	['UOFF',           (275, 278),   'int64',   0],    # unadjusted off
+	['CAPACITY',       (279, 283),   'int64',   0],    # capacity
+	['OVER',           (284, 288),   'int64',   0],    # 5 over cap
+	['NS',             (289, 290),   'object',  2],    # north/south
+	['EW',             (291, 292),   'object',  2],    # east/west
+	['MAXVEL',         (293, 296),   'float64', 0],    # max velocity on previous link
+	['RDBRDNGS',       (297, 301),   'int64',   0],    # rear door boardings
+	['DV',             (302, 304),   'int64',   0],    # division
+	['PATTCODE',       (305, 315),   'object', 10],    # pattern code
+	['DWDI',           (316, 320),   'float64', 0],    # distance traveled durign dwell
+	['RUN',            (321, 328),   'int64',   0],    # run
+	['SCHOOL',         (329, 335),   'int64',   0],    # school trip
+	['TRIPID_2',       (336, 344),   'int64',   0],    # long trip ID
+	['PULLOUT_INT',    (345, 351),   'int64',   0],    # movement time
+	['DOORCLOSE_S_INT',(352, 356),   'int64',   0],    # scheduled departure time
+	['DOORCLOSE_DEV',  (357, 363),   'float64', 0],    # schedule deviation
+	['DWELL_S',        (364, 368),   'int64',   0],    # scheduled dwell time
+	['RECOVERY_S',     (369, 374),   'float64', 0],    # scheduled EOL recovery
+	['RECOVERY',       (375, 380),   'float64', 0],    
+	['POLITICAL',      (381, 390),   'int64',   0],    # not used
+	['DELTAA',         (391, 397),   'int64',   0],    # distance from stop at arrival
+	['DELTAD',         (398, 404),   'int64',   0],    # distance from stop at departure
+	['ECNT',           (405, 409),   'int64',   0],    # error count
+	['MC',             (410, 412),   'int64',   0],    # municipal code
+	['DIV',            (413, 416),   'int64',   0],    # division
+	['LASTTRIP',       (417, 421),   'int64',   0],    # previous trip
+	['NEXTTRIP',       (422, 426),   'int64',   0],    # next trip
+	['V86',            (427, 430),   'int64',   0],    # not used
+	['TRIPID_3',       (431, 441),   'int64',   0],   
+	['WCC',            (442, 445),   'int64',   0],   
+	['BRC',            (446, 449),   'int64',   0],   
+	['DWELLI',         (450, 455),   'int64',   0],   
+	['QC202',          (456, 459),   'int64',   0],   
+	['QC302',          (460, 463),   'int64',   0],   
+	['QC303',          (464, 467),   'int64',   0],   
+	['QC206',          (468, 471),   'int64',   0],   
+	['QC207',          (472, 475),   'int64',   0],   
+	['DGFT',           (476, 481),   'int64',   0],   
+	['DGM',            (482, 485),   'int64',   0],   
+	['DGH',            (486, 489),   'int64',   0],   
+	['LRSE',           (490, 494),   'int64',   0],   
+	['LRFT',           (495, 499),   'int64',   0],   
+	['ARRIVEP',        (500, 507),   'int64',   0],   
+	['DEPARTP',        (508, 515),   'int64',   0],   
+	['DWELLP',         (516, 522),   'int64',   0],   
+	['NRSE',           (523, 527),   'int64',   0],   
+	['NRFT',           (528, 533),   'int64',   0],   
+	['SC',             (534, 536),   'int64',   0],   
+	['T_MILE',         (537, 543),   'int64',   0],   
+	['CARS',           (544, 547),   'int64',   0]
+        ] 
 
     # set the order of the columns in the resulting dataframe
     REORDERED_COLUMNS=[  
@@ -343,15 +245,6 @@ class SFMuniDataHelper():
 		    
     # uniquely define the records
     INDEX_COLUMNS=['DATE', 'ROUTE', 'PATTCODE', 'DIR', 'TRIP','SEQ'] 
-
-    # define string lengths (otherwise would be set by first chunk)    
-    STRING_LENGTHS=[  
-		('ROUTEA'   ,10),   #            - alphanumeric route name
-		('PATTCODE' ,10),   # (305, 315) - pattern code
-		('STOPNAME' ,32),   # ( 15,  47) - stop name	
-		('NS'       , 2),   # (289, 290) - north/south		
-		('EW'       , 2)    # (291, 292) - east/west
-                ]
                     
     def processRawData(self, infile, outfile):
         """
@@ -363,10 +256,23 @@ class SFMuniDataHelper():
         
         print datetime.datetime.now(), 'Converting raw data in file: ', infile
         
+        # convert column specs 
+        colnames = []       
+        colspecs = []
+        coltypes = []
+        stringLengths= {}
+        for col in self.COLUMNS: 
+            colnames.append(col[0])
+            colspecs.append(col[1])
+            coltypes.append(col[2])
+            if (col[2]=='object'): 
+                stringLengths[col[0]] = col[3]
+        stringLengths['ROUTEA'] = 10
+
         # set up the reader
-        reader = pd.read_fwf(infile, 
-                         colspecs = self.COLSPECS, 
-                         names    = self.COLNAMES, 
+        reader = pd.read_fwf(infile,  
+                         names    = colnames, 
+                         colspecs = colspecs,
                          skiprows = self.HEADERROWS, 
                          usecols  = self.COLUMNS_TO_READ, 
                          iterator = True, 
@@ -393,14 +299,10 @@ class SFMuniDataHelper():
                 chunk = chunk[(chunk['NEXTTRIP'].str.strip()).str.count(' ')==0]
 
             # because of misalinged row, it sometimes auto-detects inconsistent
-            # data types, so force them as needed
-            chunk['NEXTTRIP']      = chunk['NEXTTRIP'].astype('int64')
-            chunk['DOORCLOSE_DEV'] = chunk['DOORCLOSE_DEV'].astype('float64')
-            chunk['DELTAA']        = chunk['DELTAA'].astype('int64')   
-            chunk['DELTAD']        = chunk['DELTAD'].astype('int64')   
-            chunk['DWELL_S']       = chunk['DWELL_S'].astype('int64')  
-            chunk['DWDI']          = chunk['DWDI'].astype('int64')
-            chunk['PULLOUT_INT']   = chunk['PULLOUT_INT'].astype('int64')
+            # data types, so force them as specified.  Must be in same order 
+            # as above
+            for i in range(0, len(chunk.columns.names)):
+                chunk[colnames[i]] = chunk[colnames[i]].astype(coltypes[i])
             
             # only include revenue service
             # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
@@ -467,61 +369,7 @@ class SFMuniDataHelper():
                     chunk['TOD'][i]=2200
                             
                 # compute numeric APC route to MUNI alpha -- need to iterate
-                if chunk['ROUTE'][i]==0:      chunk['ROUTEA'][i] = '0'
-                elif chunk['ROUTE'][i]==1:    chunk['ROUTEA'][i] = '1'
-                elif chunk['ROUTE'][i]==2:    chunk['ROUTEA'][i] = '2'
-                elif chunk['ROUTE'][i]==3:    chunk['ROUTEA'][i] = '3'
-                elif chunk['ROUTE'][i]==4:    chunk['ROUTEA'][i] = '4'
-                elif chunk['ROUTE'][i]==5:    chunk['ROUTEA'][i] = '5'
-                elif chunk['ROUTE'][i]==6:    chunk['ROUTEA'][i] = '6'
-                elif chunk['ROUTE'][i]==7:    chunk['ROUTEA'][i] = '7'
-                elif chunk['ROUTE'][i]==9:    chunk['ROUTEA'][i] = '9'
-                elif chunk['ROUTE'][i]==10:   chunk['ROUTEA'][i] = '10'
-                elif chunk['ROUTE'][i]==12:   chunk['ROUTEA'][i] = '12'
-                elif chunk['ROUTE'][i]==14:   chunk['ROUTEA'][i] = '14'
-                elif chunk['ROUTE'][i]==15:   chunk['ROUTEA'][i] = '15'
-                elif chunk['ROUTE'][i]==17:   chunk['ROUTEA'][i] = '17'
-                elif chunk['ROUTE'][i]==18:   chunk['ROUTEA'][i] = '18'
-                elif chunk['ROUTE'][i]==19:   chunk['ROUTEA'][i] = '19'
-                elif chunk['ROUTE'][i]==20:   chunk['ROUTEA'][i] = '20'
-                elif chunk['ROUTE'][i]==21:   chunk['ROUTEA'][i] = '21'
-                elif chunk['ROUTE'][i]==22:   chunk['ROUTEA'][i] = '22'
-                elif chunk['ROUTE'][i]==23:   chunk['ROUTEA'][i] = '23'
-                elif chunk['ROUTE'][i]==24:   chunk['ROUTEA'][i] = '24'
-                elif chunk['ROUTE'][i]==26:   chunk['ROUTEA'][i] = '26'
-                elif chunk['ROUTE'][i]==27:   chunk['ROUTEA'][i] = '27'
-                elif chunk['ROUTE'][i]==28:   chunk['ROUTEA'][i] = '28'
-                elif chunk['ROUTE'][i]==29:   chunk['ROUTEA'][i] = '29'
-                elif chunk['ROUTE'][i]==30:   chunk['ROUTEA'][i] = '30'
-                elif chunk['ROUTE'][i]==31:   chunk['ROUTEA'][i] = '31'
-                elif chunk['ROUTE'][i]==33:   chunk['ROUTEA'][i] = '33'
-                elif chunk['ROUTE'][i]==35:   chunk['ROUTEA'][i] = '35'
-                elif chunk['ROUTE'][i]==36:   chunk['ROUTEA'][i] = '36'
-                elif chunk['ROUTE'][i]==37:   chunk['ROUTEA'][i] = '37'
-                elif chunk['ROUTE'][i]==38:   chunk['ROUTEA'][i] = '38'
-                elif chunk['ROUTE'][i]==39:   chunk['ROUTEA'][i] = '39'
-                elif chunk['ROUTE'][i]==41:   chunk['ROUTEA'][i] = '41'
-                elif chunk['ROUTE'][i]==43:   chunk['ROUTEA'][i] = '43'
-                elif chunk['ROUTE'][i]==44:   chunk['ROUTEA'][i] = '44'
-                elif chunk['ROUTE'][i]==45:   chunk['ROUTEA'][i] = '45'
-                elif chunk['ROUTE'][i]==47:   chunk['ROUTEA'][i] = '47'
-                elif chunk['ROUTE'][i]==48:   chunk['ROUTEA'][i] = '48'
-                elif chunk['ROUTE'][i]==49:   chunk['ROUTEA'][i] = '49'
-                elif chunk['ROUTE'][i]==52:   chunk['ROUTEA'][i] = '52'
-                elif chunk['ROUTE'][i]==53:   chunk['ROUTEA'][i] = '53'
-                elif chunk['ROUTE'][i]==54:   chunk['ROUTEA'][i] = '54'
-                elif chunk['ROUTE'][i]==56:   chunk['ROUTEA'][i] = '56'
-                elif chunk['ROUTE'][i]==66:   chunk['ROUTEA'][i] = '66'
-                elif chunk['ROUTE'][i]==67:   chunk['ROUTEA'][i] = '67'
-                elif chunk['ROUTE'][i]==71:   chunk['ROUTEA'][i] = '71'
-                elif chunk['ROUTE'][i]==76:   chunk['ROUTEA'][i] = '76'
-                elif chunk['ROUTE'][i]==88:   chunk['ROUTEA'][i] = '88'
-                elif chunk['ROUTE'][i]==89:   chunk['ROUTEA'][i] = '89'
-                elif chunk['ROUTE'][i]==90:   chunk['ROUTEA'][i] = '90'
-                elif chunk['ROUTE'][i]==91:   chunk['ROUTEA'][i] = '91'
-                elif chunk['ROUTE'][i]==92:   chunk['ROUTEA'][i] = '92'
-                elif chunk['ROUTE'][i]==108:  chunk['ROUTEA'][i] = '108'
-                elif chunk['ROUTE'][i]==509:  chunk['ROUTEA'][i] = '9L (509)'
+                if chunk['ROUTE'][i]==509:  chunk['ROUTEA'][i] = '9L (509)'
                 elif chunk['ROUTE'][i]==514:  chunk['ROUTEA'][i] = '14L (514)'
                 elif chunk['ROUTE'][i]==528:  chunk['ROUTEA'][i] = '28L (528)'
                 elif chunk['ROUTE'][i]==538:  chunk['ROUTEA'][i] = '38L (538)'
@@ -560,6 +408,8 @@ class SFMuniDataHelper():
                 elif chunk['ROUTE'][i]==916:  chunk['ROUTEA'][i] = '16AX (916)'
                 elif chunk['ROUTE'][i]==931:  chunk['ROUTEA'][i] = '31AX (931)'
                 elif chunk['ROUTE'][i]==938:  chunk['ROUTEA'][i] = '38AX (938)'
+                else: 
+                    chunk['ROUTEA'][i] = str(chunk['ROUTE'][i])
             
             # convert to timedate formats
             # trick here is that the MUNI service day starts and ends at 3 am, 
@@ -685,11 +535,11 @@ class SFMuniDataHelper():
             # write the data
             try: 
                 store.append('sample', df, data_columns=True, 
-                    min_itemsize=dict(self.STRING_LENGTHS))
+                    min_itemsize=stringLengths)
             except ValueError: 
                 store = pd.HDFStore(outfile)
                 print 'Structure of HDF5 file is: '
-                print store.df.dtypes
+                print store.sample.dtypes
                 store.close()
                 
                 print 'Structure of current dataframe is: '
