@@ -37,7 +37,7 @@ class SFMuniDataHelper():
     """
     
     # number of rows at top of file to skip
-    HEADERROWS = 900002
+    HEADERROWS = 2
     
     # number of rows to read at a time
     CHUNKSIZE = 100000
@@ -245,6 +245,15 @@ class SFMuniDataHelper():
 		    
     # uniquely define the records
     INDEX_COLUMNS=['DATE', 'ROUTE', 'PATTCODE', 'DIR', 'TRIP','SEQ'] 
+
+    # define string lengths (otherwise would be set by first chunk)    
+    STRING_LENGTHS=[  
+		('ROUTEA'   ,10),   #            - alphanumeric route name
+		('PATTCODE' ,10),   # (305, 315) - pattern code
+		('STOPNAME' ,32),   # ( 15,  47) - stop name	
+		('NS'       , 2),   # (289, 290) - north/south		
+		('EW'       , 2)    # (291, 292) - east/west
+                ]
                     
     def processRawData(self, infile, outfile):
         """
@@ -769,10 +778,18 @@ class SFMuniDataHelper():
             aggregated = aggregated.sort_index()
             aggregated = aggregated.reset_index()     
             aggregated = aggregated[aggregationOrder]       
-            
+
+            STRING_LENGTHS=[  
+                ('ROUTEA'   ,10),   #            - alphanumeric route name
+                ('PATTCODE' ,10),   # (305, 315) - pattern code
+                ('STOPNAME' ,32),   # ( 15,  47) - stop name    
+                ('NS'       , 2),   # (289, 290) - north/south        
+                ('EW'       , 2)    # (291, 292) - east/west
+                ]
+                
             # write
             outstore.append(outkey, aggregated, data_columns=True, 
-                min_itemsize=dict(self.STRING_LENGTHS))
+                min_itemsize=dict(STRING_LENGTHS))
             
         instore.close()
         outstore.close()

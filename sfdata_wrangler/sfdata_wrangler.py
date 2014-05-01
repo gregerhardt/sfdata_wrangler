@@ -34,7 +34,7 @@ if __name__ == "__main__":
     sfmuniHelper = SFMuniDataHelper()
 
     # convert the data
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp", outfile)
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     print 'Finished converting data in ', (convertedTime - startTime)
     
     # calculate monthly averages
-    #sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average', False)
+    sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average', False)
 
     # aggregate trips into daily totals        
     #sfmuniHelper.aggregateTrips(aggfile, 'average',  'daily_route_stops', False)
