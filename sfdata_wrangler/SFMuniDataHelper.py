@@ -21,7 +21,7 @@ __license__     = """
 import pandas as pd
 import numpy as np
 import datetime
-
+            
 class SFMuniDataHelper():
     """ 
     Methods used to read SFMuni Automated Passenger Count (APC) and 
@@ -579,120 +579,131 @@ class SFMuniDataHelper():
         split_tod - True to keeptime periods separate, False to group to daily
                            
         """        
-       
+
+        # specify 'groupby' as aggregation method as appropriate
+        # specify 'none' as aggregation method if we want to include the 
+        #   output field, but it is calculated separately
+        #   outfield,            infield,  aggregationMethod, type, stringLength                
+        columnSpecs = [              
+            ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
+            ['NUMDAYS'          ,'none'          ,'none'    ,'int64'     , 0],         
+            ['OBSTRIPS'         ,'none'          ,'none'    ,'int64'     , 0],              
+            ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
+            ['ROUTE'            ,'ROUTE'         ,'groupby' ,'int64'     , 0], 
+            ['PATTCODE'         ,'PATTCODE'      ,'groupby' ,'object'    ,10], 
+            ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
+            ['TRIP'             ,'TRIP'          ,'groupby' ,'int64'     , 0], 
+            ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],                 
+   	    ['ROUTEA'           ,'ROUTEA'        ,'first'   ,'object'    ,10],          # route/trip attribute
+   	    ['VEHNO'            ,'VEHNO'         ,'first'   ,'int64'     , 0],   
+	    ['SCHOOL'           ,'SCHOOL'        ,'first'   ,'int64'     , 0],   
+	    ['LASTTRIP'         ,'LASTTRIP'      ,'first'   ,'int64'     , 0],   
+            ['NEXTTRIP'         ,'NEXTTRIP'      ,'first'   ,'int64'     , 0], 
+            ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
+            ['HEADWAY_STD'      ,'HEADWAY'       ,'std'     ,'float64'   , 0],   
+            ['TOD'              ,'TOD'           ,'first'   ,'int64'     , 0],   
+            ['QSTOP'            ,'QSTOP'         ,'first'   ,'int64'     , 0],          # stop attributes
+            ['STOPNAME'         ,'STOPNAME'      ,'first'   ,'object'    ,32],   
+            ['TIMEPOINT'        ,'TIMEPOINT'     ,'first'   ,'int64'     , 0],   
+            ['EOL'              ,'EOL'           ,'first'   ,'int64'     , 0],   
+            ['LAT'              ,'LAT'           ,'mean'    ,'float64'   , 0],   
+            ['LAT_STD'          ,'LAT'           ,'std'     ,'float64'   , 0],          # location information
+            ['LON'              ,'LON'           ,'mean'    ,'float64'   , 0],   
+            ['LON_STD'          ,'LON'           ,'std'     ,'float64'   , 0],   
+            ['NS'               ,'NS'            ,'first'   ,'object'    , 2],       
+            ['EW'               ,'EW'            ,'first'   ,'object'    , 2],       
+            ['MAXVEL'           ,'MAXVEL'        ,'mean'    ,'float64'   , 0],   
+            ['MAXVEL_STD'       ,'MAXVEL'        ,'std'     ,'float64'   , 0],   
+            ['MILES'            ,'MILES'         ,'mean'    ,'float64'   , 0],   
+            ['MILES_STD'        ,'MILES'         ,'std'     ,'float64'   , 0],   
+            ['GODOM'            ,'GODOM'         ,'mean'    ,'float64'   , 0],   
+            ['GODOM_STD'        ,'GODOM'         ,'std'     ,'float64'   , 0],   
+            ['VEHMILES'         ,'VEHMILES'      ,'mean'    ,'float64'   , 0],   
+            ['VEHMILES_STD'     ,'VEHMILES'      ,'std'     ,'float64'   , 0],  
+            ['ON'               ,'ON'            ,'mean'    ,'float64'   , 0],   
+            ['ON_STD'           ,'ON'            ,'std'     ,'float64'   , 0],          # ridership
+            ['OFF'              ,'OFF'           ,'mean'    ,'float64'   , 0],   
+            ['OFF_STD'          ,'OFF'           ,'std'     ,'float64'   , 0],  
+            ['LOAD_ARR'         ,'LOAD_ARR'      ,'mean'    ,'float64'   , 0],   
+            ['LOAD_ARR_STD'     ,'LOAD_ARR'      ,'std'     ,'float64'   , 0],  
+            ['LOAD_DEP'         ,'LOAD_DEP'      ,'mean'    ,'float64'   , 0],   
+            ['LOAD_DEP_STD'     ,'LOAD_DEP'      ,'std'     ,'float64'   , 0],  
+            ['PASSMILES'        ,'PASSMILES'     ,'mean'    ,'float64'   , 0],   
+            ['PASSMILES_STD'    ,'PASSMILES'     ,'std'     ,'float64'   , 0],  
+            ['PASSHOURS'        ,'PASSHOURS'     ,'mean'    ,'float64'   , 0],   
+            ['PASSHOURS_STD'    ,'PASSHOURS'     ,'std'     ,'float64'   , 0],  
+            ['RDBRDNGS'         ,'RDBRDNGS'      ,'mean'    ,'float64'   , 0],   
+            ['RDBRDNGS_STD'     ,'RDBRDNGS'      ,'std'     ,'float64'   , 0],  
+            ['LOADCODE'         ,'LOADCODE'      ,'mean'    ,'float64'   , 0],   
+            ['LOADCODE_STD'     ,'LOADCODE'      ,'std'     ,'float64'   , 0],  
+            ['CAPACITY'         ,'CAPACITY'      ,'mean'    ,'float64'   , 0],   
+            ['CAPACITY_STD'     ,'CAPACITY'      ,'std'     ,'float64'   , 0],  
+            ['DOORCYCLES'       ,'DOORCYCLES'    ,'mean'    ,'float64'   , 0],   
+            ['DOORCYCLES_STD'   ,'DOORCYCLES'    ,'std'     ,'float64'   , 0],  
+            ['WHEELCHAIR'       ,'WHEELCHAIR'    ,'mean'    ,'float64'   , 0],   
+            ['WHEELCHAIR_STD'   ,'WHEELCHAIR'    ,'std'     ,'float64'   , 0],  
+            ['BIKERACK'         ,'BIKERACK'      ,'mean'    ,'float64'   , 0],   
+            ['BIKERACK_STD'     ,'BIKERACK'      ,'std'     ,'float64'   , 0],   
+            ['TIMESTOP'         ,'none'          ,'none'    ,'datetime64', 0],         # times
+            ['TIMESTOP_S'       ,'TIMESTOP_S'    ,'first'   ,'datetime64', 0],            
+            ['TIMESTOP_DEV'     ,'TIMESTOP_DEV'  ,'mean'    ,'float64'   , 0],   
+            ['TIMESTOP_DEV_STD' ,'TIMESTOP_DEV'  ,'std'     ,'float64'   , 0],  
+            ['DOORCLOSE'        ,'DOORCLOSE'     ,'none'    ,'datetime64', 0],  
+            ['DOORCLOSE_S'      ,'DOORCLOSE_S'   ,'first'   ,'datetime64', 0],  
+            ['DOORCLOSE_DEV'    ,'DOORCLOSE_DEV' ,'mean'    ,'float64'   , 0],   
+            ['DOORCLOSE_DEV_STD','DOORCLOSE_DEV' ,'std'     ,'float64'   , 0], 
+            ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],   
+            ['DWELL_STD'        ,'DWELL'         ,'std'     ,'float64'   , 0],   
+            ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],
+            ['PULLOUT'          ,'none'          ,'none'    ,'datetime64', 0],   
+            ['PULLDWELL'        ,'PULLDWELL'     ,'mean'    ,'float64'   , 0],   
+            ['PULLDWELL_STD'    ,'PULLDWELL'     ,'std'     ,'float64'   , 0],   
+            ['RUNTIME'          ,'RUNTIME'       ,'mean'    ,'float64'   , 0],   
+            ['RUNTIME_STD'      ,'RUNTIME'       ,'std'     ,'float64'   , 0],   
+            ['RUNTIME_S'        ,'RUNTIME_S'     ,'mean'    ,'float64'   , 0],     
+            ['RECOVERY'         ,'RECOVERY'      ,'mean'    ,'float64'   , 0],   
+            ['RECOVERY_STD'     ,'RECOVERY'      ,'std'     ,'float64'   , 0],    
+            ['RECOVERY_S'       ,'RECOVERY_S'    ,'mean'    ,'float64'   , 0],   
+            ['DLPMIN'           ,'DLPMIN'        ,'mean'    ,'float64'   , 0],   
+            ['DLPMIN_STD'       ,'DLPMIN'        ,'std'     ,'float64'   , 0],     
+            ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
+            ['ONTIME2_STD'      ,'ONTIME2'       ,'std'     ,'float64'   , 0],   
+            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],   
+            ['ONTIME10_STD'     ,'ONTIME10'      ,'std'     ,'float64'   , 0] 
+            ]
         
-        # define how each field will be aggregated
-        aggregationMethod = {
-		'ROUTEA'       : {'ROUTEA'        : 'first'},          # route/trip attributes
-		'VEHNO'        : {'VEHNO'         : 'first'},   
-		'SCHOOL'       : {'SCHOOL'        : 'first'},   
-		'LASTTRIP'     : {'LASTTRIP'      : 'first'},   
-		'NEXTTRIP'     : {'NEXTTRIP'      : 'first'}, 
-		'HEADWAY'      : {'HEADWAY'       : 'mean',   'HEADWAY_STD'       : 'std'},   
-		'TOD'          : {'TOD'           : 'first'},   
-		'QSTOP'        : {'QSTOP'         : 'first'},          # stop attributes
-		'STOPNAME'     : {'STOPNAME'      : 'first'},   
-		'TIMEPOINT'    : {'TIMEPOINT'     : 'first'},   
-		'EOL'          : {'EOL'           : 'first'},   
-		'LAT'          : {'LAT'           : 'mean',   'LAT_STD'           :'std'},    # location information
-		'LON'          : {'LON'           : 'mean',   'LON_STD'           :'std'},   
-		'NS'           : {'NS'            : 'first'},       
-		'EW'           : {'EW'            : 'first'},       
-		'MAXVEL'       : {'MAXVEL'        : 'mean',   'MAXVEL_STD'        :'std'},   
-		'MILES'        : {'MILES'         : 'mean',   'MILES_STD'         :'std'},   
-		'GODOM'        : {'GODOM'         : 'mean',   'GODOM_STD'         :'std'},   
-		'VEHMILES'     : {'VEHMILES'      : 'mean',   'VEHMILES_STD'      :'std'},  
-		'ON'           : {'ON'            : 'mean',   'ON_STD'            :'std'},    # ridership
-		'OFF'          : {'OFF'           : 'mean',   'OFF_STD'           :'std'},  
-		'LOAD_ARR'     : {'LOAD_ARR'      : 'mean',   'LOAD_ARR_STD'      :'std'},  
-		'LOAD_DEP'     : {'LOAD_DEP'      : 'mean',   'LOAD_DEP_STD'      :'std'},  
-		'PASSMILES'    : {'PASSMILES'     : 'mean',   'PASSMILES_STD'     :'std'},  
-		'PASSHOURS'    : {'PASSHOURS'     : 'mean',   'PASSHOURS_STD'     :'std'},  
-		'RDBRDNGS'     : {'RDBRDNGS'      : 'mean',   'RDBRDNGS_STD'      :'std'},  
-		'LOADCODE'     : {'LOADCODE'      : 'mean',   'LOADCODE_STD'      :'std'},  
-		'CAPACITY'     : {'CAPACITY'      : 'mean',   'CAPACITY_STD'      :'std'},  
-		'DOORCYCLES'   : {'DOORCYCLES'    : 'mean',   'DOORCYCLES_STD'    :'std'},  
-		'WHEELCHAIR'   : {'WHEELCHAIR'    : 'mean',   'WHEELCHAIR_STD'    :'std'},  
-		'BIKERACK'     : {'BIKERACK'      : 'mean',   'BIKERACK_STD'      :'std'},   
-		'TIMESTOP_S'   : {'TIMESTOP_S'    : 'first'},                                  # times
-		'TIMESTOP_DEV' : {'TIMESTOP_DEV'  : 'mean',   'TIMESTOP_DEV_STD'  :'std'},  
-		'DOORCLOSE_S'  : {'DOORCLOSE_S'   : 'first'},  
-		'DOORCLOSE_DEV': {'DOORCLOSE_DEV' : 'mean',   'DOORCLOSE_DEV_STD' :'std'}, 
-		'DWELL'        : {'DWELL'         : 'mean',   'DWELL_STD'         :'std'},   
-		'DWELL_S'      : {'DWELL_S'       : 'mean'},
-		'PULLDWELL'    : {'PULLDWELL'     : 'mean',   'PULLDWELL_STD'     :'std'},   
-		'RUNTIME'      : {'RUNTIME'       : 'mean',   'RUNTIME_STD'       :'std'},   
-		'RUNTIME_S'    : {'RUNTIME_S'     : 'mean'},     
-		'RECOVERY'     : {'RECOVERY'      : 'mean',   'RECOVERY_STD'      :'std'},    
-		'RECOVERY_S'   : {'RECOVERY_S'    : 'mean'},   
-		'DLPMIN'       : {'DLPMIN'        : 'mean',   'DLPMIN_STD'        :'std'},     
-		'ONTIME2'      : {'ONTIME2'       : 'mean',   'ONTIME2_STD'       :'std'},   
-		'ONTIME10'     : {'ONTIME10'      : 'mean',   'ONTIME10_STD'      :'std'} 
-		}
+        # convert to formats used by standard methods.  
+        # Start with the month, which is used for aggregation
+        colorder  = []   
+        coltypes  = {}
+        stringLengths= {}
+        groupby   = []
+        aggMethod = {}
+        for col in columnSpecs:
+            
+            # these are the entries required by the input specification
+            outfield    = col[0]
+            infield     = col[1]
+            aggregation = col[2]
+            dtype       = col[3]
+            stringLength= col[4] 
+            
+            # now populate arrays as needed
+            colorder.append(outfield)
+            coltypes[outfield] = dtype
+            if (dtype=='object'): 
+                stringLengths[outfield] = stringLength
 
-
-
-        # define the order in the final dataframe
-        aggregationOrder = [
-                'MONTH'        , 
-                'DOW'          , 
-		'ROUTE'        , 
-		'PATTCODE'     , 
-		'DIR'          , 
-		'TRIP'         , 
-		'SEQ'          , 
-                'NUMDAYS'      , 
-                'OBSTRIPS'     , 
-		'ROUTEA'       , 
-		'VEHNO'        , 
-		'SCHOOL'       , 
-		'LASTTRIP'     , 
-		'NEXTTRIP'     , 
-		'HEADWAY'      , 'HEADWAY_STD', 
-		'TOD'          , 
-		'QSTOP'        , 
-		'STOPNAME'     , 
-		'TIMEPOINT'    , 
-		'EOL'          , 
-		'LAT'          , 'LAT_STD', 
-		'LON'          , 'LON_STD', 
-		'NS'           , 
-		'EW'           , 
-		'MAXVEL'       , 'MAXVEL_STD',       
-		'MILES'        , 'MILES_STD',        
-		'GODOM'        , 'GODOM_STD',        
-		'VEHMILES'     , 'VEHMILES_STD',     
-		'ON'           , 'ON_STD',           
-		'OFF'          , 'OFF_STD',          
-		'LOAD_ARR'     , 'LOAD_ARR_STD',     
-		'LOAD_DEP'     , 'LOAD_DEP_STD',     
-		'PASSMILES'    , 'PASSMILES_STD',    
-		'PASSHOURS'    , 'PASSHOURS_STD',    
-		'RDBRDNGS'     , 'RDBRDNGS_STD',     
-		'LOADCODE'     , 'LOADCODE_STD',     
-		'CAPACITY'     , 'CAPACITY_STD',     
-		'DOORCYCLES'   , 'DOORCYCLES_STD',   
-		'WHEELCHAIR'   , 'WHEELCHAIR_STD',   
-		'BIKERACK'     , 'BIKERACK_STD',     
-		'TIMESTOP'     ,      
-		'TIMESTOP_S'   , 
-		'TIMESTOP_DEV' , 'TIMESTOP_DEV_STD', 
-		'DOORCLOSE'    ,  
-		'DOORCLOSE_S'  ,  
-		'DOORCLOSE_DEV', 'DOORCLOSE_DEV_STD',
-		'DWELL'        , 'DWELL_STD',        
-		'DWELL_S'      ,      
-		'PULLOUT'      ,     
-		'PULLDWELL'    , 'PULLDWELL_STD',    
-		'RUNTIME'      , 'RUNTIME_STD',      
-		'RUNTIME_S'    ,     
-		'RECOVERY'     , 'RECOVERY_STD',     
-		'RECOVERY_S'   ,    
-		'DLPMIN'       , 'DLPMIN_STD', 
-		'ONTIME2'      , 'ONTIME2_STD', 
-		'ONTIME10'     , 'ONTIME10_STD'       
-		]
-		
+            # skip aggregation if none
+            if aggregation != 'none': 
+                if aggregation == 'groupby': 
+                    groupby.append(outfield)
+                else:     
+                    if infield in aggMethod: 
+                        aggMethod[infield][outfield] = aggregation
+                    else:
+                        aggMethod[infield] = {outfield : aggregation}
+            
         # open and initialize the store
         instore = pd.HDFStore(hdf_infile)
         outstore = pd.HDFStore(hdf_aggfile)
@@ -713,8 +724,8 @@ class SFMuniDataHelper():
             df = instore.select(inkey, where='MONTH==Timestamp(month)')
             
             # group
-            grouped = df.groupby(['DOW', 'ROUTE', 'PATTCODE', 'DIR', 'TRIP', 'SEQ'])
-            aggregated = grouped.aggregate(aggregationMethod)
+            grouped = df.groupby(groupby)
+            aggregated = grouped.aggregate(aggMethod)
             
             # drop multi-level columns
             levels = aggregated.columns.levels
@@ -741,55 +752,21 @@ class SFMuniDataHelper():
                     aggregated['PULLOUT'][i] = (aggregated['DOORCLOSE'][i] + 
                         pd.DateOffset(minutes=aggregated['PULLDWELL'][i]))
             
-            # force column types as needed
-            aggregated['HEADWAY']       = aggregated['HEADWAY'].astype('float64')   
-            aggregated['LAT']           = aggregated['LAT'].astype('float64')             
-            aggregated['LON']           = aggregated['LON'].astype('float64')           
-            aggregated['MAXVEL']        = aggregated['MAXVEL'].astype('float64')        
-            aggregated['MILES']         = aggregated['MILES'].astype('float64')         
-            aggregated['GODOM']         = aggregated['GODOM'].astype('float64')         
-            aggregated['VEHMILES']      = aggregated['VEHMILES'].astype('float64')      
-            aggregated['ON']            = aggregated['ON'].astype('float64')            
-            aggregated['OFF']           = aggregated['OFF'].astype('float64')           
-            aggregated['LOAD_ARR']      = aggregated['LOAD_ARR'].astype('float64')      
-            aggregated['LOAD_DEP']      = aggregated['LOAD_DEP'].astype('float64')      
-            aggregated['PASSMILES']     = aggregated['PASSMILES'].astype('float64')     
-            aggregated['PASSHOURS']     = aggregated['PASSHOURS'].astype('float64')     
-            aggregated['RDBRDNGS']      = aggregated['RDBRDNGS'].astype('float64')      
-            aggregated['LOADCODE']      = aggregated['LOADCODE'].astype('float64')      
-            aggregated['CAPACITY']      = aggregated['CAPACITY'].astype('float64')      
-            aggregated['DOORCYCLES']    = aggregated['DOORCYCLES'].astype('float64')    
-            aggregated['WHEELCHAIR']    = aggregated['WHEELCHAIR'].astype('float64')    
-            aggregated['BIKERACK']      = aggregated['BIKERACK'].astype('float64')      
-            aggregated['TIMESTOP_DEV']  = aggregated['TIMESTOP_DEV'].astype('float64')   
-            aggregated['DOORCLOSE_DEV'] = aggregated['DOORCLOSE_DEV'].astype('float64') 
-            aggregated['DWELL']         = aggregated['DWELL'].astype('float64')         
-            aggregated['DWELL_S']       = aggregated['DWELL_S'].astype('float64')       
-            aggregated['PULLDWELL']     = aggregated['PULLDWELL'].astype('float64')     
-            aggregated['RUNTIME']       = aggregated['RUNTIME'].astype('float64')       
-            aggregated['RUNTIME_S']     = aggregated['RUNTIME_S'].astype('float64')     
-            aggregated['RECOVERY']      = aggregated['RECOVERY'].astype('float64')      
-            aggregated['RECOVERY_S']    = aggregated['RECOVERY_S'].astype('float64')    
-            aggregated['DLPMIN']        = aggregated['DLPMIN'].astype('float64')  
-            aggregated['ONTIME2']       = aggregated['ONTIME2'].astype('float64')  
-            aggregated['ONTIME10']      = aggregated['ONTIME10'].astype('float64')  
-            
+            # force column types, but can't cast to datetime64, so skip those
+            for outfield in coltypes:
+                if coltypes[outfield] != 'datetime64': 
+                    if outfield in aggregated: 
+                        aggregated[outfield] = aggregated[outfield].astype(
+                            coltypes[outfield])
+                            
             # clean up structure of dataframe
             aggregated = aggregated.sort_index()
             aggregated = aggregated.reset_index()     
-            aggregated = aggregated[aggregationOrder]       
+            aggregated = aggregated[colorder]       
 
-            STRING_LENGTHS=[  
-                ('ROUTEA'   ,10),   #            - alphanumeric route name
-                ('PATTCODE' ,10),   # (305, 315) - pattern code
-                ('STOPNAME' ,32),   # ( 15,  47) - stop name    
-                ('NS'       , 2),   # (289, 290) - north/south        
-                ('EW'       , 2)    # (291, 292) - east/west
-                ]
-                
             # write
             outstore.append(outkey, aggregated, data_columns=True, 
-                min_itemsize=dict(STRING_LENGTHS))
+                min_itemsize=stringLengths)
             
         instore.close()
         outstore.close()
