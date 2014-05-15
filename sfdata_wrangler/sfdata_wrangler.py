@@ -57,10 +57,10 @@ if __name__ == "__main__":
     print 'Finished converting data in ', (convertedTime - startTime)
     
     # calculate monthly averages
-    sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average', False)
+    #sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average', False)
 
     # aggregate trips into daily totals        
-    #sfmuniHelper.aggregateTrips(aggfile, 'average',  'daily_route_stops', False)
+    sfmuniHelper.aggregateTrips(aggfile, 'average',  'daily_route_stops', False)
     #sfmuniHelper.aggregateTrips(aggfile, 'average',  'tod_route_stops', True)
 
     # sum route totals

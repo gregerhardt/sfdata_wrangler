@@ -563,6 +563,156 @@ class SFMuniDataHelper():
         # close the writer
         store.close()
     
+    def aggregateTransitRecords(self, hdf_infile, hdf_aggfile, inkey, outkey, 
+        columnSpecs):
+        """
+        Calculates monthly averages.  The counting equipment is only on about
+        25% of the busses, so we need to average across multiple days (in this
+        case the whole month) to account for all of the trips made on each route.
+        
+        hdf_infile - HDF5 file with detailed sample data to aggregate
+
+        hdf_aggfile- HDF5 file for writing monthly averages
+
+        inkey   - key to read data from (i.e. 'sample')
+
+        outkey  - key to write out in HDFstore (i.e. 'avg_daily')
+                  This determines both the name of the dataframe written to the
+                  HDFStore, and also the days selected for averaging. 
+
+        columnSpecs - 2-dimensional list of specifications for each column
+
+                      where the format is: 
+                      [
+                      [outfield, infield, aggregationMethod, type, stringLength], 
+                      ...
+                      [outfield, infield, aggregationMethod, type, stringLength]
+                      ]
+                      
+                      The sub-fields are:
+
+                          outfield - the name of the output column, must be unique
+
+                          infield  - the name of the column in the existing
+                                     database, or 'none' if not present
+
+                          aggregationMethod - the name of the method for 
+                                     aggregating used by the df.groupby()
+                                     method.  Will usually be 'first', 'mean', 
+                                     or 'std'.  Can also be 'none' if the field
+                                     is not to be aggregated, or 'groupby'
+                                     if it is one of the groupby fields
+
+                          type -     the data type for the output field.  Will
+                                     usually be 'int64', 'float64', 'object' or
+                                     'datetime64'
+                          
+                          stringLength - if the type is 'object', the width
+                                         of the field in characters.  Otherwise 0.
+                           
+        """        
+
+        # convert to formats used by standard methods.  
+        # Start with the month, which is used for aggregation
+        colorder  = []   
+        coltypes  = {}
+        stringLengths= {}
+        groupby   = []
+        aggMethod = {}
+        for col in columnSpecs:
+            
+            # these are the entries required by the input specification
+            outfield    = col[0]
+            infield     = col[1]
+            aggregation = col[2]
+            dtype       = col[3]
+            stringLength= col[4] 
+            
+            # now populate arrays as needed
+            colorder.append(outfield)
+            coltypes[outfield] = dtype
+            if (dtype=='object'): 
+                stringLengths[outfield] = stringLength
+
+            # skip aggregation if none
+            if aggregation != 'none': 
+                if aggregation == 'groupby': 
+                    groupby.append(outfield)
+                else:     
+                    if infield in aggMethod: 
+                        aggMethod[infield][outfield] = aggregation
+                    else:
+                        aggMethod[infield] = {outfield : aggregation}
+            
+        # open and initialize the store
+        instore = pd.HDFStore(hdf_infile)
+        outstore = pd.HDFStore(hdf_aggfile)
+        try: 
+            outstore.remove(outkey)
+        except KeyError: 
+            print "HDFStore does not contain object ", outkey
+        
+        # get the list of all months in data set
+        months = instore.select_column(inkey, 'MONTH').unique()
+        months.sort()
+        print 'Retrieved a total of %i months to process' % len(months)
+
+        # loop through the dates, and aggregate each individually
+        for month in months: 
+            print 'Processing ', month            
+
+            df = instore.select(inkey, where='MONTH==Timestamp(month)')
+            
+            # group
+            grouped = df.groupby(groupby)
+            aggregated = grouped.aggregate(aggMethod)
+            
+            # drop multi-level columns
+            levels = aggregated.columns.levels
+            labels = aggregated.columns.labels
+            aggregated.columns = levels[1][labels[1]]
+
+            # additional calculations
+            aggregated['MONTH']    = month
+            aggregated['NUMDAYS']  = len(df['DATE'].unique())
+            aggregated['OBSTRIPS'] = grouped.size()
+            
+            aggregated['TIMESTOP']  = ''
+            aggregated['DOORCLOSE'] = ''
+            aggregated['PULLOUT']   = ''
+
+            for i, row in aggregated.iterrows(): 
+                if aggregated['TIMEPOINT'][i]==1:
+                    aggregated['TIMESTOP'][i] = (aggregated['TIMESTOP_S'][i] + 
+                        pd.DateOffset(minutes=aggregated['TIMESTOP_DEV'][i]))
+
+                    aggregated['DOORCLOSE'][i] = (aggregated['DOORCLOSE_S'][i] + 
+                        pd.DateOffset(minutes=aggregated['DOORCLOSE_DEV'][i]))
+
+                    aggregated['PULLOUT'][i] = (aggregated['DOORCLOSE'][i] + 
+                        pd.DateOffset(minutes=aggregated['PULLDWELL'][i]))
+            
+            # force column types, but can't cast to datetime64, so skip those
+            for outfield in coltypes:
+                if coltypes[outfield] != 'datetime64': 
+                    if outfield in aggregated: 
+                        aggregated[outfield] = aggregated[outfield].astype(
+                            coltypes[outfield])
+                            
+            # clean up structure of dataframe
+            aggregated = aggregated.sort_index()
+            aggregated = aggregated.reset_index()     
+            aggregated = aggregated[colorder]       
+
+            # write
+            outstore.append(outkey, aggregated, data_columns=True, 
+                min_itemsize=stringLengths)
+            
+        instore.close()
+        outstore.close()
+
+        
+
 
     def calcMonthlyAverages(self, hdf_infile, hdf_aggfile, inkey, outkey, split_tod):
         """
@@ -672,104 +822,8 @@ class SFMuniDataHelper():
             ['ONTIME10_STD'     ,'ONTIME10'      ,'std'     ,'float64'   , 0] 
             ]
         
-        # convert to formats used by standard methods.  
-        # Start with the month, which is used for aggregation
-        colorder  = []   
-        coltypes  = {}
-        stringLengths= {}
-        groupby   = []
-        aggMethod = {}
-        for col in columnSpecs:
-            
-            # these are the entries required by the input specification
-            outfield    = col[0]
-            infield     = col[1]
-            aggregation = col[2]
-            dtype       = col[3]
-            stringLength= col[4] 
-            
-            # now populate arrays as needed
-            colorder.append(outfield)
-            coltypes[outfield] = dtype
-            if (dtype=='object'): 
-                stringLengths[outfield] = stringLength
-
-            # skip aggregation if none
-            if aggregation != 'none': 
-                if aggregation == 'groupby': 
-                    groupby.append(outfield)
-                else:     
-                    if infield in aggMethod: 
-                        aggMethod[infield][outfield] = aggregation
-                    else:
-                        aggMethod[infield] = {outfield : aggregation}
-            
-        # open and initialize the store
-        instore = pd.HDFStore(hdf_infile)
-        outstore = pd.HDFStore(hdf_aggfile)
-        try: 
-            outstore.remove(outkey)
-        except KeyError: 
-            print "HDFStore does not contain object ", outkey
-        
-        # get the list of all months in data set
-        months = instore.select_column(inkey, 'MONTH').unique()
-        months.sort()
-        print 'Retrieved a total of %i months to process' % len(months)
-
-        # loop through the dates, and aggregate each individually
-        for month in months: 
-            print 'Processing ', month            
-
-            df = instore.select(inkey, where='MONTH==Timestamp(month)')
-            
-            # group
-            grouped = df.groupby(groupby)
-            aggregated = grouped.aggregate(aggMethod)
-            
-            # drop multi-level columns
-            levels = aggregated.columns.levels
-            labels = aggregated.columns.labels
-            aggregated.columns = levels[1][labels[1]]
-
-            # additional calculations
-            aggregated['MONTH']    = month
-            aggregated['NUMDAYS']  = len(df['DATE'].unique())
-            aggregated['OBSTRIPS'] = grouped.size()
-            
-            aggregated['TIMESTOP']  = ''
-            aggregated['DOORCLOSE'] = ''
-            aggregated['PULLOUT']   = ''
-
-            for i, row in aggregated.iterrows(): 
-                if aggregated['TIMEPOINT'][i]==1:
-                    aggregated['TIMESTOP'][i] = (aggregated['TIMESTOP_S'][i] + 
-                        pd.DateOffset(minutes=aggregated['TIMESTOP_DEV'][i]))
-
-                    aggregated['DOORCLOSE'][i] = (aggregated['DOORCLOSE_S'][i] + 
-                        pd.DateOffset(minutes=aggregated['DOORCLOSE_DEV'][i]))
-
-                    aggregated['PULLOUT'][i] = (aggregated['DOORCLOSE'][i] + 
-                        pd.DateOffset(minutes=aggregated['PULLDWELL'][i]))
-            
-            # force column types, but can't cast to datetime64, so skip those
-            for outfield in coltypes:
-                if coltypes[outfield] != 'datetime64': 
-                    if outfield in aggregated: 
-                        aggregated[outfield] = aggregated[outfield].astype(
-                            coltypes[outfield])
-                            
-            # clean up structure of dataframe
-            aggregated = aggregated.sort_index()
-            aggregated = aggregated.reset_index()     
-            aggregated = aggregated[colorder]       
-
-            # write
-            outstore.append(outkey, aggregated, data_columns=True, 
-                min_itemsize=stringLengths)
-            
-        instore.close()
-        outstore.close()
+        self.aggregateTransitRecords(hdf_infile, hdf_aggfile, inkey, outkey, 
+            columnSpecs)
 
 
     def aggregateTrips(self, hdffile, inkey, outkey, split_tod):
