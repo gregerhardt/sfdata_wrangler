@@ -248,6 +248,7 @@ class SFMuniDataHelper():
 
     # define string lengths (otherwise would be set by first chunk)    
     STRING_LENGTHS=[  
+		('TOD'      ,10),   #            - aggregate time period
 		('ROUTEA'   ,10),   #            - alphanumeric route name
 		('PATTCODE' ,10),   # (305, 315) - pattern code
 		('STOPNAME' ,32),   # ( 15,  47) - stop name	
@@ -331,7 +332,7 @@ class SFMuniDataHelper():
             # generate empty fields        
             chunk['TIMEPOINT'] = 0 
             chunk['EOL'] = 0
-            chunk['TOD'] = 9999
+            chunk['TOD'] = ''
             chunk['ROUTEA'] = ''
             chunk['ONTIME2'] = np.NaN
             chunk['ONTIME10'] = np.NaN            
@@ -363,19 +364,20 @@ class SFMuniDataHelper():
             
                 # compute TEP time periods -- need to iterate
                 if (chunk['TRIP'][i] >= 300  and chunk['TRIP'][i] < 600):  
-                    chunk['TOD'][i]=300
+                    chunk['TOD'][i]='0300-0559'
                 elif (chunk['TRIP'][i] >= 600  and chunk['TRIP'][i] < 900):  
-                    chunk['TOD'][i]=600
+                    chunk['TOD'][i]='0600-0859'
                 elif (chunk['TRIP'][i] >= 900  and chunk['TRIP'][i] < 1400): 
-                    chunk['TOD'][i]=900
+                    chunk['TOD'][i]='0900-1359'
                 elif (chunk['TRIP'][i] >= 1400 and chunk['TRIP'][i] < 1600): 
-                    chunk['TOD'][i]=1400
+                    chunk['TOD'][i]='1400-1559'
                 elif (chunk['TRIP'][i] >= 1600 and chunk['TRIP'][i] < 1900): 
-                    chunk['TOD'][i]=1600
+                    chunk['TOD'][i]='1600-1859'
                 elif (chunk['TRIP'][i] >= 1900 and chunk['TRIP'][i] < 2200): 
-                    chunk['TOD'][i]=1900
+                    chunk['TOD'][i]='1900-2159'
                 elif (chunk['TRIP'][i] >= 2200 and chunk['TRIP'][i] < 9999): 
-                    chunk['TOD'][i]=2200
+                    chunk['TOD'][i]='2200-0259'
+                # also include key for 'DAILY'
                             
                 # compute numeric APC route to MUNI alpha -- need to iterate
                 if chunk['ROUTE'][i]==509:  chunk['ROUTEA'][i] = '9L (509)'
@@ -564,7 +566,7 @@ class SFMuniDataHelper():
         store.close()
     
     def aggregateTransitRecords(self, hdf_infile, hdf_aggfile, inkey, outkey, 
-        columnSpecs):
+        columnSpecs, append):
         """
         Calculates monthly averages.  The counting equipment is only on about
         25% of the busses, so we need to average across multiple days (in this
@@ -601,7 +603,7 @@ class SFMuniDataHelper():
                                      method.  Will usually be 'first', 'mean', 
                                      or 'std'.  Can also be 'none' if the field
                                      is not to be aggregated, or 'groupby'
-                                     if it is one of the groupby fields
+                                     if it is one of the groupby fields. 
 
                           type -     the data type for the output field.  Will
                                      usually be 'int64', 'float64', 'object' or
@@ -609,7 +611,9 @@ class SFMuniDataHelper():
                           
                           stringLength - if the type is 'object', the width
                                          of the field in characters.  Otherwise 0.
-                           
+        
+        append - True/False - determines whether to append or overwrite
+                              output HDFstore                
         """        
 
         # convert to formats used by standard methods.  
@@ -647,10 +651,13 @@ class SFMuniDataHelper():
         # open and initialize the store
         instore = pd.HDFStore(hdf_infile)
         outstore = pd.HDFStore(hdf_aggfile)
-        try: 
-            outstore.remove(outkey)
-        except KeyError: 
-            print "HDFStore does not contain object ", outkey
+
+        # only append if we're calculating the daily totals
+        if not append: 
+            try: 
+                outstore.remove(outkey)
+            except KeyError: 
+                print "HDFStore does not contain object ", outkey
         
         # get the list of all months in data set
         months = instore.select_column(inkey, 'MONTH').unique()
@@ -671,28 +678,23 @@ class SFMuniDataHelper():
             levels = aggregated.columns.levels
             labels = aggregated.columns.labels
             aggregated.columns = levels[1][labels[1]]
-
-            # additional calculations
+            
+            # keep the month
             aggregated['MONTH']    = month
-            aggregated['OBSTRIPS'] = grouped.size()
             
-            # TODO move this stuff to the parent method...
-            #aggregated['NUMDAYS']  = len(df['DATE'].unique())
-            #aggregated['TIMESTOP']  = ''
-            #aggregated['DOORCLOSE'] = ''
-            #aggregated['PULLOUT']   = ''
+            # measure the number of observations if needed
+            if 'NUMDAYS' not in aggMethod: 
+                aggregated['NUMDAYS'] = len(df['DATE'].unique())
+            if 'TOTTRIPS' not in aggMethod: 
+                aggregated['TOTTRIPS'] = len(df['DATE'].unique())
+            if 'OBSTRIPS' not in aggMethod: 
+                aggregated['OBSTRIPS'] = grouped.size()
 
-            #for i, row in aggregated.iterrows(): 
-            #    if aggregated['TIMEPOINT'][i]==1:
-            #        aggregated['TIMESTOP'][i] = (aggregated['TIMESTOP_S'][i] + 
-            #            pd.DateOffset(minutes=aggregated['TIMESTOP_DEV'][i]))
-
-            #        aggregated['DOORCLOSE'][i] = (aggregated['DOORCLOSE_S'][i] + 
-            #            pd.DateOffset(minutes=aggregated['DOORCLOSE_DEV'][i]))
-
-            #        aggregated['PULLOUT'][i] = (aggregated['DOORCLOSE'][i] + 
-            #            pd.DateOffset(minutes=aggregated['PULLDWELL'][i]))
-            
+            # if we're aggregating by TOD, it is 'DAILY'
+            if 'TOD' not in groupby: 
+                if 'TOD' not in aggMethod:
+                    aggregated['TOD'] = 'DAILY'
+                
             # force column types, but can't cast to datetime64, so skip those
             for outfield in coltypes:
                 if coltypes[outfield] != 'datetime64': 
@@ -715,7 +717,7 @@ class SFMuniDataHelper():
         
 
 
-    def calcMonthlyAverages(self, hdf_infile, hdf_aggfile, inkey, outkey, split_tod):
+    def calcMonthlyAverages(self, hdf_infile, hdf_aggfile, inkey, outkey):
         """
         Calculates monthly averages.  The counting equipment is only on about
         25% of the busses, so we need to average across multiple days (in this
@@ -727,7 +729,6 @@ class SFMuniDataHelper():
         outkey  - key to write out in HDFstore (i.e. 'avg_daily')
                   This determines both the name of the dataframe written to the
                   HDFStore, and also the days selected for averaging. 
-        split_tod - True to keeptime periods separate, False to group to daily
                            
         """        
 
@@ -737,14 +738,13 @@ class SFMuniDataHelper():
         #   outfield,            infield,  aggregationMethod, type, stringLength                
         columnSpecs = [              
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
-            ['NUMDAYS'          ,'none'          ,'none'    ,'int64'     , 0],         
-            ['OBSTRIPS'         ,'none'          ,'none'    ,'int64'     , 0],              
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
+            ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],         
             ['ROUTE'            ,'ROUTE'         ,'groupby' ,'int64'     , 0], 
             ['PATTCODE'         ,'PATTCODE'      ,'groupby' ,'object'    ,10], 
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
             ['TRIP'             ,'TRIP'          ,'groupby' ,'int64'     , 0], 
-            ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],                 
+            ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],                  
    	    ['ROUTEA'           ,'ROUTEA'        ,'first'   ,'object'    ,10],          # route/trip attribute
    	    ['VEHNO'            ,'VEHNO'         ,'first'   ,'int64'     , 0],   
 	    ['SCHOOL'           ,'SCHOOL'        ,'first'   ,'int64'     , 0],   
@@ -752,7 +752,6 @@ class SFMuniDataHelper():
             ['NEXTTRIP'         ,'NEXTTRIP'      ,'first'   ,'int64'     , 0], 
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
             ['HEADWAY_STD'      ,'HEADWAY'       ,'std'     ,'float64'   , 0],   
-            ['TOD'              ,'TOD'           ,'first'   ,'int64'     , 0],   
             ['QSTOP'            ,'QSTOP'         ,'first'   ,'int64'     , 0],          # stop attributes
             ['STOPNAME'         ,'STOPNAME'      ,'first'   ,'object'    ,32],   
             ['TIMEPOINT'        ,'TIMEPOINT'     ,'first'   ,'int64'     , 0],   
@@ -795,18 +794,18 @@ class SFMuniDataHelper():
             ['WHEELCHAIR_STD'   ,'WHEELCHAIR'    ,'std'     ,'float64'   , 0],  
             ['BIKERACK'         ,'BIKERACK'      ,'mean'    ,'float64'   , 0],   
             ['BIKERACK_STD'     ,'BIKERACK'      ,'std'     ,'float64'   , 0],   
-            ['TIMESTOP'         ,'none'          ,'none'    ,'datetime64', 0],         # times
+            ['TIMESTOP'         ,'TIMESTOP'      ,'first'   ,'datetime64', 0],         # times
             ['TIMESTOP_S'       ,'TIMESTOP_S'    ,'first'   ,'datetime64', 0],            
             ['TIMESTOP_DEV'     ,'TIMESTOP_DEV'  ,'mean'    ,'float64'   , 0],   
             ['TIMESTOP_DEV_STD' ,'TIMESTOP_DEV'  ,'std'     ,'float64'   , 0],  
-            ['DOORCLOSE'        ,'DOORCLOSE'     ,'none'    ,'datetime64', 0],  
+            ['DOORCLOSE'        ,'DOORCLOSE'     ,'first'   ,'datetime64', 0],  
             ['DOORCLOSE_S'      ,'DOORCLOSE_S'   ,'first'   ,'datetime64', 0],  
             ['DOORCLOSE_DEV'    ,'DOORCLOSE_DEV' ,'mean'    ,'float64'   , 0],   
             ['DOORCLOSE_DEV_STD','DOORCLOSE_DEV' ,'std'     ,'float64'   , 0], 
             ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],   
             ['DWELL_STD'        ,'DWELL'         ,'std'     ,'float64'   , 0],   
             ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],
-            ['PULLOUT'          ,'none'          ,'none'    ,'datetime64', 0],   
+            ['PULLOUT'          ,'PULLOUT'       ,'first'   ,'datetime64', 0],   
             ['PULLDWELL'        ,'PULLDWELL'     ,'mean'    ,'float64'   , 0],   
             ['PULLDWELL_STD'    ,'PULLDWELL'     ,'std'     ,'float64'   , 0],   
             ['RUNTIME'          ,'RUNTIME'       ,'mean'    ,'float64'   , 0],   
@@ -820,14 +819,19 @@ class SFMuniDataHelper():
             ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
             ['ONTIME2_STD'      ,'ONTIME2'       ,'std'     ,'float64'   , 0],   
             ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10_STD'     ,'ONTIME10'      ,'std'     ,'float64'   , 0] 
+            ['ONTIME10_STD'     ,'ONTIME10'      ,'std'     ,'float64'   , 0], 
+            ['NUMDAYS'          ,'none'          ,'none'    ,'int64'     , 0],          # stats for observations
+            ['TOTTRIPS'         ,'none'          ,'none'    ,'int64'     , 0],                  
+            ['OBSTRIPS'         ,'none'          ,'none'    ,'int64'     , 0]         
             ]
-        
+                
         self.aggregateTransitRecords(hdf_infile, hdf_aggfile, inkey, outkey, 
-            columnSpecs)
+            columnSpecs, False)
+        
+        # TODO - deal with averaging times
+                
 
-
-    def calculateRouteStopTotals(self, hdffile, inkey, outkey, split_tod):
+    def calculateRouteStopTotals(self, hdffile, inkey, outkey):
         """
         Read disaggregate transit records, and aggregates across trips to a
         daily total. 
@@ -835,7 +839,6 @@ class SFMuniDataHelper():
         hdffile - HDF5 file to aggregate
         inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
-        split_tod - True to keeptime periods separate, False to group to daily
                                                               
         """
         # specify 'groupby' as aggregation method as appropriate
@@ -844,14 +847,12 @@ class SFMuniDataHelper():
         #   outfield,            infield,  aggregationMethod, type, stringLength                
         columnSpecs = [              
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
-            ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         
-            ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'int64'     , 0],              
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
-            ['TOD'              ,'TOD'           ,'groupby' ,'int64'     , 0],   
+            ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],   
             ['ROUTE'            ,'ROUTE'         ,'groupby' ,'int64'     , 0], 
             ['PATTCODE'         ,'PATTCODE'      ,'groupby' ,'object'    ,10], 
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
-            ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],                 
+            ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],                   
    	    ['ROUTEA'           ,'ROUTEA'        ,'first'   ,'object'    ,10],          # route/trip attribute
 	    ['SCHOOL'           ,'SCHOOL'        ,'mean'    ,'int64'     , 0], 
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
@@ -889,21 +890,28 @@ class SFMuniDataHelper():
             ['RECOVERY_S'       ,'RECOVERY_S'    ,'mean'    ,'float64'   , 0],   
             ['DLPMIN'           ,'DLPMIN'        ,'mean'    ,'float64'   , 0],     
             ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0]  
+            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],  
+            ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],          # observation stats
+            ['TOTTRIPS'         ,'TOTTRIPS'      ,'sum'     ,'int64'     , 0],     
+            ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'int64'     , 0]               
             ]
         
-        self.aggregateTransitRecords(hdffile, hdffile, inkey, outkey, columnSpecs)
+        self.aggregateTransitRecords(hdffile, hdffile, inkey, outkey, 
+            columnSpecs, False)
+
+        # calculate and append daily totals
+        columnSpecs[2] = ['TOD', 'none', 'none' ,'object' ,10]
+        self.aggregateTransitRecords(hdffile, hdffile, inkey, outkey, 
+            columnSpecs, True)
 
 
-
-    def calculateRouteTotals(self, hdffile, inkey, outkey, split_tod):
+    def calculateRouteTotals(self, hdffile, inkey, outkey):
         """
         Sum across stops to get route totals
         
         hdffile - HDF5 file to aggregate
         inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
-        split_tod - True to keeptime periods separate, False to group to daily
                                    
         """
 
@@ -913,13 +921,11 @@ class SFMuniDataHelper():
         #   outfield,            infield,  aggregationMethod, type, stringLength                
         columnSpecs = [              
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
-            ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         
-            ['OBSTRIPS'         ,'OBSTRIPS'      ,'first'   ,'int64'     , 0],              
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
-            ['TOD'              ,'TOD'           ,'groupby' ,'int64'     , 0],   
+            ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],   
             ['ROUTE'            ,'ROUTE'         ,'groupby' ,'int64'     , 0], 
             ['PATTCODE'         ,'PATTCODE'      ,'groupby' ,'object'    ,10], 
-            ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0],                 
+            ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0],                
    	    ['ROUTEA'           ,'ROUTEA'        ,'first'   ,'object'    ,10],          # route/trip attribute
 	    ['SCHOOL'           ,'SCHOOL'        ,'mean'    ,'int64'     , 0], 
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
@@ -943,20 +949,23 @@ class SFMuniDataHelper():
             ['RECOVERY_S'       ,'RECOVERY_S'    ,'sum'     ,'float64'   , 0],   
             ['DLPMIN'           ,'DLPMIN'        ,'sum'     ,'float64'   , 0],     
             ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0]  
+            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],  
+            ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],          # observation stats
+            ['TOTTRIPS'         ,'TOTTRIPS'      ,'first'   ,'int64'     , 0],     
+            ['OBSTRIPS'         ,'OBSTRIPS'      ,'first'   ,'int64'     , 0]               
             ]
         
-        self.aggregateTransitRecords(hdffile, hdffile, inkey, outkey, columnSpecs)
+        self.aggregateTransitRecords(hdffile, hdffile, inkey, outkey, 
+            columnSpecs, False)
 
 
-    def calculateStopTotals(self, hdffile, inkey, outkey, split_tod):
+    def calculateStopTotals(self, hdffile, inkey, outkey):
         """
         Aggregates across routes to get totals at each stop. 
         
         hdffile - HDF5 file to aggregate
         inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
-        split_tod - True to keeptime periods separate, False to group to daily
                                    
         """
 
@@ -966,10 +975,8 @@ class SFMuniDataHelper():
         #   outfield,            infield,  aggregationMethod, type, stringLength                
         columnSpecs = [              
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
-            ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         
-            ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'int64'     , 0],              
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
-            ['TOD'              ,'TOD'           ,'groupby' ,'int64'     , 0],   
+            ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],   
             ['QSTOP'            ,'QSTOP'         ,'groupby' ,'int64'     , 0],
             ['STOPNAME'         ,'STOPNAME'      ,'first'   ,'object'    ,32],         # stop attributes  
             ['LAT'              ,'LAT'           ,'mean'    ,'float64'   , 0],   
@@ -985,21 +992,24 @@ class SFMuniDataHelper():
             ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],  
             ['PULLDWELL'        ,'PULLDWELL'     ,'mean'    ,'float64'   , 0],     
             ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0]  
+            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0], 
+            ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         # observation stats
+            ['TOTTRIPS'         ,'TOTTRIPS'      ,'sum'     ,'int64'     , 0],     
+            ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'int64'     , 0]                
             ]
         
-        self.aggregateTransitRecords(hdffile, hdffile, inkey, outkey, columnSpecs)
+        self.aggregateTransitRecords(hdffile, hdffile, inkey, outkey, 
+            columnSpecs, False)
 
 
 
-    def calculateSystemTotals(self, hdffile, inkey, outkey, split_tod):
+    def calculateSystemTotals(self, hdffile, inkey, outkey):
         """
         Sum across stops to get system totals
         
         hdffile - HDF5 file to aggregate
         inkey   - string - key for reading detailed data from
         outkey  - string - key for writing the aggregated dataframe to the store
-        split_tod - True to keeptime periods separate, False to group to daily
                                    
         """
         # specify 'groupby' as aggregation method as appropriate
@@ -1008,10 +1018,8 @@ class SFMuniDataHelper():
         #   outfield,            infield,  aggregationMethod, type, stringLength                
         columnSpecs = [              
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
-            ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         
-            ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'int64'     , 0],              
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
-            ['TOD'              ,'TOD'           ,'groupby' ,'int64'     , 0],    
+            ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],    
             ['VEHMILES'         ,'VEHMILES'      ,'sum'     ,'float64'   , 0],  
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],         # ridership
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0], 
@@ -1032,8 +1040,12 @@ class SFMuniDataHelper():
             ['RECOVERY_S'       ,'RECOVERY_S'    ,'sum'     ,'float64'   , 0],   
             ['DLPMIN'           ,'DLPMIN'        ,'sum'     ,'float64'   , 0],     
             ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0]  
+            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0], 
+            ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         # observation stats
+            ['TOTTRIPS'         ,'TOTTRIPS'      ,'sum'     ,'int64'     , 0],     
+            ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'int64'     , 0]                
             ]
         
-        self.aggregateTransitRecords(hdffile, hdffile, inkey, outkey, columnSpecs)
+        self.aggregateTransitRecords(hdffile, hdffile, inkey, outkey, 
+            columnSpecs, False)
 

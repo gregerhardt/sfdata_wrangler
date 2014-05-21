@@ -34,7 +34,7 @@ if __name__ == "__main__":
     sfmuniHelper = SFMuniDataHelper()
 
     # convert the data
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp", outfile)
@@ -57,19 +57,19 @@ if __name__ == "__main__":
     print 'Finished converting data in ', (convertedTime - startTime)
     
     # calculate monthly averages
-    #sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average', False)
+    sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average')
 
     # aggregate trips into daily totals        
-    #sfmuniHelper.calculateRouteStopTotals(aggfile, 'average',  'tod_route_stops', True)
+    sfmuniHelper.calculateRouteStopTotals(aggfile, 'average',  'route_stops')
 
     # sum route totals
-    #sfmuniHelper.calculateRouteTotals(aggfile, 'tod_route_stops',  'tod_routes', True)     
+    sfmuniHelper.calculateRouteTotals(aggfile, 'route_stops',  'routes')     
     
     # sum stop totals    
-    #sfmuniHelper.calculateStopTotals(aggfile, 'tod_route_stops',  'tod_stops', True)
+    sfmuniHelper.calculateStopTotals(aggfile, 'route_stops',  'stops')
     
     # sum system totals    
-    sfmuniHelper.calculateSystemTotals(aggfile, 'tod_route_stops',  'tod_system', True)
+    sfmuniHelper.calculateSystemTotals(aggfile, 'route_stops',  'system')
         
     aggregatedTime = datetime.datetime.now()
     print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 
