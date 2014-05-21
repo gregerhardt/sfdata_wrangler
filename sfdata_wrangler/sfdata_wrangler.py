@@ -60,20 +60,16 @@ if __name__ == "__main__":
     #sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average', False)
 
     # aggregate trips into daily totals        
-    sfmuniHelper.aggregateTrips(aggfile, 'average',  'daily_route_stops', False)
-    #sfmuniHelper.aggregateTrips(aggfile, 'average',  'tod_route_stops', True)
+    #sfmuniHelper.calculateRouteStopTotals(aggfile, 'average',  'tod_route_stops', True)
 
     # sum route totals
-    #sfmuniHelper.calculateRouteTotals(aggfile, 'daily_route_stops',  'daily_routes', False)  
     #sfmuniHelper.calculateRouteTotals(aggfile, 'tod_route_stops',  'tod_routes', True)     
     
     # sum stop totals    
-    #sfmuniHelper.calculateStopTotals(aggfile, 'daily_route_stops',  'daily_stops', False)
     #sfmuniHelper.calculateStopTotals(aggfile, 'tod_route_stops',  'tod_stops', True)
     
     # sum system totals    
-    #sfmuniHelper.calculateSystemTotals(aggfile, 'daily_route_stops',  'daily_system', False)
-    #sfmuniHelper.calculateSystemTotals(aggfile, 'tod_route_stops',  'tod_system', True)
+    sfmuniHelper.calculateSystemTotals(aggfile, 'tod_route_stops',  'tod_system', True)
         
     aggregatedTime = datetime.datetime.now()
     print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 
