@@ -321,9 +321,10 @@ class SFMuniDataHelper():
             # filter by count QC (<=20 is default)
             chunk = chunk[chunk['QC201'] <= 20]
             
-            # filter where there is no route or no stop identified
+            # filter where there is no route, no stop or not trip identified
             chunk = chunk[chunk['ROUTE']>0]
             chunk = chunk[chunk['QSTOP']<9999]
+            chunk = chunk[chunk['TRIP']<9999]
             
             # calculate some basic data adjustments
             chunk['LON']      = -1 * chunk['LON']
@@ -623,6 +624,8 @@ class SFMuniDataHelper():
         stringLengths= {}
         groupby   = []
         aggMethod = {}
+        timeFields = []
+        
         for col in columnSpecs:
             
             # these are the entries required by the input specification
@@ -648,6 +651,10 @@ class SFMuniDataHelper():
                     else:
                         aggMethod[infield] = {outfield : aggregation}
             
+            # keep track of input datetime64 fields
+            if (dtype=='datetime64'):
+                timeFields.append(infield)
+            
         # open and initialize the store
         instore = pd.HDFStore(hdf_infile)
         outstore = pd.HDFStore(hdf_aggfile)
@@ -669,6 +676,13 @@ class SFMuniDataHelper():
             print 'Processing ', month            
 
             df = instore.select(inkey, where='MONTH==Timestamp(month)')
+            
+            # normalize times to offset from start of month
+            if 'DATE' in df:
+                for col in timeFields:
+                    if col in df: 
+                        offset = df[col] - df['DATE']
+                        df[col] = month + offset
             
             # group
             grouped = df.groupby(groupby)
@@ -794,18 +808,18 @@ class SFMuniDataHelper():
             ['WHEELCHAIR_STD'   ,'WHEELCHAIR'    ,'std'     ,'float64'   , 0],  
             ['BIKERACK'         ,'BIKERACK'      ,'mean'    ,'float64'   , 0],   
             ['BIKERACK_STD'     ,'BIKERACK'      ,'std'     ,'float64'   , 0],   
-            ['TIMESTOP'         ,'TIMESTOP'      ,'first'   ,'datetime64', 0],         # times
+            ['TIMESTOP'         ,'TIMESTOP'      ,self.meanTimes,'datetime64', 0],         # times
             ['TIMESTOP_S'       ,'TIMESTOP_S'    ,'first'   ,'datetime64', 0],            
             ['TIMESTOP_DEV'     ,'TIMESTOP_DEV'  ,'mean'    ,'float64'   , 0],   
             ['TIMESTOP_DEV_STD' ,'TIMESTOP_DEV'  ,'std'     ,'float64'   , 0],  
-            ['DOORCLOSE'        ,'DOORCLOSE'     ,'first'   ,'datetime64', 0],  
+            ['DOORCLOSE'        ,'DOORCLOSE'     ,self.meanTimes,'datetime64', 0],  
             ['DOORCLOSE_S'      ,'DOORCLOSE_S'   ,'first'   ,'datetime64', 0],  
             ['DOORCLOSE_DEV'    ,'DOORCLOSE_DEV' ,'mean'    ,'float64'   , 0],   
             ['DOORCLOSE_DEV_STD','DOORCLOSE_DEV' ,'std'     ,'float64'   , 0], 
             ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],   
             ['DWELL_STD'        ,'DWELL'         ,'std'     ,'float64'   , 0],   
             ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],
-            ['PULLOUT'          ,'PULLOUT'       ,'first'   ,'datetime64', 0],   
+            ['PULLOUT'          ,'PULLOUT'       ,self.meanTimes,'datetime64', 0],   
             ['PULLDWELL'        ,'PULLDWELL'     ,'mean'    ,'float64'   , 0],   
             ['PULLDWELL_STD'    ,'PULLDWELL'     ,'std'     ,'float64'   , 0],   
             ['RUNTIME'          ,'RUNTIME'       ,'mean'    ,'float64'   , 0],   
@@ -1049,3 +1063,41 @@ class SFMuniDataHelper():
         self.aggregateTransitRecords(hdffile, hdffile, inkey, outkey, 
             columnSpecs, False)
 
+
+    def meanTimes(self, datetimeSeries):
+        """
+        Computes the average of a datetime series. 
+        
+        datetimeSeries - a series of Datetime objects
+        
+        returns the average datetime, or last element if all null inputs
+                                   
+        """
+
+        totSec = 0
+        count = 0  # deal with missing values
+        for datetime in datetimeSeries:
+            if pd.notnull(datetime):
+                days = datetime.toordinal()
+                totSec += (24*3600*(days) + 3600*(datetime.hour) 
+                        + 60*(datetime.minute) + datetime.second) 
+                count += 1
+
+        if count==0: 
+            return datetime
+        else:                 
+            meanSec = totSec / count
+            days = meanSec/(24*3600)
+            date = datetime.fromordinal(days)
+            
+            stringDatetime = (str(date.month) + ' ' 
+                            + str(date.day) + ' ' 
+                            + str(date.year) + ' '
+                            + str((meanSec/3600)%24) + ' ' 
+                            + str((meanSec/60)%60) + ' '
+                            + str(meanSec%60))
+            
+            mean = pd.to_datetime(stringDatetime, format="%m %d %Y %H %M %S")
+    
+            return mean
+        
