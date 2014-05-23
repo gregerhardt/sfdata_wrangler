@@ -20,21 +20,25 @@ __license__     = """
 import datetime
 
 from SFMuniDataHelper import SFMuniDataHelper
+from GTFSHelper import GTFSHelper
 
 
-
-if __name__ == "__main__":
+def processSFMuniData(outfile, aggfile):
+    """
+    Reads text files containing SFMuni AVL/APC data and converts them to a 
+    processed and aggregated HDF file.           
     
-    # eventually convert filenames to arguments
-    outfile = "C:/CASA/DataExploration/sfmuni.h5"
-    aggfile = "C:/CASA/DataExploration/sfmuni_aggregate.h5"
+    outfile - HDF file containing processed disaggregate data
+    aggfile - HDF file containing processed aggregate data                    
+    """
+
     
     startTime = datetime.datetime.now()   
-    print 'Started at ', startTime
+    print 'Started processing SFMuni data at ', startTime
     sfmuniHelper = SFMuniDataHelper()
 
     # convert the data
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
+    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp", outfile)
@@ -54,7 +58,7 @@ if __name__ == "__main__":
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp", outfile)
         
     convertedTime = datetime.datetime.now() 
-    print 'Finished converting data in ', (convertedTime - startTime)
+    print 'Finished converting SFMuni data in ', (convertedTime - startTime)
     
     # calculate monthly averages
     sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average')
@@ -72,5 +76,37 @@ if __name__ == "__main__":
     sfmuniHelper.calculateSystemTotals(aggfile, 'route_stops',  'system')
         
     aggregatedTime = datetime.datetime.now()
-    print 'Finished aggregating data in ', (aggregatedTime - convertedTime) 
-                
+    print 'Finished aggregating SFMuni data in ', (aggregatedTime - convertedTime) 
+
+
+def processGTFS(outfile):
+    """
+    Reads files containing SFMuni General Transit Feed Specification, and converts
+    them to schedule format for joining to AVL/APC data.           
+    
+    outfile - HDF file containing processed GTFS data             
+    """
+
+    startTime = datetime.datetime.now()   
+    print 'Started processing GTFS at ', startTime
+    gtfsHelper = GTFSHelper()
+
+    # convert the data
+    gtfsHelper.processRawData("C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090225_0527.zip", outfile)
+        
+    convertedTime = datetime.datetime.now() 
+    print 'Finished converting GTFS in ', (convertedTime - startTime)
+    
+
+
+if __name__ == "__main__":
+    
+    # eventually convert filenames to arguments
+    sfmuni_outfile = "C:/CASA/DataExploration/sfmuni.h5"
+    sfmuni_aggfile = "C:/CASA/DataExploration/sfmuni_aggregate.h5"
+    
+    gtfs_outfile = "C:/CASA/DataExploration/gtfs.h5"
+
+    #processSFMuniData(sfmuni_outfile, sfmuni_aggfile)
+    processGTFS(gtfs_outfile)
+
