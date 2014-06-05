@@ -842,7 +842,6 @@ class SFMuniDataHelper():
         self.aggregateTransitRecords(hdf_infile, hdf_aggfile, inkey, outkey, 
             columnSpecs, False)
         
-        # TODO - deal with averaging times
                 
 
     def calculateRouteStopTotals(self, hdffile, inkey, outkey):

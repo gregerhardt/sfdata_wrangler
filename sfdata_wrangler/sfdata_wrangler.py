@@ -92,7 +92,7 @@ def processGTFS(outfile):
     gtfsHelper = GTFSHelper()
 
     # convert the data
-    gtfsHelper.processRawData("C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090225_0527.zip", outfile)
+    gtfsHelper.processRawData("C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip", outfile)
         
     convertedTime = datetime.datetime.now() 
     print 'Finished converting GTFS in ', (convertedTime - startTime)
