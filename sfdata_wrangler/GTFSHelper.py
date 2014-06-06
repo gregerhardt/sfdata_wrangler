@@ -24,24 +24,6 @@ import datetime
 import transitfeed
             
             
-
-def determineMinDepTime(df):
-    """
-    Sets the DEPTIME field to the min value across the group.
-    """
-    minTime = df['DEPTIME'].min()
-    df['MINDEPTIME'] = minTime        
-    return df
-
-def determineMaxArrTime(df):
-    """
-    Sets the ARRTIME field to the min value across the group.
-    """
-    maxTime = df['ARRTIME'].max()
-    df['MAXARRTIME'] = maxTime        
-    return df
-    
-
 def getWrapAroundTime(dateString, timeString):
     """
     Converts a string in the format '%H:%M:%S' to a datetime object.
@@ -163,9 +145,23 @@ class GTFSHelper():
                         fare = fareAttribute.price
             
             # one record for each stop time
-            stopTimeList = trip.GetStopTimes()            
+            stopTimeList = trip.GetStopTimes()    
+            i = 0        
             for stopTime in stopTimeList:
                 record = {}
+                
+                # first stop, last stop and trip based on order
+                if i==0: 
+                    hr, min, sec = stopTime.departure_time.split(':')
+                    firstDeparture = int(hr + min)
+                    startOfLine = 1
+                else:
+                    startOfLine = 0
+                    
+                if i==(len(stopTimeList)-1):
+                    endOfLine = 1
+                else: 
+                    endOfLine = 0
                 
                 # calendar attributes
                 record['START_DATE'] = pd.to_datetime(startDate, format='%Y%m%d')
@@ -184,7 +180,7 @@ class GTFSHelper():
                 #record['ROUTE']         
                 #record['PATTCODE']      
                 #record['DIR']           
-                record['TRIP']      = 0    # will contain HHMM of departure from first stop
+                record['TRIP']      = firstDeparture    # contains HHMM of departure from first stop
                 #record['SEQ']           
                 #record['QSTOP']         
                 
@@ -203,22 +199,15 @@ class GTFSHelper():
                 record['STOP_NAME']        = str(stopTime.stop.stop_name)
                 record['STOP_LAT']         = float(stopTime.stop.stop_lat)
                 record['STOP_LON']         = float(stopTime.stop.stop_lon)
-                record['SOL'] = 0   # start of line
-                record['EOL'] = 0   # end of line
+                record['SOL']              = startOfLine
+                record['EOL']              = endOfLine
                 
                 # stop times, dealing with wrap-around for times past midnight            
                 record['ARRIVAL_TIME']   = getWrapAroundTime(startDate, stopTime.arrival_time)
                 record['DEPARTURE_TIME'] = getWrapAroundTime(startDate, stopTime.departure_time)
                 
-                # will be used to calculate TRIP, and start of line and end of line
-                # 'DEPTIME' contains string HHMM of departure time from stop
-                hr, min, sec = stopTime.departure_time.split(':')
-                record['DEPTIME'] = hr + min + sec
-                # 'ARRTIME' contains string HHMM of arrival time at stop
-                hr, min, sec = stopTime.arrival_time.split(':')
-                record['ARRTIME'] = hr + min + sec
-                
-                data.append(record)
+                data.append(record)                
+                i += 1
                                 
         # convert to data frame
         print "  adding %i trip-stop records" % len(data)
@@ -226,24 +215,7 @@ class GTFSHelper():
         
         # sort rows 
         df.sort(indexColumns, inplace=True)
-        
-        # calculate group attributes of the TRIP
-        groupby = ['START_DATE', 'END_DATE', 'DOW', 'ROUTE_ID', 'DIRECTION_ID', 'TRIP_ID']
-        df = df.groupby(groupby).apply(determineMinDepTime)
-        df = df.groupby(groupby).apply(determineMaxArrTime)
-        
-        for i, row in df.iterrows():
-            # trip
-            df['TRIP'][i] = int(df['MINDEPTIME'][i])/100
-            
-            # start of line
-            if (df['DEPTIME'][i] == df['MINDEPTIME'][i]): 
-                df['SOL'][i] = 1
-            # end of line
-            if (df['ARRTIME'][i] == df['MAXARRTIME'][i]): 
-                df['EOL'][i] = 1
                 
-        
         # keep only relevant columns, sorted
         df = df[colnames]
         
