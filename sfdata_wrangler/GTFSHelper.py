@@ -55,42 +55,36 @@ class GTFSHelper():
         ['ROUTE_LONG_NAME',  32, 0], 
         ['ROUTE_TYPE',        0, 0], 
         ['TRIP_HEADSIGN',    32, 0], 
-        #['FARE',              0, 0], 
+        ['FARE',              0, 0], 
         ['STOP_NAME',        32, 0], 
         ['STOP_LAT',          0, 0], 
         ['STOP_LON',          0, 0], 
-        ['AFTER_MIDNIGHT',    0, 0], 
         ['ARRIVAL_TIME',      0, 0], 
         ['DEPARTURE_TIME',    0, 0]
         ] 
                 
 
-    def getWrapAroundTime(self, timeString):
+    def getWrapAroundTime(self, dateString, timeString):
         """
         Converts a string in the format '%H:%M:%S' to a datetime object.
         Accounts for the convention where service after midnight is counted
         with the previous day, so input times can be >24 hours. 
         """        
+        nextDay = False
         hr, min, sec = timeString.split(':')
         if int(hr)>= 24:
             hr = str(int(hr) - 24)
             timeString = hr + ':' + min + ':' + sec
+            nextDay = True
             
-        time = pd.to_datetime(timeString, format='%H:%M:%S')
+        datetimeString = dateString + ' ' + timeString    
+        time = pd.to_datetime(datetimeString, format='%Y%m%d %H:%M:%S')
+        
+        if nextDay: 
+           time = time + pd.DateOffset(days=1)
+        
         return time
-            
-    def timeAfterMidnight(self, timeString):
-        """
-        Accepts a string in the format '%H:%M:%S'.
-        Checks whether the time is after midnight, where it is counted
-        with the previous day, so input times can be >24 hours. 
-        """        
-        hr, min, sec = timeString.split(':')
-        if int(hr)>= 24:
-            return 1
-        else: 
-            return 0
-                    
+                                
 
     def processRawData(self, infile, outfile):
         """
@@ -134,9 +128,20 @@ class GTFSHelper():
         tripList = tripList[0:10]
         for trip in tripList:
             
+            # determine route attributes
             route = schedule.GetRoute(trip.route_id)
-            stopTimeList = trip.GetStopTimes()
             
+            # calculate fare--assume just based on route ID
+            fare = 0
+            fareAttributeList = schedule.GetFareAttributeList()
+            for fareAttribute in fareAttributeList:
+                fareRuleList = fareAttribute.GetFareRuleList()
+                for fareRule in fareRuleList:
+                    if fareRule.route_id == trip.route_id: 
+                        fare = fareAttribute.price
+            
+            # one record for each stop time
+            stopTimeList = trip.GetStopTimes()            
             for stopTime in stopTimeList:
                 record = {}
                 
@@ -169,17 +174,16 @@ class GTFSHelper():
                 record['ROUTE_LONG_NAME']  = str(route.route_long_name)
                 record['ROUTE_TYPE']       = int(route.route_type)
                 record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
-                #record['FARE']              
+                record['FARE']             = float(fare)  
                 
                 # stop attriutes
                 record['STOP_NAME']        = str(stopTime.stop.stop_name)
                 record['STOP_LAT']         = float(stopTime.stop.stop_lat)
                 record['STOP_LON']         = float(stopTime.stop.stop_lon)
                 
-                # stop times, dealing with wrap-around for times past midnight                
-                record['AFTER_MIDNIGHT'] = self.timeAfterMidnight(stopTime.arrival_time)
-                record['ARRIVAL_TIME']   = self.getWrapAroundTime(stopTime.arrival_time)
-                record['DEPARTURE_TIME'] = self.getWrapAroundTime(stopTime.departure_time)
+                # stop times, dealing with wrap-around for times past midnight            
+                record['ARRIVAL_TIME']   = self.getWrapAroundTime(startDate, stopTime.arrival_time)
+                record['DEPARTURE_TIME'] = self.getWrapAroundTime(startDate, stopTime.departure_time)
                 
                 data.append(record)
                                 
