@@ -30,6 +30,68 @@ class GTFSHelper():
     
     """
 
+    # specifies how to read in each column from raw input files
+    #  columnName,       stringLength, index(0/1)
+    COLUMNS = [
+        ['START_DATE',        0, 1], 
+        ['END_DATE',          0, 1], 
+        ['DOW',               0, 1], 
+        #['TOD',               0, 0], 
+        ['ROUTE_ID',          0, 1], 
+        ['DIRECTION_ID',      0, 1], 
+        ['TRIP_ID',           0, 1], 
+        ['STOP_SEQUENCE',     0, 1], 
+        ['STOP_ID',           0, 0], 
+        #['ROUTE',             0, 0], 
+        #['PATTCODE',          0, 0], 
+        #['DIR',               0, 0], 
+        #['TRIP',              0, 0], 
+        #['SEQ',               0, 0], 
+        #['QSTOP',             0, 0], 
+        ['AGENCY_ID',        10, 0], 
+        ['BLOCK_ID',          0, 0], 
+        ['SHAPE_ID',          0, 0], 
+        ['ROUTE_SHORT_NAME', 32, 0], 
+        ['ROUTE_LONG_NAME',  32, 0], 
+        ['ROUTE_TYPE',        0, 0], 
+        ['TRIP_HEADSIGN',    32, 0], 
+        #['FARE',              0, 0], 
+        ['STOP_NAME',        32, 0], 
+        ['STOP_LAT',          0, 0], 
+        ['STOP_LON',          0, 0], 
+        ['AFTER_MIDNIGHT',    0, 0], 
+        ['ARRIVAL_TIME',      0, 0], 
+        ['DEPARTURE_TIME',    0, 0]
+        ] 
+                
+
+    def getWrapAroundTime(self, timeString):
+        """
+        Converts a string in the format '%H:%M:%S' to a datetime object.
+        Accounts for the convention where service after midnight is counted
+        with the previous day, so input times can be >24 hours. 
+        """        
+        hr, min, sec = timeString.split(':')
+        if int(hr)>= 24:
+            hr = str(int(hr) - 24)
+            timeString = hr + ':' + min + ':' + sec
+            
+        time = pd.to_datetime(timeString, format='%H:%M:%S')
+        return time
+            
+    def timeAfterMidnight(self, timeString):
+        """
+        Accepts a string in the format '%H:%M:%S'.
+        Checks whether the time is after midnight, where it is counted
+        with the previous day, so input times can be >24 hours. 
+        """        
+        hr, min, sec = timeString.split(':')
+        if int(hr)>= 24:
+            return 1
+        else: 
+            return 0
+                    
+
     def processRawData(self, infile, outfile):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
@@ -40,6 +102,21 @@ class GTFSHelper():
         
         print datetime.datetime.now(), 'Converting raw data in file: ', infile
         
+        # convert column specs 
+        colnames = []   
+        stringLengths= {}
+        indexColumns = []
+        for col in self.COLUMNS: 
+            name = col[0]
+            stringLength = col[1]
+            index = col[2]
+            
+            colnames.append(name)
+            if (stringLength>0): 
+                stringLengths[name] = stringLength
+            if index==1: 
+                indexColumns.append(name)
+                
         # create an empty list of dictionaries to store the data
         data = []
         
@@ -64,8 +141,8 @@ class GTFSHelper():
                 record = {}
                 
                 # calendar attributes
-                record['START_DATE'] = pd.to_datetime(startDate)
-                record['END_DATE']   = pd.to_datetime(endDate) 
+                record['START_DATE'] = pd.to_datetime(startDate, format='%Y%m%d')
+                record['END_DATE']   = pd.to_datetime(endDate,   format='%Y%m%d') 
                 record['DOW']        = int(trip.service_id)
                 #record['TOD']        
                 
@@ -98,19 +175,21 @@ class GTFSHelper():
                 record['STOP_NAME']        = str(stopTime.stop.stop_name)
                 record['STOP_LAT']         = float(stopTime.stop.stop_lat)
                 record['STOP_LON']         = float(stopTime.stop.stop_lon)
-                #record['ARRIVAL_TIME']     = pd.to_datetime(stopTime.arrival_time)
-                #record['DEPARTURE_TIME']   = pd.to_datetime(stopTime.departure_time)
+                
+                # stop times, dealing with wrap-around for times past midnight                
+                record['AFTER_MIDNIGHT'] = self.timeAfterMidnight(stopTime.arrival_time)
+                record['ARRIVAL_TIME']   = self.getWrapAroundTime(stopTime.arrival_time)
+                record['DEPARTURE_TIME'] = self.getWrapAroundTime(stopTime.departure_time)
                 
                 data.append(record)
                                 
         # convert to data frame
         print "  adding %i trip-stop records" % len(data)
-        
-        #df, stringLengths = self.createEmptyDataFrame(data)
         df = pd.DataFrame(data)
-        print " length of dataframe is %i" % len(df)
-        print df.head()
-        print df.dtypes
+        
+        # sort rows and columns
+        df.sort(indexColumns, inplace=True)
+        df = df[colnames]
 
         # establish the writer
         store = pd.HDFStore(outfile)

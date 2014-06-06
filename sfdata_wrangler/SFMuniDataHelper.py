@@ -246,15 +246,6 @@ class SFMuniDataHelper():
     # uniquely define the records
     INDEX_COLUMNS=['DATE', 'ROUTE', 'PATTCODE', 'DIR', 'TRIP','SEQ'] 
 
-    # define string lengths (otherwise would be set by first chunk)    
-    STRING_LENGTHS=[  
-		('TOD'      ,10),   #            - aggregate time period
-		('ROUTEA'   ,10),   #            - alphanumeric route name
-		('PATTCODE' ,10),   # (305, 315) - pattern code
-		('STOPNAME' ,32),   # ( 15,  47) - stop name	
-		('NS'       , 2),   # (289, 290) - north/south		
-		('EW'       , 2)    # (291, 292) - east/west
-                ]
                     
     def processRawData(self, infile, outfile):
         """
