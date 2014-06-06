@@ -23,6 +23,48 @@ import datetime
 
 import transitfeed
             
+            
+
+def determineMinDepTime(df):
+    """
+    Sets the DEPTIME field to the min value across the group.
+    """
+    minTime = df['DEPTIME'].min()
+    df['MINDEPTIME'] = minTime        
+    return df
+
+def determineMaxArrTime(df):
+    """
+    Sets the ARRTIME field to the min value across the group.
+    """
+    maxTime = df['ARRTIME'].max()
+    df['MAXARRTIME'] = maxTime        
+    return df
+    
+
+def getWrapAroundTime(dateString, timeString):
+    """
+    Converts a string in the format '%H:%M:%S' to a datetime object.
+    Accounts for the convention where service after midnight is counted
+    with the previous day, so input times can be >24 hours. 
+    """        
+    nextDay = False
+    hr, min, sec = timeString.split(':')
+    if int(hr)>= 24:
+        hr = str(int(hr) - 24)
+        timeString = hr + ':' + min + ':' + sec
+        nextDay = True
+        
+    datetimeString = dateString + ' ' + timeString    
+    time = pd.to_datetime(datetimeString, format='%Y%m%d %H:%M:%S')
+        
+    if nextDay: 
+       time = time + pd.DateOffset(days=1)
+    
+    return time
+        
+                                                
+            
 class GTFSHelper():
     """ 
     Methods used for loading and converting General Transit Feed Specification
@@ -36,7 +78,7 @@ class GTFSHelper():
         ['START_DATE',        0, 1], 
         ['END_DATE',          0, 1], 
         ['DOW',               0, 1], 
-        #['TOD',               0, 0], 
+        ['TOD',               0, 0], 
         ['ROUTE_ID',          0, 1], 
         ['DIRECTION_ID',      0, 1], 
         ['TRIP_ID',           0, 1], 
@@ -45,7 +87,7 @@ class GTFSHelper():
         #['ROUTE',             0, 0], 
         #['PATTCODE',          0, 0], 
         #['DIR',               0, 0], 
-        #['TRIP',              0, 0], 
+        ['TRIP',              0, 0], 
         #['SEQ',               0, 0], 
         #['QSTOP',             0, 0], 
         ['AGENCY_ID',        10, 0], 
@@ -59,32 +101,13 @@ class GTFSHelper():
         ['STOP_NAME',        32, 0], 
         ['STOP_LAT',          0, 0], 
         ['STOP_LON',          0, 0], 
+        ['SOL',               0, 0],
+        ['EOL',               0, 0],
         ['ARRIVAL_TIME',      0, 0], 
         ['DEPARTURE_TIME',    0, 0]
         ] 
                 
 
-    def getWrapAroundTime(self, dateString, timeString):
-        """
-        Converts a string in the format '%H:%M:%S' to a datetime object.
-        Accounts for the convention where service after midnight is counted
-        with the previous day, so input times can be >24 hours. 
-        """        
-        nextDay = False
-        hr, min, sec = timeString.split(':')
-        if int(hr)>= 24:
-            hr = str(int(hr) - 24)
-            timeString = hr + ':' + min + ':' + sec
-            nextDay = True
-            
-        datetimeString = dateString + ' ' + timeString    
-        time = pd.to_datetime(datetimeString, format='%Y%m%d %H:%M:%S')
-        
-        if nextDay: 
-           time = time + pd.DateOffset(days=1)
-        
-        return time
-                                
 
     def processRawData(self, infile, outfile):
         """
@@ -125,7 +148,6 @@ class GTFSHelper():
         
         # create one record for each trip-stop
         tripList = schedule.GetTripList()
-        tripList = tripList[0:10]
         for trip in tripList:
             
             # determine route attributes
@@ -149,7 +171,7 @@ class GTFSHelper():
                 record['START_DATE'] = pd.to_datetime(startDate, format='%Y%m%d')
                 record['END_DATE']   = pd.to_datetime(endDate,   format='%Y%m%d') 
                 record['DOW']        = int(trip.service_id)
-                #record['TOD']        
+                record['TOD']        = 0 
                 
                 # GTFS index attributes
                 record['ROUTE_ID']     = int(trip.route_id)
@@ -162,9 +184,10 @@ class GTFSHelper():
                 #record['ROUTE']         
                 #record['PATTCODE']      
                 #record['DIR']           
-                #record['TRIP']          
+                record['TRIP']      = 0    # will contain HHMM of departure from first stop
                 #record['SEQ']           
                 #record['QSTOP']         
+                
                 
                 # route/trip attributes
                 record['AGENCY_ID']        = str(route.agency_id)
@@ -180,10 +203,20 @@ class GTFSHelper():
                 record['STOP_NAME']        = str(stopTime.stop.stop_name)
                 record['STOP_LAT']         = float(stopTime.stop.stop_lat)
                 record['STOP_LON']         = float(stopTime.stop.stop_lon)
+                record['SOL'] = 0   # start of line
+                record['EOL'] = 0   # end of line
                 
                 # stop times, dealing with wrap-around for times past midnight            
-                record['ARRIVAL_TIME']   = self.getWrapAroundTime(startDate, stopTime.arrival_time)
-                record['DEPARTURE_TIME'] = self.getWrapAroundTime(startDate, stopTime.departure_time)
+                record['ARRIVAL_TIME']   = getWrapAroundTime(startDate, stopTime.arrival_time)
+                record['DEPARTURE_TIME'] = getWrapAroundTime(startDate, stopTime.departure_time)
+                
+                # will be used to calculate TRIP, and start of line and end of line
+                # 'DEPTIME' contains string HHMM of departure time from stop
+                hr, min, sec = stopTime.departure_time.split(':')
+                record['DEPTIME'] = hr + min + sec
+                # 'ARRTIME' contains string HHMM of arrival time at stop
+                hr, min, sec = stopTime.arrival_time.split(':')
+                record['ARRTIME'] = hr + min + sec
                 
                 data.append(record)
                                 
@@ -191,16 +224,34 @@ class GTFSHelper():
         print "  adding %i trip-stop records" % len(data)
         df = pd.DataFrame(data)
         
-        # sort rows and columns
+        # sort rows 
         df.sort(indexColumns, inplace=True)
+        
+        # calculate group attributes of the TRIP
+        groupby = ['START_DATE', 'END_DATE', 'DOW', 'ROUTE_ID', 'DIRECTION_ID', 'TRIP_ID']
+        df = df.groupby(groupby).apply(determineMinDepTime)
+        df = df.groupby(groupby).apply(determineMaxArrTime)
+        
+        for i, row in df.iterrows():
+            # trip
+            df['TRIP'][i] = int(df['MINDEPTIME'][i])/100
+            
+            # start of line
+            if (df['DEPTIME'][i] == df['MINDEPTIME'][i]): 
+                df['SOL'][i] = 1
+            # end of line
+            if (df['ARRTIME'][i] == df['MAXARRTIME'][i]): 
+                df['EOL'][i] = 1
+                
+        
+        # keep only relevant columns, sorted
         df = df[colnames]
-
-        # establish the writer
-        store = pd.HDFStore(outfile)
-
+        
         # write the data
+        store = pd.HDFStore(outfile)
         try: 
-            store.append('gtfs', df, data_columns=True)
+            store.append('gtfs', df, data_columns=True, 
+                    min_itemsize=stringLengths)
         except ValueError: 
             store = pd.HDFStore(outfile)
             print 'Structure of HDF5 file is: '
