@@ -177,12 +177,13 @@ class GTFSHelper():
                 record['STOP_ID']      = int(stopTime.stop.stop_id)
                 
                 # AVL/APC index attributes
-                #record['ROUTE']         
-                #record['PATTCODE']      
-                #record['DIR']           
+                #record['AVL_ROUTE']         
+                #record['AVL_ROUTEA']         
+                #record['AVL_PATTCODE']      
+                #record['AVL_DIR']           
                 record['TRIP']      = firstDeparture    # contains HHMM of departure from first stop
-                #record['SEQ']           
-                #record['QSTOP']         
+                #record['AVL_SEQ']           
+                #record['AVL_QSTOP']         
                 
                 
                 # route/trip attributes

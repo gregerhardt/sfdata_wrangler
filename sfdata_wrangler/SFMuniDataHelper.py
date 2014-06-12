@@ -58,7 +58,7 @@ class SFMuniDataHelper():
 	['LOAD_DEP',       ( 63,  66),   'int64',   0],    # departing load
 	['LOADCODE',       ( 67,  67),   'int64',   0],    # ADJ=*, BAL=B
 	['DATE_INT',       ( 68,  74),   'int64',   0],    # date
-	['ROUTE',          ( 75,  79),   'int64',   0],   
+	['AVL_ROUTE',      ( 75,  79),   'int64',   0],   
 	['PATTERN',        ( 80,  86),   'int64',   0],    # schedule pattern
 	['BLOCK',          ( 87,  93),   'int64',   0],    
 	['LAT',            ( 94, 102),   'float64', 0],    # latitude
@@ -157,14 +157,16 @@ class SFMuniDataHelper():
 		'TOD'       ,   #            - aggregate time period
 		
 		# index attributes
-		'ROUTE'     ,   # ( 75,  79)
+		'AVL_ROUTE' ,   # ( 75,  79)
 		'PATTCODE'  ,   # (305, 315) - pattern code
 		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
 		'TRIP'      ,   # (119, 123) - trip 
                 'SEQ'       ,   # (  0,   5) - stop sequence
                 
                 # route/trip attributes
-		'ROUTEA'    ,   #            - alphanumeric route name
+		'AGENCY_ID' ,       #        - matches to GTFS data
+		'ROUTE_SHORT_NAME', #        - matches to GTFS data
+		'ROUTE_LONG_NAME',  #        - matches to GTFS data
 		'VEHNO'     ,   # (161, 165) - bus number
 		'SCHOOL'    ,   # (329, 335) - school trip
 		'LASTTRIP'  ,   # (417, 421) - previous trip
@@ -244,7 +246,16 @@ class SFMuniDataHelper():
 		]         
 		    
     # uniquely define the records
-    INDEX_COLUMNS=['DATE', 'ROUTE', 'PATTCODE', 'DIR', 'TRIP','SEQ'] 
+    INDEX_COLUMNS=['DATE', 'AVL_ROUTE', 'PATTCODE', 'DIR', 'TRIP','SEQ'] 
+
+    def __init__(self, routeEquivFile):
+        """
+        Constructor.
+         
+        routeEquivFile - CSV file containing equivalency between AVL route IDs
+                         and GTFS route IDs.                  
+        """        
+        self.routeEquiv = pd.read_csv(routeEquivFile, index_col='AVL_ROUTE')
 
                     
     def processRawData(self, infile, outfile):
@@ -268,7 +279,12 @@ class SFMuniDataHelper():
             coltypes.append(col[2])
             if (col[2]=='object'): 
                 stringLengths[col[0]] = col[3]
-        stringLengths['ROUTEA'] = 10
+        stringLengths['AGENCY_ID']        = 10
+        stringLengths['ROUTE_SHORT_NAME'] = 10
+        stringLengths['ROUTE_LONG_NAME']  = 32
+
+        # for tracking undefined route equivalencies
+        missingRouteIds = set()
 
         # set up the reader
         reader = pd.read_fwf(infile,  
@@ -313,7 +329,7 @@ class SFMuniDataHelper():
             chunk = chunk[chunk['QC201'] <= 20]
             
             # filter where there is no route, no stop or not trip identified
-            chunk = chunk[chunk['ROUTE']>0]
+            chunk = chunk[chunk['AVL_ROUTE']>0]
             chunk = chunk[chunk['QSTOP']<9999]
             chunk = chunk[chunk['TRIP']<9999]
             
@@ -325,7 +341,9 @@ class SFMuniDataHelper():
             chunk['TIMEPOINT'] = 0 
             chunk['EOL'] = 0
             chunk['TOD'] = ''
-            chunk['ROUTEA'] = ''
+            chunk['AGENCY_ID'] = ''
+            chunk['ROUTE_SHORT_NAME'] = ''
+            chunk['ROUTE_LONG_NAME'] = ''
             chunk['ONTIME2'] = np.NaN
             chunk['ONTIME10'] = np.NaN            
             
@@ -371,54 +389,20 @@ class SFMuniDataHelper():
                     chunk['TOD'][i]='2200-0259'
                 # also include key for 'DAILY'
                             
-                # compute numeric APC route to MUNI alpha -- need to iterate
-                if chunk['ROUTE'][i]==509:  chunk['ROUTEA'][i] = '9L (509)'
-                elif chunk['ROUTE'][i]==514:  chunk['ROUTEA'][i] = '14L (514)'
-                elif chunk['ROUTE'][i]==528:  chunk['ROUTEA'][i] = '28L (528)'
-                elif chunk['ROUTE'][i]==538:  chunk['ROUTEA'][i] = '38L (538)'
-                elif chunk['ROUTE'][i]==571:  chunk['ROUTEA'][i] = '71L (571)'
-                elif chunk['ROUTE'][i]==601:  chunk['ROUTEA'][i] = 'KOWL (601)'
-                elif chunk['ROUTE'][i]==602:  chunk['ROUTEA'][i] = 'LOWL (602)'
-                elif chunk['ROUTE'][i]==603:  chunk['ROUTEA'][i] = 'MOWL (603)'
-                elif chunk['ROUTE'][i]==604:  chunk['ROUTEA'][i] = 'NOWL (604)'
-                elif chunk['ROUTE'][i]==605:  chunk['ROUTEA'][i] = 'N (605)'
-                elif chunk['ROUTE'][i]==606:  chunk['ROUTEA'][i] = 'J (606)'
-                elif chunk['ROUTE'][i]==607:  chunk['ROUTEA'][i] = 'F (607)'
-                elif chunk['ROUTE'][i]==608:  chunk['ROUTEA'][i] = 'K (608)'
-                elif chunk['ROUTE'][i]==609:  chunk['ROUTEA'][i] = 'L (609)'
-                elif chunk['ROUTE'][i]==610:  chunk['ROUTEA'][i] = 'M (610)'
-                elif chunk['ROUTE'][i]==611:  chunk['ROUTEA'][i] = 'S (611)'
-                elif chunk['ROUTE'][i]==612:  chunk['ROUTEA'][i] = 'T (612)'
-                elif chunk['ROUTE'][i]==708:  chunk['ROUTEA'][i] = '8X (708)'
-                elif chunk['ROUTE'][i]==709:  chunk['ROUTEA'][i] = '9X (709)'
-                elif chunk['ROUTE'][i]==714:  chunk['ROUTEA'][i] = '14X (714)'
-                elif chunk['ROUTE'][i]==716:  chunk['ROUTEA'][i] = '16X (716)'
-                elif chunk['ROUTE'][i]==730:  chunk['ROUTEA'][i] = '30X (730)'
-                elif chunk['ROUTE'][i]==780:  chunk['ROUTEA'][i] = '80X (780)'
-                elif chunk['ROUTE'][i]==781:  chunk['ROUTEA'][i] = '81X (781)'
-                elif chunk['ROUTE'][i]==782:  chunk['ROUTEA'][i] = '82X (782)'
-                elif chunk['ROUTE'][i]==797:  chunk['ROUTEA'][i] = 'NX (797)'
-                elif chunk['ROUTE'][i]==801:  chunk['ROUTEA'][i] = '1BX (801)'
-                elif chunk['ROUTE'][i]==808:  chunk['ROUTEA'][i] = '8BX (808)'
-                elif chunk['ROUTE'][i]==809:  chunk['ROUTEA'][i] = '9BX (809)'
-                elif chunk['ROUTE'][i]==816:  chunk['ROUTEA'][i] = '16BX (816)'
-                elif chunk['ROUTE'][i]==831:  chunk['ROUTEA'][i] = '31BX (831)'
-                elif chunk['ROUTE'][i]==838:  chunk['ROUTEA'][i] = '38BX (838)'
-                elif chunk['ROUTE'][i]==901:  chunk['ROUTEA'][i] = '1AX (901)'
-                elif chunk['ROUTE'][i]==908:  chunk['ROUTEA'][i] = '8AX (908)'
-                elif chunk['ROUTE'][i]==909:  chunk['ROUTEA'][i] = '9AX (909)'
-                elif chunk['ROUTE'][i]==914:  chunk['ROUTEA'][i] = '14X (914)'
-                elif chunk['ROUTE'][i]==916:  chunk['ROUTEA'][i] = '16AX (916)'
-                elif chunk['ROUTE'][i]==931:  chunk['ROUTEA'][i] = '31AX (931)'
-                elif chunk['ROUTE'][i]==938:  chunk['ROUTEA'][i] = '38AX (938)'
-                else: 
-                    chunk['ROUTEA'][i] = str(chunk['ROUTE'][i])
+                # match to GTFS indices using route equivalency
+                r = chunk['AVL_ROUTE'][i]
+                try: 
+                    chunk['AGENCY_ID'][i]        = str(self.routeEquiv.loc[r, 'AGENCY_ID'])
+                    chunk['ROUTE_SHORT_NAME'][i] = str(self.routeEquiv.loc[r, 'ROUTE_SHORT_NAME'])
+                    chunk['ROUTE_LONG_NAME'][i]  = str(self.routeEquiv.loc[r, 'ROUTE_LONG_NAME'])
+                except KeyError: 
+                    missingRouteIds.add(r)
             
             # convert to timedate formats
             # trick here is that the MUNI service day starts and ends at 3 am, 
             # so boardings from midnight to 3 have a service date of the day before
             chunk['DATE']        = ''
-            chunk['MONTH']       = ''
+            chunk['MONTH']       = pd.to_datetime('1900-01-01')
             chunk['TIMESTOP']    = ''
             chunk['DOORCLOSE']   = ''
             chunk['PULLOUT']     = ''
@@ -548,11 +532,22 @@ class SFMuniDataHelper():
                 print 'Structure of current dataframe is: '
                 print df.dtypes
                 
-                raise
+                raise  
+            except TypeError: 
+                print 'Structure of current dataframe is: '
+                types = df.dtypes
+                for type in types:
+                    print type
                 
+                raise
 
             rowsWritten += len(df)
             print 'Read %i rows and kept %i rows.' % (rowsRead, rowsWritten)
+
+        if len(missingRouteIds) > 0: 
+            print 'The following AVL route IDs are missing from the routeEquiv file:'
+            for missing in missingRouteIds: 
+                print '  ', missing
             
         # close the writer
         store.close()
@@ -745,12 +740,14 @@ class SFMuniDataHelper():
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],         
-            ['ROUTE'            ,'ROUTE'         ,'groupby' ,'int64'     , 0], 
+            ['AVL_ROUTE'        ,'AVL_ROUTE'     ,'groupby' ,'int64'     , 0], 
             ['PATTCODE'         ,'PATTCODE'      ,'groupby' ,'object'    ,10], 
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
             ['TRIP'             ,'TRIP'          ,'groupby' ,'int64'     , 0], 
             ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],                  
-   	    ['ROUTEA'           ,'ROUTEA'        ,'first'   ,'object'    ,10],          # route/trip attribute
+   	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'first'   ,'object'    ,10],          # route/trip attribute
+   	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','first' ,'object'    ,10],         
+   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'    ,32],         
    	    ['VEHNO'            ,'VEHNO'         ,'first'   ,'int64'     , 0],   
 	    ['SCHOOL'           ,'SCHOOL'        ,'first'   ,'int64'     , 0],   
 	    ['LASTTRIP'         ,'LASTTRIP'      ,'first'   ,'int64'     , 0],   
@@ -853,11 +850,13 @@ class SFMuniDataHelper():
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],   
-            ['ROUTE'            ,'ROUTE'         ,'groupby' ,'int64'     , 0], 
+            ['AVL_ROUTE'        ,'AVL_ROUTE'     ,'groupby' ,'int64'     , 0], 
             ['PATTCODE'         ,'PATTCODE'      ,'groupby' ,'object'    ,10], 
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
             ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],                   
-   	    ['ROUTEA'           ,'ROUTEA'        ,'first'   ,'object'    ,10],          # route/trip attribute
+   	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'first'   ,'object'    ,10],          # route/trip attribute
+   	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','first' ,'object'    ,10],         
+   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'    ,32],         
 	    ['SCHOOL'           ,'SCHOOL'        ,'mean'    ,'int64'     , 0], 
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
             ['QSTOP'            ,'QSTOP'         ,'first'   ,'int64'     , 0],          # stop attributes
@@ -927,10 +926,12 @@ class SFMuniDataHelper():
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],   
-            ['ROUTE'            ,'ROUTE'         ,'groupby' ,'int64'     , 0], 
+            ['AVL_ROUTE'        ,'AVL_ROUTE'     ,'groupby' ,'int64'     , 0], 
             ['PATTCODE'         ,'PATTCODE'      ,'groupby' ,'object'    ,10], 
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0],                
-   	    ['ROUTEA'           ,'ROUTEA'        ,'first'   ,'object'    ,10],          # route/trip attribute
+   	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'first'   ,'object'    ,10],          # route/trip attribute
+   	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','first' ,'object'    ,10],         
+   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'    ,32],         
 	    ['SCHOOL'           ,'SCHOOL'        ,'mean'    ,'int64'     , 0], 
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
             ['VEHMILES'         ,'VEHMILES'      ,'sum'     ,'float64'   , 0],  

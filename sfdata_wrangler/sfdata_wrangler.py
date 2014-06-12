@@ -23,23 +23,25 @@ from SFMuniDataHelper import SFMuniDataHelper
 from GTFSHelper import GTFSHelper
 
 
-def processSFMuniData(outfile, aggfile):
+def processSFMuniData(outfile, aggfile, routeEquivFile):
     """
     Reads text files containing SFMuni AVL/APC data and converts them to a 
     processed and aggregated HDF file.           
     
     outfile - HDF file containing processed disaggregate data
-    aggfile - HDF file containing processed aggregate data                    
+    aggfile - HDF file containing processed aggregate data   
+    routeEquivFile - CSV file containing equivalency between AVL route IDs
+                     and GTFS route IDs.                  
     """
 
     
     startTime = datetime.datetime.now()   
     print 'Started processing SFMuni data at ', startTime
-    sfmuniHelper = SFMuniDataHelper()
+    sfmuniHelper = SFMuniDataHelper(routeEquivFile)
 
     # convert the data
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
-    #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1005.stp", outfile)
@@ -61,19 +63,19 @@ def processSFMuniData(outfile, aggfile):
     print 'Finished converting SFMuni data in ', (convertedTime - startTime)
     
     # calculate monthly averages
-    sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average')
+    #sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average')
 
     # aggregate trips into daily totals        
-    sfmuniHelper.calculateRouteStopTotals(aggfile, 'average',  'route_stops')
+    #sfmuniHelper.calculateRouteStopTotals(aggfile, 'average',  'route_stops')
 
     # sum route totals
-    sfmuniHelper.calculateRouteTotals(aggfile, 'route_stops',  'routes')     
+    #sfmuniHelper.calculateRouteTotals(aggfile, 'route_stops',  'routes')     
     
     # sum stop totals    
-    sfmuniHelper.calculateStopTotals(aggfile, 'route_stops',  'stops')
+    #sfmuniHelper.calculateStopTotals(aggfile, 'route_stops',  'stops')
     
     # sum system totals    
-    sfmuniHelper.calculateSystemTotals(aggfile, 'route_stops',  'system')
+    #sfmuniHelper.calculateSystemTotals(aggfile, 'route_stops',  'system')
         
     aggregatedTime = datetime.datetime.now()
     print 'Finished aggregating SFMuni data in ', (aggregatedTime - convertedTime) 
@@ -92,7 +94,7 @@ def processGTFS(outfile):
     gtfsHelper = GTFSHelper()
 
     # convert the data
-    gtfsHelper.processRawData("C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip", outfile)
+    gtfsHelper.processRawData("C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310.zip", outfile)
         
     convertedTime = datetime.datetime.now() 
     print 'Finished converting GTFS in ', (convertedTime - startTime)
@@ -102,11 +104,13 @@ def processGTFS(outfile):
 if __name__ == "__main__":
     
     # eventually convert filenames to arguments
+    route_equiv = "C:/CASA/Data/MUNI/routeEquiv.csv"
+    
     sfmuni_outfile = "C:/CASA/DataExploration/sfmuni.h5"
     sfmuni_aggfile = "C:/CASA/DataExploration/sfmuni_aggregate.h5"
     
     gtfs_outfile = "C:/CASA/DataExploration/gtfs.h5"
 
-    #processSFMuniData(sfmuni_outfile, sfmuni_aggfile)
-    processGTFS(gtfs_outfile)
+    processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
+    #processGTFS(gtfs_outfile)
 
