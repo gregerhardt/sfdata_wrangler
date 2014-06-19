@@ -112,5 +112,5 @@ if __name__ == "__main__":
     gtfs_outfile = "C:/CASA/DataExploration/gtfs.h5"
 
     processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
-    #processGTFS(gtfs_outfile)
+    processGTFS(gtfs_outfile)
 

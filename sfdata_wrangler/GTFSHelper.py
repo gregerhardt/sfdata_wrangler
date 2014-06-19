@@ -57,30 +57,25 @@ class GTFSHelper():
     # specifies how to read in each column from raw input files
     #  columnName,       stringLength, index(0/1)
     COLUMNS = [
-        ['START_DATE',        0, 1], 
+        ['START_DATE',        0, 1],  # Calendar attributes
         ['END_DATE',          0, 1], 
         ['DOW',               0, 1], 
-        ['TOD',               0, 0], 
-        ['ROUTE_ID',          0, 1], 
-        ['DIRECTION_ID',      0, 1], 
-        ['TRIP_ID',           0, 1], 
-        ['STOP_SEQUENCE',     0, 1], 
-        ['STOP_ID',           0, 0], 
-        #['ROUTE',             0, 0], 
-        #['PATTCODE',          0, 0], 
-        #['DIR',               0, 0], 
-        ['TRIP',              0, 0], 
-        #['SEQ',               0, 0], 
-        #['QSTOP',             0, 0], 
-        ['AGENCY_ID',        10, 0], 
-        ['BLOCK_ID',          0, 0], 
-        ['SHAPE_ID',          0, 0], 
-        ['ROUTE_SHORT_NAME', 32, 0], 
-        ['ROUTE_LONG_NAME',  32, 0], 
+        ['TOD',               0, 0],
+        ['AGENCY_ID',        10, 0],  # for matching to AVL data
+        ['ROUTE_SHORT_NAME', 32, 1], 
+        ['ROUTE_LONG_NAME',  32, 1], 
+        ['DIR',               0, 1], 
+        ['TRIP',              0, 1], 
+        ['SEQ',               0, 1], 
+        ['ROUTE_GTFS',        0, 0],  # additional GTFS IDs
+        ['TRIP_GTFS',         0, 0], 
+        ['STOP_GTFS',         0, 0], 
+        ['BLOCK_GTFS',        0, 0], 
+        ['SHAPE_GTFS',        0, 0],
         ['ROUTE_TYPE',        0, 0], 
         ['TRIP_HEADSIGN',    32, 0], 
         ['FARE',              0, 0], 
-        ['STOP_NAME',        32, 0], 
+        ['STOPNAME_GTFS',    32, 0], 
         ['STOP_LAT',          0, 0], 
         ['STOP_LON',          0, 0], 
         ['SOL',               0, 0],
@@ -152,9 +147,28 @@ class GTFSHelper():
                 
                 # first stop, last stop and trip based on order
                 if i==0: 
+                    startOfLine = 1
                     hr, min, sec = stopTime.departure_time.split(':')
                     firstDeparture = int(hr + min)
-                    startOfLine = 1
+    
+                    # compute TEP time periods -- need to iterate
+                    if (firstDeparture >= 300  and firstDeparture < 600):  
+                        timeOfDay='0300-0559'
+                    elif (firstDeparture >= 600  and firstDeparture < 900):  
+                        timeOfDay='0600-0859'
+                    elif (firstDeparture >= 900  and firstDeparture < 1400): 
+                        timeOfDay='0900-1359'
+                    elif (firstDeparture >= 1400 and firstDeparture < 1600): 
+                        timeOfDay='1400-1559'
+                    elif (firstDeparture >= 1600 and firstDeparture < 1900): 
+                        timeOfDay='1600-1859'
+                    elif (firstDeparture >= 1900 and firstDeparture < 2200): 
+                        timeOfDay='1900-2159'
+                    elif (firstDeparture >= 2200 and firstDeparture < 9999): 
+                        timeOfDay='2200-0259'
+                    else:
+                        timeOfDay=''
+
                 else:
                     startOfLine = 0
                     
@@ -167,37 +181,30 @@ class GTFSHelper():
                 record['START_DATE'] = pd.to_datetime(startDate, format='%Y%m%d')
                 record['END_DATE']   = pd.to_datetime(endDate,   format='%Y%m%d') 
                 record['DOW']        = int(trip.service_id)
-                record['TOD']        = 0 
-                
-                # GTFS index attributes
-                record['ROUTE_ID']     = int(trip.route_id)
-                record['DIRECTION_ID'] = int(trip.direction_id)
-                record['TRIP_ID']      = int(trip.trip_id)
-                record['STOP_SEQUENCE']= int(stopTime.stop_sequence)
-                record['STOP_ID']      = int(stopTime.stop.stop_id)
-                
-                # AVL/APC index attributes
-                #record['AVL_ROUTE']         
-                #record['AVL_ROUTEA']         
-                #record['AVL_PATTCODE']      
-                #record['AVL_DIR']           
-                record['TRIP']      = firstDeparture    # contains HHMM of departure from first stop
-                #record['AVL_SEQ']           
-                #record['AVL_QSTOP']         
-                
-                
-                # route/trip attributes
+                record['TOD']        = timeOfDay
+
+                # For matching to AVL data
                 record['AGENCY_ID']        = str(route.agency_id)
-                record['BLOCK_ID']         = int(trip.block_id)
-                record['SHAPE_ID']         = int(trip.shape_id)
                 record['ROUTE_SHORT_NAME'] = str(route.route_short_name)
                 record['ROUTE_LONG_NAME']  = str(route.route_long_name)
+                record['DIR']              = int(trip.direction_id)
+                record['TRIP']             = firstDeparture    # contains HHMM of departure from first stop
+                record['SEQ']              = int(stopTime.stop_sequence)
+                
+                # Additional GTFS IDs. 
+                record['ROUTE_GTFS']   = int(trip.route_id)
+                record['TRIP_GTFS']    = int(trip.trip_id)
+                record['STOP_GTFS']      = int(stopTime.stop.stop_id)
+                record['BLOCK_GTFS']         = int(trip.block_id)
+                record['SHAPE_GTFS']         = int(trip.shape_id)
+                
+                # route/trip attributes
                 record['ROUTE_TYPE']       = int(route.route_type)
                 record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
                 record['FARE']             = float(fare)  
                 
                 # stop attriutes
-                record['STOP_NAME']        = str(stopTime.stop.stop_name)
+                record['STOPNAME_GTFS']    = str(stopTime.stop.stop_name)
                 record['STOP_LAT']         = float(stopTime.stop.stop_lat)
                 record['STOP_LON']         = float(stopTime.stop.stop_lon)
                 record['SOL']              = startOfLine

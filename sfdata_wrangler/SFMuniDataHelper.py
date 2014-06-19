@@ -50,15 +50,15 @@ class SFMuniDataHelper():
     COLUMNS = [
         ['SEQ',            (  0,   5),   'int64',   0],    # stop sequence
 	['V2',             (  6,  10),   'int64',   0],    # not used
-	['QSTOP',          ( 10,  14),   'int64',   0],    # unique stop no	
-	['STOPNAME',       ( 15,  47),   'object', 32],    # stop name
+	['STOP_AVL',       ( 10,  14),   'int64',   0],    # unique stop no	
+	['STOPNAME_AVL',   ( 15,  47),   'object', 32],    # stop name
 	['TIMESTOP_INT',   ( 48,  54),   'int64',   0],    # arrival time
 	['ON',             ( 55,  58),   'int64',   0],    # on 
 	['OFF',            ( 59,  62),   'int64',   0],    # off
 	['LOAD_DEP',       ( 63,  66),   'int64',   0],    # departing load
 	['LOADCODE',       ( 67,  67),   'int64',   0],    # ADJ=*, BAL=B
 	['DATE_INT',       ( 68,  74),   'int64',   0],    # date
-	['AVL_ROUTE',      ( 75,  79),   'int64',   0],   
+	['ROUTE_AVL',      ( 75,  79),   'int64',   0],   
 	['PATTERN',        ( 80,  86),   'int64',   0],    # schedule pattern
 	['BLOCK',          ( 87,  93),   'int64',   0],    
 	['LAT',            ( 94, 102),   'float64', 0],    # latitude
@@ -157,16 +157,16 @@ class SFMuniDataHelper():
 		'TOD'       ,   #            - aggregate time period
 		
 		# index attributes
-		'AVL_ROUTE' ,   # ( 75,  79)
-		'PATTCODE'  ,   # (305, 315) - pattern code
+		'ROUTE_AVL' ,   # ( 75,  79)
+		'AGENCY_ID' ,       #        - matches to GTFS data
+		'ROUTE_SHORT_NAME', #        - matches to GTFS data
+		'ROUTE_LONG_NAME',  #        - matches to GTFS data
 		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
 		'TRIP'      ,   # (119, 123) - trip 
                 'SEQ'       ,   # (  0,   5) - stop sequence
                 
                 # route/trip attributes
-		'AGENCY_ID' ,       #        - matches to GTFS data
-		'ROUTE_SHORT_NAME', #        - matches to GTFS data
-		'ROUTE_LONG_NAME',  #        - matches to GTFS data
+		'PATTCODE'  ,   # (305, 315) - pattern code
 		'VEHNO'     ,   # (161, 165) - bus number
 		'SCHOOL'    ,   # (329, 335) - school trip
 		'LASTTRIP'  ,   # (417, 421) - previous trip
@@ -174,8 +174,8 @@ class SFMuniDataHelper():
 		'HEADWAY'   ,   #            - headway (calculated from previous trip)
 		
 		# stop attributes
-		'QSTOP'     ,   # ( 10,  14) - unique stop no	
-		'STOPNAME'  ,   # ( 15,  47) - stop name	
+		'STOP_AVL'  ,   # ( 10,  14) - unique stop no	
+		'STOPNAME_AVL', # ( 15,  47) - stop name	
 		'TIMEPOINT' ,   #            - flag indicating a schedule time point
 		'EOL'       ,   #            - end-of-line flag	
 		
@@ -246,7 +246,7 @@ class SFMuniDataHelper():
 		]         
 		    
     # uniquely define the records
-    INDEX_COLUMNS=['DATE', 'AVL_ROUTE', 'PATTCODE', 'DIR', 'TRIP','SEQ'] 
+    INDEX_COLUMNS=['DATE', 'ROUTE_AVL', 'DIR', 'TRIP','SEQ'] 
 
     def __init__(self, routeEquivFile):
         """
@@ -255,7 +255,7 @@ class SFMuniDataHelper():
         routeEquivFile - CSV file containing equivalency between AVL route IDs
                          and GTFS route IDs.                  
         """        
-        self.routeEquiv = pd.read_csv(routeEquivFile, index_col='AVL_ROUTE')
+        self.routeEquiv = pd.read_csv(routeEquivFile, index_col='ROUTE_AVL')
 
                     
     def processRawData(self, infile, outfile):
@@ -279,6 +279,7 @@ class SFMuniDataHelper():
             coltypes.append(col[2])
             if (col[2]=='object'): 
                 stringLengths[col[0]] = col[3]
+        stringLengths['TOD']              = 10
         stringLengths['AGENCY_ID']        = 10
         stringLengths['ROUTE_SHORT_NAME'] = 10
         stringLengths['ROUTE_LONG_NAME']  = 32
@@ -301,7 +302,11 @@ class SFMuniDataHelper():
         # iterate through chunk by chunk so we don't run out of memory
         rowsRead    = 0
         rowsWritten = 0
-        for chunk in reader:     
+        for chunk in reader:   
+
+            # only for testing    
+            #if rowsRead>=200000: 
+            #    break
                         
             rowsRead    += len(chunk)
 
@@ -329,8 +334,8 @@ class SFMuniDataHelper():
             chunk = chunk[chunk['QC201'] <= 20]
             
             # filter where there is no route, no stop or not trip identified
-            chunk = chunk[chunk['AVL_ROUTE']>0]
-            chunk = chunk[chunk['QSTOP']<9999]
+            chunk = chunk[chunk['ROUTE_AVL']>0]
+            chunk = chunk[chunk['STOP_AVL']<9999]
             chunk = chunk[chunk['TRIP']<9999]
             
             # calculate some basic data adjustments
@@ -366,7 +371,7 @@ class SFMuniDataHelper():
                         chunk['ONTIME10'][i] = 0
                         
                 # identify end-of-line stops
-                chunk['EOL'][i] = str(chunk['STOPNAME'][i]).count("- EOL")            
+                chunk['EOL'][i] = str(chunk['STOPNAME_AVL'][i]).count("- EOL")            
                 
                 # exclude beginning and end of line from DWELL time
                 if ((chunk['EOL'][i] == 1) or (chunk['SEQ'][i] == 1)): 
@@ -387,10 +392,10 @@ class SFMuniDataHelper():
                     chunk['TOD'][i]='1900-2159'
                 elif (chunk['TRIP'][i] >= 2200 and chunk['TRIP'][i] < 9999): 
                     chunk['TOD'][i]='2200-0259'
-                # also include key for 'DAILY'
+                # TODO also include key for 'DAILY'
                             
                 # match to GTFS indices using route equivalency
-                r = chunk['AVL_ROUTE'][i]
+                r = chunk['ROUTE_AVL'][i]
                 try: 
                     chunk['AGENCY_ID'][i]        = str(self.routeEquiv.loc[r, 'AGENCY_ID'])
                     chunk['ROUTE_SHORT_NAME'][i] = str(self.routeEquiv.loc[r, 'ROUTE_SHORT_NAME'])
@@ -740,22 +745,22 @@ class SFMuniDataHelper():
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],         
-            ['AVL_ROUTE'        ,'AVL_ROUTE'     ,'groupby' ,'int64'     , 0], 
-            ['PATTCODE'         ,'PATTCODE'      ,'groupby' ,'object'    ,10], 
+            ['ROUTE_AVL'        ,'ROUTE_AVL'     ,'groupby' ,'int64'     , 0], 
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
             ['TRIP'             ,'TRIP'          ,'groupby' ,'int64'     , 0], 
             ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],                  
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'first'   ,'object'    ,10],          # route/trip attribute
    	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','first' ,'object'    ,10],         
-   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'    ,32],         
+   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'    ,32],  
+            ['PATTCODE'         ,'PATTCODE'      ,'first'   ,'object'    ,10],        
    	    ['VEHNO'            ,'VEHNO'         ,'first'   ,'int64'     , 0],   
 	    ['SCHOOL'           ,'SCHOOL'        ,'first'   ,'int64'     , 0],   
 	    ['LASTTRIP'         ,'LASTTRIP'      ,'first'   ,'int64'     , 0],   
             ['NEXTTRIP'         ,'NEXTTRIP'      ,'first'   ,'int64'     , 0], 
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
             ['HEADWAY_STD'      ,'HEADWAY'       ,'std'     ,'float64'   , 0],   
-            ['QSTOP'            ,'QSTOP'         ,'first'   ,'int64'     , 0],          # stop attributes
-            ['STOPNAME'         ,'STOPNAME'      ,'first'   ,'object'    ,32],   
+            ['STOP_AVL'         ,'STOP_AVL'      ,'first'   ,'int64'     , 0],          # stop attributes
+            ['STOPNAME_AVL'     ,'STOPNAME_AVL'  ,'first'   ,'object'    ,32],   
             ['TIMEPOINT'        ,'TIMEPOINT'     ,'first'   ,'int64'     , 0],   
             ['EOL'              ,'EOL'           ,'first'   ,'int64'     , 0],   
             ['LAT'              ,'LAT'           ,'mean'    ,'float64'   , 0],   
@@ -850,8 +855,7 @@ class SFMuniDataHelper():
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],   
-            ['AVL_ROUTE'        ,'AVL_ROUTE'     ,'groupby' ,'int64'     , 0], 
-            ['PATTCODE'         ,'PATTCODE'      ,'groupby' ,'object'    ,10], 
+            ['ROUTE_AVL'        ,'ROUTE_AVL'     ,'groupby' ,'int64'     , 0], 
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
             ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],                   
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'first'   ,'object'    ,10],          # route/trip attribute
@@ -859,8 +863,8 @@ class SFMuniDataHelper():
    	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'    ,32],         
 	    ['SCHOOL'           ,'SCHOOL'        ,'mean'    ,'int64'     , 0], 
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
-            ['QSTOP'            ,'QSTOP'         ,'first'   ,'int64'     , 0],          # stop attributes
-            ['STOPNAME'         ,'STOPNAME'      ,'first'   ,'object'    ,32],   
+            ['STOP_AVL'         ,'STOP_AVL'      ,'first'   ,'int64'     , 0],          # stop attributes
+            ['STOPNAME_AVL'     ,'STOPNAME_AVL'  ,'first'   ,'object'    ,32],   
             ['TIMEPOINT'        ,'TIMEPOINT'     ,'first'   ,'int64'     , 0],   
             ['EOL'              ,'EOL'           ,'first'   ,'int64'     , 0],   
             ['LAT'              ,'LAT'           ,'mean'    ,'float64'   , 0],   
@@ -926,8 +930,7 @@ class SFMuniDataHelper():
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],   
-            ['AVL_ROUTE'        ,'AVL_ROUTE'     ,'groupby' ,'int64'     , 0], 
-            ['PATTCODE'         ,'PATTCODE'      ,'groupby' ,'object'    ,10], 
+            ['ROUTE_AVL'        ,'ROUTE_AVL'     ,'groupby' ,'int64'     , 0], 
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0],                
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'first'   ,'object'    ,10],          # route/trip attribute
    	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','first' ,'object'    ,10],         
@@ -982,8 +985,8 @@ class SFMuniDataHelper():
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],   
-            ['QSTOP'            ,'QSTOP'         ,'groupby' ,'int64'     , 0],
-            ['STOPNAME'         ,'STOPNAME'      ,'first'   ,'object'    ,32],         # stop attributes  
+            ['STOP_AVL'         ,'STOP_AVL'      ,'groupby' ,'int64'     , 0],
+            ['STOPNAME_AVL'     ,'STOPNAME_AVL'  ,'first'   ,'object'    ,32],         # stop attributes  
             ['LAT'              ,'LAT'           ,'mean'    ,'float64'   , 0],   
             ['LON'              ,'LON'           ,'mean'    ,'float64'   , 0],   
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],         # ridership
