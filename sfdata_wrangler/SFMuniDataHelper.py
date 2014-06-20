@@ -305,7 +305,7 @@ class SFMuniDataHelper():
         for chunk in reader:   
 
             # only for testing    
-            #if rowsRead>=200000: 
+            #if rowsRead>500000: 
             #    break
                         
             rowsRead    += len(chunk)
@@ -853,7 +853,7 @@ class SFMuniDataHelper():
         #   outfield,            infield,  aggregationMethod, type, stringLength                
         columnSpecs = [              
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
-            ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
+            ['DOW'              ,'DOW'        ,'groupby' ,'int64'     , 0],         # grouping fields
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],   
             ['ROUTE_AVL'        ,'ROUTE_AVL'     ,'groupby' ,'int64'     , 0], 
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 

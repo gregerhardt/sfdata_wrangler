@@ -41,7 +41,7 @@ def processSFMuniData(outfile, aggfile, routeEquivFile):
 
     # convert the data
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
-    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
+#    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1005.stp", outfile)
@@ -63,7 +63,7 @@ def processSFMuniData(outfile, aggfile, routeEquivFile):
     print 'Finished converting SFMuni data in ', (convertedTime - startTime)
     
     # calculate monthly averages
-    #sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average')
+    sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average')
 
     # aggregate trips into daily totals        
     #sfmuniHelper.calculateRouteStopTotals(aggfile, 'average',  'route_stops')
@@ -111,6 +111,6 @@ if __name__ == "__main__":
     
     gtfs_outfile = "C:/CASA/DataExploration/gtfs.h5"
 
-    processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
     processGTFS(gtfs_outfile)
+    #processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
 
