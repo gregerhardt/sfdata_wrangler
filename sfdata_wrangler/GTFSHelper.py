@@ -66,7 +66,9 @@ class GTFSHelper():
         ['DIR',               0, 1], 
         ['TRIP',              0, 1], 
         ['SEQ',               0, 1], 
-        ['ROUTE_ID',          0, 0],  # additional GTFS IDs
+        ['START_DATE',        0, 0],  # additional GTFS IDs 
+        ['END_DATE',          0, 0], 
+        ['ROUTE_ID',          0, 0],
         ['TRIP_ID',           0, 0], 
         ['STOP_ID',           0, 0], 
         ['BLOCK_ID',          0, 0], 
@@ -114,144 +116,159 @@ class GTFSHelper():
 
         # open the data store
         store = pd.HDFStore(outfile)
-                
-        # create an empty list of dictionaries to store the data
-        data = []
-        
+                        
         # establish the feed
         tfl = transitfeed.Loader(feed_path=infile)
         schedule = tfl.Load()
-
-        # determine the dates, and corresponding service on each date
+        
+        # determine the dates
         dateRange = schedule.GetDateRange()
         startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
         endDate   = pd.to_datetime(dateRange[1], format='%Y%m%d')
-        servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate)
+
+        # create dictionary with one dataframe for each service period
+        dataframes = {}
+        servicePeriods = schedule.GetServicePeriodList()
+        for period in servicePeriods:
+
+            # create an empty list of dictionaries to store the data
+            data = []
         
-        # loop through each date to create detailed records on every day
-        for date, servicePeriods in servicePeriodsEachDate:
-            for period in servicePeriods: 
-                print 'Processing ', date
-        
-                # create one record for each trip-stop, specific to the service
-                # on this day
-                tripList = schedule.GetTripList()
-                for trip in tripList:
-                    if trip.service_id == period.service_id:
+            # create one record for each trip-stop, specific to the service
+            # on this day
+            tripList = schedule.GetTripList()
+            for trip in tripList:
+                if trip.service_id == period.service_id:
                         
-                        # determine route attributes
-                        route = schedule.GetRoute(trip.route_id)
+                    # determine route attributes
+                    route = schedule.GetRoute(trip.route_id)
+                    
+                    # calculate fare--assume just based on route ID
+                    fare = 0
+                    fareAttributeList = schedule.GetFareAttributeList()
+                    for fareAttribute in fareAttributeList:
+                        fareRuleList = fareAttribute.GetFareRuleList()
+                        for fareRule in fareRuleList:
+                            if fareRule.route_id == trip.route_id: 
+                                fare = fareAttribute.price
                         
-                        # calculate fare--assume just based on route ID
-                        fare = 0
-                        fareAttributeList = schedule.GetFareAttributeList()
-                        for fareAttribute in fareAttributeList:
-                            fareRuleList = fareAttribute.GetFareRuleList()
-                            for fareRule in fareRuleList:
-                                if fareRule.route_id == trip.route_id: 
-                                    fare = fareAttribute.price
+                    # one record for each stop time
+                    stopTimeList = trip.GetStopTimes()    
+                    i = 0        
+                    for stopTime in stopTimeList:
+                        record = {}
                         
-                        # one record for each stop time
-                        stopTimeList = trip.GetStopTimes()    
-                        i = 0        
-                        for stopTime in stopTimeList:
-                            record = {}
-                            
-                            # first stop, last stop and trip based on order
-                            if i==0: 
-                                startOfLine = 1
-                                hr, min, sec = stopTime.departure_time.split(':')
-                                firstDeparture = int(hr + min)
-                
-                                # compute TEP time periods -- need to iterate
-                                if (firstDeparture >= 300  and firstDeparture < 600):  
-                                    timeOfDay='0300-0559'
-                                elif (firstDeparture >= 600  and firstDeparture < 900):  
-                                    timeOfDay='0600-0859'
-                                elif (firstDeparture >= 900  and firstDeparture < 1400): 
-                                    timeOfDay='0900-1359'
-                                elif (firstDeparture >= 1400 and firstDeparture < 1600): 
-                                    timeOfDay='1400-1559'
-                                elif (firstDeparture >= 1600 and firstDeparture < 1900): 
-                                    timeOfDay='1600-1859'
-                                elif (firstDeparture >= 1900 and firstDeparture < 2200): 
-                                    timeOfDay='1900-2159'
-                                elif (firstDeparture >= 2200 and firstDeparture < 9999): 
-                                    timeOfDay='2200-0259'
-                                else:
-                                    timeOfDay=''
+                        # first stop, last stop and trip based on order
+                        if i==0: 
+                            startOfLine = 1
+                            hr, min, sec = stopTime.departure_time.split(':')
+                            firstDeparture = int(hr + min)
             
+                            # compute TEP time periods -- need to iterate
+                            if (firstDeparture >= 300  and firstDeparture < 600):  
+                                timeOfDay='0300-0559'
+                            elif (firstDeparture >= 600  and firstDeparture < 900):  
+                                timeOfDay='0600-0859'
+                            elif (firstDeparture >= 900  and firstDeparture < 1400): 
+                                timeOfDay='0900-1359'
+                            elif (firstDeparture >= 1400 and firstDeparture < 1600): 
+                                timeOfDay='1400-1559'
+                            elif (firstDeparture >= 1600 and firstDeparture < 1900): 
+                                timeOfDay='1600-1859'
+                            elif (firstDeparture >= 1900 and firstDeparture < 2200): 
+                                timeOfDay='1900-2159'
+                            elif (firstDeparture >= 2200 and firstDeparture < 9999): 
+                                timeOfDay='2200-0259'
                             else:
-                                startOfLine = 0
-                                
-                            if i==(len(stopTimeList)-1):
-                                endOfLine = 1
-                            else: 
-                                endOfLine = 0
-                            
-                            # calendar attributes
-                            record['DATE'] = date
-                            record['DOW']  = int(trip.service_id)
-                            record['TOD']  = timeOfDay
+                                timeOfDay=''
             
-                            # For matching to AVL data
-                            record['AGENCY_ID']        = str(route.agency_id)
-                            record['ROUTE_SHORT_NAME'] = str(route.route_short_name)
-                            record['ROUTE_LONG_NAME']  = str(route.route_long_name)
-                            record['DIR']              = int(trip.direction_id)
-                            record['TRIP']             = firstDeparture    # contains HHMM of departure from first stop
-                            record['SEQ']              = int(stopTime.stop_sequence)
+                        else:
+                            startOfLine = 0
                             
-                            # Additional GTFS IDs. 
-                            record['ROUTE_ID']       = int(trip.route_id)
-                            record['TRIP_ID']        = int(trip.trip_id)
-                            record['STOP_ID']        = int(stopTime.stop.stop_id)
-                            record['BLOCK_ID']       = int(trip.block_id)
-                            record['SHAPE_ID']       = int(trip.shape_id)
+                        if i==(len(stopTimeList)-1):
+                            endOfLine = 1
+                        else: 
+                            endOfLine = 0
+                        
+                        # calendar attributes
+                        record['DATE'] = startDate
+                        record['DOW']  = int(trip.service_id)
+                        record['TOD']  = timeOfDay
+        
+                        # For matching to AVL data
+                        record['AGENCY_ID']        = str(route.agency_id)
+                        record['ROUTE_SHORT_NAME'] = str(route.route_short_name)
+                        record['ROUTE_LONG_NAME']  = str(route.route_long_name)
+                        record['DIR']              = int(trip.direction_id)
+                        record['TRIP']             = firstDeparture    # contains HHMM of departure from first stop
+                        record['SEQ']              = int(stopTime.stop_sequence)
                             
-                            # route/trip attributes
-                            record['ROUTE_TYPE']       = int(route.route_type)
-                            record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
-                            record['FARE']             = float(fare)  
+                        # Additional GTFS IDs. 
+                        record['START_DATE']     = startDate            # start date for this schedule
+                        record['END_DATE']       = endDate              # end date for this schedule           
+                        record['ROUTE_ID']       = int(trip.route_id)
+                        record['TRIP_ID']        = int(trip.trip_id)
+                        record['STOP_ID']        = int(stopTime.stop.stop_id)
+                        record['BLOCK_ID']       = int(trip.block_id)
+                        record['SHAPE_ID']       = int(trip.shape_id)
                             
-                            # stop attriutes
-                            record['STOPNAME']         = str(stopTime.stop.stop_name)
-                            record['STOP_LAT']         = float(stopTime.stop.stop_lat)
-                            record['STOP_LON']         = float(stopTime.stop.stop_lon)
-                            record['SOL']              = startOfLine
-                            record['EOL']              = endOfLine
+                        # route/trip attributes
+                        record['ROUTE_TYPE']       = int(route.route_type)
+                        record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
+                        record['FARE']             = float(fare)  
+                        
+                        # stop attriutes
+                        record['STOPNAME']         = str(stopTime.stop.stop_name)
+                        record['STOP_LAT']         = float(stopTime.stop.stop_lat)
+                        record['STOP_LON']         = float(stopTime.stop.stop_lon)
+                        record['SOL']              = startOfLine
+                        record['EOL']              = endOfLine
+                        
+                        # stop times, dealing with wrap-around for times past midnight            
+                        record['ARRIVAL_TIME_S']   = getWrapAroundTime(str(startDate.date()), stopTime.arrival_time)
+                        record['DEPARTURE_TIME_S'] = getWrapAroundTime(str(startDate.date()), stopTime.departure_time)
                             
-                            # stop times, dealing with wrap-around for times past midnight            
-                            record['ARRIVAL_TIME_S']   = getWrapAroundTime(str(date.date()), stopTime.arrival_time)
-                            record['DEPARTURE_TIME_S'] = getWrapAroundTime(str(date.date()), stopTime.departure_time)
-                            
-                            data.append(record)                
-                            i += 1
-                                
+                        data.append(record)                
+                        i += 1
+                                    
             # convert to data frame
-            print "  adding %i trip-stop records" % len(data)
+            print "service_id %s has %i trip-stop records" % (period.service_id, len(data))
             df = pd.DataFrame(data)
             
-            # sort rows 
-            df.sort(indexColumns, inplace=True)
-                    
             # keep only relevant columns, sorted
+            df.sort(indexColumns, inplace=True)                        
             df = df[colnames]
-            
-            # write the data
-            try: 
-                store.append('gtfs', df, data_columns=True, 
-                        min_itemsize=stringLengths)
-            except ValueError: 
-                store = pd.HDFStore(outfile)
-                print 'Structure of HDF5 file is: '
-                print store.gtfs.dtypes
-                store.close()
-                    
-                print 'Structure of current dataframe is: '
-                print df.dtypes
-                    
-                raise
+            dataframes[period.service_id] = df
+
+        # loop through each date, and add the appropriate service to the database
+        servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate)        
+        for date, servicePeriods in servicePeriodsEachDate:
+                        
+            for period in servicePeriods: 
+                print 'Writing ', date
+        
+                df = dataframes[period.service_id]
+                
+                # update the dates
+                df['DATE'] = date
+                for i, row in df.iterrows():
+                    df['ARRIVAL_TIME_S'][i] = date + (df['ARRIVAL_TIME_S'][i] - startDate)
+                    df['DEPARTURE_TIME_S'][i] = date + (df['DEPARTURE_TIME_S'][i] - startDate)
+        
+                # write the data
+                try: 
+                    store.append('gtfs', df, data_columns=True, 
+                            min_itemsize=stringLengths)
+                except ValueError: 
+                    store = pd.HDFStore(outfile)
+                    print 'Structure of HDF5 file is: '
+                    print store.gtfs.dtypes
+                    store.close()
+                        
+                    print 'Structure of current dataframe is: '
+                    print df.dtypes
+                        
+                    raise
 
         store.close()
 
