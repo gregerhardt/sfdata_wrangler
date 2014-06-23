@@ -52,7 +52,7 @@ class SFMuniDataHelper():
 	['V2',             (  6,  10),   'int64',   0],    # not used
 	['STOP_AVL',       ( 10,  14),   'int64',   0],    # unique stop no	
 	['STOPNAME_AVL',   ( 15,  47),   'object', 32],    # stop name
-	['TIMESTOP_INT',   ( 48,  54),   'int64',   0],    # arrival time
+	['ARRIVAL_TIME_INT',   ( 48,  54),   'int64',   0],    # arrival time
 	['ON',             ( 55,  58),   'int64',   0],    # on 
 	['OFF',            ( 59,  62),   'int64',   0],    # off
 	['LOAD_DEP',       ( 63,  66),   'int64',   0],    # departing load
@@ -76,13 +76,13 @@ class SFMuniDataHelper():
 	['VEHNO',          (161, 165),   'int64',   0],    # bus number
 	['LINE',           (166, 170),   'int64',   0],    # route (APC numeric code)
 	['DBNN',           (171, 175),   'int64',   0],    # data batch
-	['TIMESTOP_S_INT', (176, 180),   'int64',   0],    # schedule time
+	['ARRIVAL_TIME_S_INT', (176, 180),   'int64',   0],    # schedule time
 	['RUNTIME_S',      (181, 186),   'float64', 0],    # schedule run time, in decimal minutes
-	['RUNTIME',        (187, 192),   'float64', 0],    # runtime from the last schedule point--TIMESTOP - DOORCLOSE of previous time point. (Excludes DWELL at the time points.), in decimal minutes
+	['RUNTIME',        (187, 192),   'float64', 0],    # runtime from the last schedule point--ARRIVAL_TIME - DEPARTURE_TIME of previous time point. (Excludes DWELL at the time points.), in decimal minutes
 	['ODOM',           (193, 198),   'float64', 0],    # not used
 	['GODOM',          (199, 204),   'float64', 0],    # distance (GPS)
-	['TIMESTOP_DEV',   (205, 211),   'float64', 0],    # schedule deviation
-	['DWELL',          (212, 217),   'float64', 0],    # dwell time interval (decimal minutes) -- (DOORCLOSE - TIMESTOP)
+	['ARRIVAL_TIME_DEV',   (205, 211),   'float64', 0],    # schedule deviation
+	['DWELL',          (212, 217),   'float64', 0],    # dwell time interval (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME)
 	['MSFILE',         (218, 226),   'int64',   0],    # sign up YYMM
 	['QC101',          (227, 230),   'int64',   0],    # not used
 	['QC104',          (231, 234),   'int64',   0],    # GPS QC
@@ -94,7 +94,7 @@ class SFMuniDataHelper():
 	['SP2',            (249, 250),   'int64',   0],    # not used
 	['V51',            (251, 257),   'int64',   0],    # not used
 	['VERSN',          (258, 263),   'int64',   0],    # import version
-	['DOORCLOSE_INT',  (264, 270),   'int64',   0],    # departure time
+	['DEPARTURE_TIME_INT',  (264, 270),   'int64',   0],    # departure time
 	['UON',            (271, 274),   'int64',   0],    # unadjusted on
 	['UOFF',           (275, 278),   'int64',   0],    # unadjusted off
 	['CAPACITY',       (279, 283),   'int64',   0],    # capacity
@@ -110,8 +110,8 @@ class SFMuniDataHelper():
 	['SCHOOL',         (329, 335),   'int64',   0],    # school trip
 	['TRIPID_2',       (336, 344),   'int64',   0],    # long trip ID
 	['PULLOUT_INT',    (345, 351),   'int64',   0],    # movement time
-	['DOORCLOSE_S_INT',(352, 356),   'int64',   0],    # scheduled departure time
-	['DOORCLOSE_DEV',  (357, 363),   'float64', 0],    # schedule deviation
+	['DEPARTURE_TIME_S_INT',(352, 356),   'int64',   0],    # scheduled departure time
+	['DEPARTURE_TIME_DEV',  (357, 363),   'float64', 0],    # schedule deviation
 	['DWELL_S',        (364, 368),   'int64',   0],    # scheduled dwell time
 	['RECOVERY_S',     (369, 374),   'float64', 0],    # scheduled EOL recovery
 	['RECOVERY',       (375, 380),   'float64', 0],    
@@ -204,23 +204,23 @@ class SFMuniDataHelper():
 		'BIKERACK'  ,   # (247, 248) - bike rack
 
                 # times
-		'TIMESTOP'  ,   # ( 48,  54) - arrival time
-		'TIMESTOP_S',   # (176, 180) - schedule time
-		'TIMESTOP_DEV', # (205, 211) - schedule deviation (TIMESTOP - TIMESTOP_S) in decimal minutes
-		'DOORCLOSE' ,   # (264, 270) - departure time	
-		'DOORCLOSE_S',  # (352, 356) - scheduled departure time	
-		'DOORCLOSE_DEV',# (357, 363) - schedule deviation (DOORCLOSE - DOORCLOSE_S) in decimal minutes
-		'DWELL'     ,   # (212, 217) - dwell time (decimal minutes) -- (DOORCLOSE - TIMESTOP), zero at first and last stop
+		'ARRIVAL_TIME'  ,   # ( 48,  54) - arrival time
+		'ARRIVAL_TIME_S',   # (176, 180) - schedule time
+		'ARRIVAL_TIME_DEV', # (205, 211) - schedule deviation (ARRIVAL_TIME - ARRIVAL_TIME_S) in decimal minutes
+		'DEPARTURE_TIME' ,   # (264, 270) - departure time	
+		'DEPARTURE_TIME_S',  # (352, 356) - scheduled departure time	
+		'DEPARTURE_TIME_DEV',# (357, 363) - schedule deviation (DEPARTURE_TIME - DEPARTURE_TIME_S) in decimal minutes
+		'DWELL'     ,   # (212, 217) - dwell time (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME), zero at first and last stop
 		'DWELL_S'   ,   # (364, 368) - scheduled dwell time
 		'PULLOUT'   ,   # (345, 351) - movement time
 		'PULLDWELL' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
-		'RUNTIME'   ,   # (187, 192) - runtime from the last schedule point--TIMESTOP - DOORCLOSE of previous time point. (Excludes DWELL at the time points.), in decimal minutes
+		'RUNTIME'   ,   # (187, 192) - runtime from the last schedule point--ARRIVAL_TIME - DEPARTURE_TIME of previous time point. (Excludes DWELL at the time points.), in decimal minutes
 		'RUNTIME_S' ,   # (181, 186) - schedule run time from the last schedule point, in decimal minutes
 		'RECOVERY'  ,   # (375, 380) - EOL recovery time
 		'RECOVERY_S',   # (369, 374) - scheduled EOL recovery			
 		'DLPMIN'    ,   # (141, 145) - delta minutes - minutes traveled from last stop -- THIS DOESN'T SEEM TO ADD UP
-		'ONTIME2'   ,   #            - within 2 minutes of scheduled TIMESTOP
-		'ONTIME10'  ,   #            - within 10 minutes of scheduled TIMESTOP
+		'ONTIME2'   ,   #            - within 2 minutes of scheduled ARRIVAL_TIME
+		'ONTIME10'  ,   #            - within 10 minutes of scheduled ARRIVAL_TIME
 		
 		# quality control stuff
 		'QC104'     ,   # (231, 234) - GPS QC
@@ -248,13 +248,17 @@ class SFMuniDataHelper():
     # uniquely define the records
     INDEX_COLUMNS=['DATE', 'ROUTE_AVL', 'DIR', 'TRIP','SEQ'] 
 
-    def __init__(self, routeEquivFile):
+    def __init__(self):
         """
         Constructor.
          
         routeEquivFile - CSV file containing equivalency between AVL route IDs
                          and GTFS route IDs.                  
         """        
+        self.routeEquiv = pd.DataFrame() 
+        
+        
+    def readRouteEquiv(self, routeEquivFile): 
         self.routeEquiv = pd.read_csv(routeEquivFile, index_col='ROUTE_AVL')
 
                     
@@ -356,16 +360,16 @@ class SFMuniDataHelper():
             for i, row in chunk.iterrows():
                 
                 # identify scheduled time points
-                if (chunk['TIMESTOP_S_INT'][i] < 9999): 
+                if (chunk['ARRIVAL_TIME_S_INT'][i] < 9999): 
                     chunk['TIMEPOINT'][i] = 1
                 
                     # ontime performance
-                    if (chunk['TIMESTOP_DEV'][i] < 2.0): 
+                    if (chunk['ARRIVAL_TIME_DEV'][i] < 2.0): 
                         chunk['ONTIME2'][i] = 1
                     else: 
                         chunk['ONTIME2'][i] = 0
                         
-                    if (chunk['TIMESTOP_DEV'][i] < 10.0): 
+                    if (chunk['ARRIVAL_TIME_DEV'][i] < 10.0): 
                         chunk['ONTIME10'][i] = 1
                     else: 
                         chunk['ONTIME10'][i] = 0
@@ -408,11 +412,11 @@ class SFMuniDataHelper():
             # so boardings from midnight to 3 have a service date of the day before
             chunk['DATE']        = ''
             chunk['MONTH']       = pd.to_datetime('1900-01-01')
-            chunk['TIMESTOP']    = ''
-            chunk['DOORCLOSE']   = ''
+            chunk['ARRIVAL_TIME']    = ''
+            chunk['DEPARTURE_TIME']   = ''
             chunk['PULLOUT']     = ''
-            chunk['TIMESTOP_S']  = '0101010101'
-            chunk['DOORCLOSE_S'] = '0101010101'
+            chunk['ARRIVAL_TIME_S']  = '0101010101'
+            chunk['DEPARTURE_TIME_S'] = '0101010101'
             chunk['PULLDWELL']   = 0.0
             chunk['HEADWAY']     = 0.0
             chunk['TRIP_STR']    = ''
@@ -423,15 +427,15 @@ class SFMuniDataHelper():
             for i, row in chunk.iterrows():        
                 chunk['DATE'][i] = "{0:0>6}".format(chunk['DATE_INT'][i])   
                 
-                if (chunk['TIMESTOP_INT'][i] >= 240000): 
-                    chunk['TIMESTOP_INT'][i] = chunk['TIMESTOP_INT'][i] - 240000
-                chunk['TIMESTOP'][i] = (chunk['DATE'][i] + 
-                    "{0:0>6}".format(chunk['TIMESTOP_INT'][i]))         
+                if (chunk['ARRIVAL_TIME_INT'][i] >= 240000): 
+                    chunk['ARRIVAL_TIME_INT'][i] = chunk['ARRIVAL_TIME_INT'][i] - 240000
+                chunk['ARRIVAL_TIME'][i] = (chunk['DATE'][i] + 
+                    "{0:0>6}".format(chunk['ARRIVAL_TIME_INT'][i]))         
     
-                if (chunk['DOORCLOSE_INT'][i] >= 240000): 
-                    chunk['DOORCLOSE_INT'][i] = chunk['DOORCLOSE_INT'][i] - 240000
-                chunk['DOORCLOSE'][i] = (chunk['DATE'][i] + 
-                    "{0:0>6}".format(chunk['DOORCLOSE_INT'][i]))
+                if (chunk['DEPARTURE_TIME_INT'][i] >= 240000): 
+                    chunk['DEPARTURE_TIME_INT'][i] = chunk['DEPARTURE_TIME_INT'][i] - 240000
+                chunk['DEPARTURE_TIME'][i] = (chunk['DATE'][i] + 
+                    "{0:0>6}".format(chunk['DEPARTURE_TIME_INT'][i]))
     
                 if (chunk['PULLOUT_INT'][i] >= 240000): 
                     chunk['PULLOUT_INT'][i] = chunk['PULLOUT_INT'][i] - 240000
@@ -440,41 +444,41 @@ class SFMuniDataHelper():
                 
                 # schedule times only at timepoints
                 if (chunk['TIMEPOINT'][i]==1): 
-                    if (chunk['TIMESTOP_S_INT'][i] >= 2400): 
-                        chunk['TIMESTOP_S_INT'][i] = chunk['TIMESTOP_S_INT'][i] - 2400                        
-                    chunk['TIMESTOP_S'][i] = (chunk['DATE'][i] + 
-                        "{0:0>4}".format(chunk['TIMESTOP_S_INT'][i]))           
-                    if chunk['TIMESTOP_S'][i].endswith('60'): 
-                        chunk['TIMESTOP_S_INT'][i] = chunk['TIMESTOP_S_INT'][i] + 40
-                        chunk['TIMESTOP_S'][i] = (chunk['DATE'][i] + 
-                            "{0:0>4}".format(chunk['TIMESTOP_S_INT'][i])) 
+                    if (chunk['ARRIVAL_TIME_S_INT'][i] >= 2400): 
+                        chunk['ARRIVAL_TIME_S_INT'][i] = chunk['ARRIVAL_TIME_S_INT'][i] - 2400                        
+                    chunk['ARRIVAL_TIME_S'][i] = (chunk['DATE'][i] + 
+                        "{0:0>4}".format(chunk['ARRIVAL_TIME_S_INT'][i]))           
+                    if chunk['ARRIVAL_TIME_S'][i].endswith('60'): 
+                        chunk['ARRIVAL_TIME_S_INT'][i] = chunk['ARRIVAL_TIME_S_INT'][i] + 40
+                        chunk['ARRIVAL_TIME_S'][i] = (chunk['DATE'][i] + 
+                            "{0:0>4}".format(chunk['ARRIVAL_TIME_S_INT'][i])) 
     
-                    if (chunk['DOORCLOSE_S_INT'][i] >= 2400): 
-                        chunk['DOORCLOSE_S_INT'][i] = chunk['DOORCLOSE_S_INT'][i] - 2400
-                    chunk['DOORCLOSE_S'][i] = (chunk['DATE'][i] + 
-                        "{0:0>4}".format(chunk['DOORCLOSE_S_INT'][i]))          
-                    if chunk['DOORCLOSE_S'][i].endswith('60'): 
-                        chunk['DOORCLOSE_S_INT'][i] = chunk['DOORCLOSE_S_INT'][i] + 40
-                        chunk['DOORCLOSE_S'][i] = (chunk['DATE'][i] + 
-                            "{0:0>4}".format(chunk['DOORCLOSE_S_INT'][i]))
+                    if (chunk['DEPARTURE_TIME_S_INT'][i] >= 2400): 
+                        chunk['DEPARTURE_TIME_S_INT'][i] = chunk['DEPARTURE_TIME_S_INT'][i] - 2400
+                    chunk['DEPARTURE_TIME_S'][i] = (chunk['DATE'][i] + 
+                        "{0:0>4}".format(chunk['DEPARTURE_TIME_S_INT'][i]))          
+                    if chunk['DEPARTURE_TIME_S'][i].endswith('60'): 
+                        chunk['DEPARTURE_TIME_S_INT'][i] = chunk['DEPARTURE_TIME_S_INT'][i] + 40
+                        chunk['DEPARTURE_TIME_S'][i] = (chunk['DATE'][i] + 
+                            "{0:0>4}".format(chunk['DEPARTURE_TIME_S_INT'][i]))
     
             # convert to timedate formats
             chunk['DATE']   = pd.to_datetime(chunk['DATE'], format="%m%d%y")
             
-            chunk['TIMESTOP']    = pd.to_datetime(chunk['TIMESTOP'],    format="%m%d%y%H%M%S")        
-            chunk['DOORCLOSE']   = pd.to_datetime(chunk['DOORCLOSE'],   format="%m%d%y%H%M%S")    
+            chunk['ARRIVAL_TIME']    = pd.to_datetime(chunk['ARRIVAL_TIME'],    format="%m%d%y%H%M%S")        
+            chunk['DEPARTURE_TIME']   = pd.to_datetime(chunk['DEPARTURE_TIME'],   format="%m%d%y%H%M%S")    
             chunk['PULLOUT']     = pd.to_datetime(chunk['PULLOUT'],     format="%m%d%y%H%M%S")
-            chunk['TIMESTOP_S']  = pd.to_datetime(chunk['TIMESTOP_S'],  format="%m%d%y%H%M") 
-            chunk['DOORCLOSE_S'] = pd.to_datetime(chunk['DOORCLOSE_S'], format="%m%d%y%H%M")    
+            chunk['ARRIVAL_TIME_S']  = pd.to_datetime(chunk['ARRIVAL_TIME_S'],  format="%m%d%y%H%M") 
+            chunk['DEPARTURE_TIME_S'] = pd.to_datetime(chunk['DEPARTURE_TIME_S'], format="%m%d%y%H%M")    
 
     
             # deal with offsets for midnight to 3 am
             for i, row in chunk.iterrows():       
-                if (chunk['TIMESTOP'][i].hour < 3): 
-                    chunk['TIMESTOP'][i] = chunk['TIMESTOP'][i] + pd.DateOffset(days=1)
+                if (chunk['ARRIVAL_TIME'][i].hour < 3): 
+                    chunk['ARRIVAL_TIME'][i] = chunk['ARRIVAL_TIME'][i] + pd.DateOffset(days=1)
     
-                if (chunk['DOORCLOSE'][i].hour < 3): 
-                    chunk['DOORCLOSE'][i] = chunk['DOORCLOSE'][i] + pd.DateOffset(days=1)
+                if (chunk['DEPARTURE_TIME'][i].hour < 3): 
+                    chunk['DEPARTURE_TIME'][i] = chunk['DEPARTURE_TIME'][i] + pd.DateOffset(days=1)
     
                 if (chunk['PULLOUT'][i].hour < 3): 
                     chunk['PULLOUT'][i]   = chunk['PULLOUT'][i] + pd.DateOffset(days=1)
@@ -482,20 +486,20 @@ class SFMuniDataHelper():
                 # schedule only valide at timepoints
                 if (chunk['TIMEPOINT'][i] == 0): 
     
-                    chunk['TIMESTOP_S'][i]    = pd.NaT
-                    chunk['DOORCLOSE_S'][i]   = pd.NaT
-                    chunk['TIMESTOP_DEV'][i]  = np.NaN
-                    chunk['DOORCLOSE_DEV'][i] = np.NaN
+                    chunk['ARRIVAL_TIME_S'][i]    = pd.NaT
+                    chunk['DEPARTURE_TIME_S'][i]   = pd.NaT
+                    chunk['ARRIVAL_TIME_DEV'][i]  = np.NaN
+                    chunk['DEPARTURE_TIME_DEV'][i] = np.NaN
                     chunk['RUNTIME'][i]       = np.NaN
                     chunk['RUNTIME_S'][i]     = np.NaN
     
                 else:  
                     # offsets
-                    if (chunk['TIMESTOP_S'][i].hour < 3): 
-                        chunk['TIMESTOP_S'][i] = chunk['TIMESTOP_S'][i] + pd.DateOffset(days=1)
+                    if (chunk['ARRIVAL_TIME_S'][i].hour < 3): 
+                        chunk['ARRIVAL_TIME_S'][i] = chunk['ARRIVAL_TIME_S'][i] + pd.DateOffset(days=1)
     
-                    if (chunk['DOORCLOSE_S'][i].hour < 3): 
-                        chunk['DOORCLOSE_S'][i] = chunk['DOORCLOSE_S'][i] + pd.DateOffset(days=1)
+                    if (chunk['DEPARTURE_TIME_S'][i].hour < 3): 
+                        chunk['DEPARTURE_TIME_S'][i] = chunk['DEPARTURE_TIME_S'][i] + pd.DateOffset(days=1)
                 
                 # calculate headway
                 trip = 60*(chunk['TRIP'][i] // 100.0) + (chunk['TRIP'][i] % 100.0)
@@ -510,7 +514,7 @@ class SFMuniDataHelper():
             
                 # PULLDWELL = pullout dwell (time interval between door close and movement)
                 if (chunk['EOL'][i]==0):
-                    pulldwell = chunk['PULLOUT'][i] - chunk['DOORCLOSE'][i]
+                    pulldwell = chunk['PULLOUT'][i] - chunk['DEPARTURE_TIME'][i]
                     chunk['PULLDWELL'][i] = round(pulldwell.seconds / 60.0, 2)
                     
                 # to make it easier to look up dates    
@@ -556,6 +560,8 @@ class SFMuniDataHelper():
             
         # close the writer
         store.close()
+    
+    
     
     def aggregateTransitRecords(self, hdf_infile, hdf_aggfile, inkey, outkey, 
         columnSpecs, append):
@@ -801,14 +807,14 @@ class SFMuniDataHelper():
             ['WHEELCHAIR_STD'   ,'WHEELCHAIR'    ,'std'     ,'float64'   , 0],  
             ['BIKERACK'         ,'BIKERACK'      ,'mean'    ,'float64'   , 0],   
             ['BIKERACK_STD'     ,'BIKERACK'      ,'std'     ,'float64'   , 0],   
-            ['TIMESTOP'         ,'TIMESTOP'      ,self.meanTimes,'datetime64', 0],         # times
-            ['TIMESTOP_S'       ,'TIMESTOP_S'    ,'first'   ,'datetime64', 0],            
-            ['TIMESTOP_DEV'     ,'TIMESTOP_DEV'  ,'mean'    ,'float64'   , 0],   
-            ['TIMESTOP_DEV_STD' ,'TIMESTOP_DEV'  ,'std'     ,'float64'   , 0],  
-            ['DOORCLOSE'        ,'DOORCLOSE'     ,self.meanTimes,'datetime64', 0],  
-            ['DOORCLOSE_S'      ,'DOORCLOSE_S'   ,'first'   ,'datetime64', 0],  
-            ['DOORCLOSE_DEV'    ,'DOORCLOSE_DEV' ,'mean'    ,'float64'   , 0],   
-            ['DOORCLOSE_DEV_STD','DOORCLOSE_DEV' ,'std'     ,'float64'   , 0], 
+            ['ARRIVAL_TIME'         ,'ARRIVAL_TIME'      ,self.meanTimes,'datetime64', 0],         # times
+            ['ARRIVAL_TIME_S'       ,'ARRIVAL_TIME_S'    ,'first'   ,'datetime64', 0],            
+            ['ARRIVAL_TIME_DEV'     ,'ARRIVAL_TIME_DEV'  ,'mean'    ,'float64'   , 0],   
+            ['ARRIVAL_TIME_DEV_STD' ,'ARRIVAL_TIME_DEV'  ,'std'     ,'float64'   , 0],  
+            ['DEPARTURE_TIME'        ,'DEPARTURE_TIME'     ,self.meanTimes,'datetime64', 0],  
+            ['DEPARTURE_TIME_S'      ,'DEPARTURE_TIME_S'   ,'first'   ,'datetime64', 0],  
+            ['DEPARTURE_TIME_DEV'    ,'DEPARTURE_TIME_DEV' ,'mean'    ,'float64'   , 0],   
+            ['DEPARTURE_TIME_DEV_STD','DEPARTURE_TIME_DEV' ,'std'     ,'float64'   , 0], 
             ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],   
             ['DWELL_STD'        ,'DWELL'         ,'std'     ,'float64'   , 0],   
             ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],
@@ -886,8 +892,8 @@ class SFMuniDataHelper():
             ['DOORCYCLES'       ,'DOORCYCLES'    ,'sum'     ,'float64'   , 0],   
             ['WHEELCHAIR'       ,'WHEELCHAIR'    ,'sum'     ,'float64'   , 0], 
             ['BIKERACK'         ,'BIKERACK'      ,'sum'     ,'float64'   , 0], 
-            ['TIMESTOP_DEV'     ,'TIMESTOP_DEV'  ,'mean'    ,'float64'   , 0],         # times  
-            ['DOORCLOSE_DEV'    ,'DOORCLOSE_DEV' ,'mean'    ,'float64'   , 0],   
+            ['ARRIVAL_TIME_DEV'     ,'ARRIVAL_TIME_DEV'  ,'mean'    ,'float64'   , 0],         # times  
+            ['DEPARTURE_TIME_DEV'    ,'DEPARTURE_TIME_DEV' ,'mean'    ,'float64'   , 0],   
             ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],   
             ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],  
             ['PULLDWELL'        ,'PULLDWELL'     ,'mean'    ,'float64'   , 0],   
@@ -946,8 +952,8 @@ class SFMuniDataHelper():
             ['DOORCYCLES'       ,'DOORCYCLES'    ,'sum'     ,'float64'   , 0],   
             ['WHEELCHAIR'       ,'WHEELCHAIR'    ,'sum'     ,'float64'   , 0], 
             ['BIKERACK'         ,'BIKERACK'      ,'sum'     ,'float64'   , 0], 
-            ['TIMESTOP_DEV'     ,'TIMESTOP_DEV'  ,'sum'     ,'float64'   , 0],          # times  
-            ['DOORCLOSE_DEV'    ,'DOORCLOSE_DEV' ,'sum'     ,'float64'   , 0],   
+            ['ARRIVAL_TIME_DEV'     ,'ARRIVAL_TIME_DEV'  ,'sum'     ,'float64'   , 0],          # times  
+            ['DEPARTURE_TIME_DEV'    ,'DEPARTURE_TIME_DEV' ,'sum'     ,'float64'   , 0],   
             ['DWELL'            ,'DWELL'         ,'sum'     ,'float64'   , 0],   
             ['DWELL_S'          ,'DWELL_S'       ,'sum'     ,'float64'   , 0],  
             ['PULLDWELL'        ,'PULLDWELL'     ,'sum'     ,'float64'   , 0],   
@@ -994,8 +1000,8 @@ class SFMuniDataHelper():
             ['DOORCYCLES'       ,'DOORCYCLES'    ,'sum'     ,'float64'   , 0],   
             ['WHEELCHAIR'       ,'WHEELCHAIR'    ,'sum'     ,'float64'   , 0], 
             ['BIKERACK'         ,'BIKERACK'      ,'sum'     ,'float64'   , 0], 
-            ['TIMESTOP_DEV'     ,'TIMESTOP_DEV'  ,'mean'    ,'float64'   , 0],         # times  
-            ['DOORCLOSE_DEV'    ,'DOORCLOSE_DEV' ,'mean'    ,'float64'   , 0],   
+            ['ARRIVAL_TIME_DEV'     ,'ARRIVAL_TIME_DEV'  ,'mean'    ,'float64'   , 0],         # times  
+            ['DEPARTURE_TIME_DEV'    ,'DEPARTURE_TIME_DEV' ,'mean'    ,'float64'   , 0],   
             ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],   
             ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],  
             ['PULLDWELL'        ,'PULLDWELL'     ,'mean'    ,'float64'   , 0],     
@@ -1037,8 +1043,8 @@ class SFMuniDataHelper():
             ['DOORCYCLES'       ,'DOORCYCLES'    ,'sum'     ,'float64'   , 0],   
             ['WHEELCHAIR'       ,'WHEELCHAIR'    ,'sum'     ,'float64'   , 0], 
             ['BIKERACK'         ,'BIKERACK'      ,'sum'     ,'float64'   , 0], 
-            ['TIMESTOP_DEV'     ,'TIMESTOP_DEV'  ,'mean'    ,'float64'   , 0],         # times  
-            ['DOORCLOSE_DEV'    ,'DOORCLOSE_DEV' ,'mean'    ,'float64'   , 0],   
+            ['ARRIVAL_TIME_DEV'     ,'ARRIVAL_TIME_DEV'  ,'mean'    ,'float64'   , 0],         # times  
+            ['DEPARTURE_TIME_DEV'    ,'DEPARTURE_TIME_DEV' ,'mean'    ,'float64'   , 0],   
             ['DWELL'            ,'DWELL'         ,'sum'     ,'float64'   , 0],   
             ['DWELL_S'          ,'DWELL_S'       ,'sum'     ,'float64'   , 0],  
             ['PULLDWELL'        ,'PULLDWELL'     ,'sum'     ,'float64'   , 0],   

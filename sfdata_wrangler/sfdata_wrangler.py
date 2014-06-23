@@ -37,11 +37,12 @@ def processSFMuniData(outfile, aggfile, routeEquivFile):
     
     startTime = datetime.datetime.now()   
     print 'Started processing SFMuni data at ', startTime
-    sfmuniHelper = SFMuniDataHelper(routeEquivFile)
+    sfmuniHelper = SFMuniDataHelper()
+    sfmuniHelper.readRouteEquiv(routeEquivFile)
 
     # convert the data
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp", outfile)
-#    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
+    sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp", outfile)
     #sfmuniHelper.processRawData("C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1005.stp", outfile)
@@ -63,7 +64,7 @@ def processSFMuniData(outfile, aggfile, routeEquivFile):
     print 'Finished converting SFMuni data in ', (convertedTime - startTime)
     
     # calculate monthly averages
-    sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average')
+    #sfmuniHelper.calcMonthlyAverages(outfile, aggfile, 'sample', 'average')
 
     # aggregate trips into daily totals        
     #sfmuniHelper.calculateRouteStopTotals(aggfile, 'average',  'route_stops')
@@ -99,7 +100,26 @@ def processGTFS(outfile):
     convertedTime = datetime.datetime.now() 
     print 'Finished converting GTFS in ', (convertedTime - startTime)
     
+    
+def joinGTFSandSFMuniData(gtfs_file, sfmuni_file, joined_outfile):
+    """
+    Left join from GTFS to SFMuni sample.        
+    
+    gtfs_file - HDF file containing processed GTFS data      
+    sfmuni_file - HDF file containing processed, just for sampled routes
+    joined_outfile - HDF file containing merged GTFS and SFMuni data     
+    """
 
+    startTime = datetime.datetime.now()   
+    print 'Started joining GTFS and SFMuni data at ', startTime
+    gtfsHelper = GTFSHelper()
+
+    # join the data
+    gtfsHelper.joinSFMuniData(gtfs_file, sfmuni_file, joined_outfile)
+        
+    convertedTime = datetime.datetime.now() 
+    print 'Finished joining GTFS and SFMuni data in ', (convertedTime - startTime)
+    
 
 if __name__ == "__main__":
     
@@ -110,7 +130,10 @@ if __name__ == "__main__":
     sfmuni_aggfile = "C:/CASA/DataExploration/sfmuni_aggregate.h5"
     
     gtfs_outfile = "C:/CASA/DataExploration/gtfs.h5"
+    
+    joined_outfile = "C:/CASA/DataExploration/transit_expanded.h5"
 
+    processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
     processGTFS(gtfs_outfile)
-    #processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
+    joinGTFSandSFMuniData(gtfs_outfile, sfmuni_outfile, joined_outfile)
 

@@ -55,35 +55,69 @@ class GTFSHelper():
     """
 
     # specifies how to read in each column from raw input files
-    #  columnName,       stringLength, index(0/1)
+    #  columnName,       stringLength, index(0/1), source('gtfs', 'avl', 'join' or 'calculated')
     COLUMNS = [
-        ['DATE',              0, 1],  # Calendar attributes
-        ['DOW',               0, 1], 
-        ['TOD',               0, 0],
-        ['AGENCY_ID',        10, 0],  # for matching to AVL data
-        ['ROUTE_SHORT_NAME', 32, 1], 
-        ['ROUTE_LONG_NAME',  32, 1], 
-        ['DIR',               0, 1], 
-        ['TRIP',              0, 1], 
-        ['SEQ',               0, 1], 
-        ['START_DATE',        0, 0],  # additional GTFS IDs 
-        ['END_DATE',          0, 0], 
-        ['ROUTE_ID',          0, 0],
-        ['TRIP_ID',           0, 0], 
-        ['STOP_ID',           0, 0], 
-        ['BLOCK_ID',          0, 0], 
-        ['SHAPE_ID',          0, 0],
-        ['ROUTE_TYPE',        0, 0], 
-        ['TRIP_HEADSIGN',    32, 0], 
-        ['FARE',              0, 0], 
-        ['STOPNAME',         32, 0], 
-        ['STOP_LAT',          0, 0], 
-        ['STOP_LON',          0, 0], 
-        ['SOL',               0, 0],
-        ['EOL',               0, 0],
-        ['ARRIVAL_TIME_S',    0, 0], 
-        ['DEPARTURE_TIME_S',  0, 0]
-        ] 
+	['MONTH',             0, 0, 'gtfs'],        # Calendar attributes
+	['DATE',              0, 1, 'gtfs'],  
+        ['DOW',               0, 1, 'gtfs'], 
+        ['TOD',               0, 0, 'gtfs'],
+        ['AGENCY_ID',        10, 0, 'join'],        # for matching to AVL data
+        ['ROUTE_SHORT_NAME', 32, 1, 'join'], 
+        ['ROUTE_LONG_NAME',  32, 1, 'join'], 
+        ['DIR',               0, 1, 'join'], 
+        ['TRIP',              0, 1, 'join'], 
+        ['SEQ',               0, 1, 'join'], 
+        ['ROUTE_TYPE',        0, 0, 'gtfs'],        # route/trip attributes 
+        ['TRIP_HEADSIGN',    32, 0, 'gtfs'], 
+        ['FARE',              0, 0, 'gtfs'], 
+	['PATTCODE'  ,        0, 0, 'avl'], 
+	['SCHOOL'    ,        0, 0, 'avl'], 
+	['HEADWAY'   ,        0, 0, 'avl'], 
+        ['STOPNAME',         32, 0, 'gtfs'],        # stop attributes
+	['STOPNAME_AVL',     32, 0, 'avl' ], 
+        ['STOP_LAT',          0, 0, 'gtfs'], 
+        ['STOP_LON',          0, 0, 'gtfs'], 
+        ['SOL',               0, 0, 'gtfs'],
+        ['EOL',               0, 0, 'gtfs'],
+	['TIMEPOINT' ,        0, 0, 'avl' ], 
+        ['ARRIVAL_TIME_S',    0, 0, 'gtfs'],        # times
+	['ARRIVAL_TIME'  ,    0, 0, 'avl'], 
+	['ARRIVAL_TIME_DEV',  0, 0, 'calculated'], 
+        ['DEPARTURE_TIME_S',  0, 0, 'gtfs'], 
+	['DEPARTURE_TIME' ,   0, 0, 'avl'], 
+	['DEPARTURE_TIME_DEV',0, 0, 'calculated'], 
+	['DWELL'     ,        0, 0, 'avl'], 
+	['DWELL_S'   ,        0, 0, 'gtfs'], 
+	['VEHMILES'  ,        0, 0, 'avl'],         # Distances and times
+	['RUNTIME_S' ,        0, 0, 'gtfs'], 
+	['RUNTIME'   ,        0, 0, 'avl'], 
+	#['SPEED_S' ,          0, 0, 'calculated'], 
+	#['SPEED'   ,          0, 0, 'avl'], 
+	['ONTIME2'   ,        0, 0, 'calculated'], 
+	['ONTIME10'  ,        0, 0, 'calculated'], 
+	['ON'        ,        0, 0, 'avl'], # ridership
+	['OFF'       ,        0, 0, 'avl'], 
+	['LOAD_ARR'  ,        0, 0, 'avl'], 
+	['LOAD_DEP'  ,        0, 0, 'avl'], 
+	['PASSMILES' ,        0, 0, 'avl'], 
+	['PASSHOURS' ,        0, 0, 'avl'], 
+	['RDBRDNGS'  ,        0, 0, 'avl'], 
+	['CAPACITY'  ,        0, 0, 'avl'], 
+	['DOORCYCLES',        0, 0, 'avl'], 
+	['WHEELCHAIR',        0, 0, 'avl'], 
+	['BIKERACK'  ,        0, 0, 'avl'], 	
+        ['ROUTE_ID',          0, 0, 'gtfs'],  # additional IDs 
+        ['TRIP_ID',           0, 0, 'gtfs'], 
+        ['STOP_ID',           0, 0, 'gtfs'], 
+	['STOP_AVL'  ,        0, 0, 'avl'], 
+        ['BLOCK_ID',          0, 0, 'gtfs'], 
+        ['SHAPE_ID',          0, 0, 'gtfs'],
+	['VEHNO'     ,        0, 0, 'avl'], 
+	['LASTTRIP'  ,        0, 0, 'avl'], 
+	['NEXTTRIP'  ,        0, 0, 'avl'], 
+        ['SCHED_START',       0, 0, 'gtfs'],  # range of this GTFS schedule
+        ['SCHED_END',         0, 0, 'gtfs']
+        ]
                 
 
 
@@ -107,12 +141,14 @@ class GTFSHelper():
             name = col[0]
             stringLength = col[1]
             index = col[2]
+            source = col[3]
             
-            colnames.append(name)
-            if (stringLength>0): 
-                stringLengths[name] = stringLength
-            if index==1: 
-                indexColumns.append(name)
+            if source=='gtfs' or source=='join': 
+                colnames.append(name)
+                if (stringLength>0): 
+                    stringLengths[name] = stringLength
+                if index==1: 
+                    indexColumns.append(name)
 
         # open the data store
         store = pd.HDFStore(outfile)
@@ -154,7 +190,11 @@ class GTFSHelper():
                         
                     # one record for each stop time
                     stopTimeList = trip.GetStopTimes()    
+                    
+                    # initialize for looping
                     i = 0        
+                    lastDepartureTime = startDate
+                    
                     for stopTime in stopTimeList:
                         record = {}
                         
@@ -181,7 +221,6 @@ class GTFSHelper():
                                 timeOfDay='2200-0259'
                             else:
                                 timeOfDay=''
-            
                         else:
                             startOfLine = 0
                             
@@ -191,6 +230,7 @@ class GTFSHelper():
                             endOfLine = 0
                         
                         # calendar attributes
+                        record['MONTH'] = startDate
                         record['DATE'] = startDate
                         record['DOW']  = int(trip.service_id)
                         record['TOD']  = timeOfDay
@@ -201,16 +241,7 @@ class GTFSHelper():
                         record['ROUTE_LONG_NAME']  = str(route.route_long_name)
                         record['DIR']              = int(trip.direction_id)
                         record['TRIP']             = firstDeparture    # contains HHMM of departure from first stop
-                        record['SEQ']              = int(stopTime.stop_sequence)
-                            
-                        # Additional GTFS IDs. 
-                        record['START_DATE']     = startDate            # start date for this schedule
-                        record['END_DATE']       = endDate              # end date for this schedule           
-                        record['ROUTE_ID']       = int(trip.route_id)
-                        record['TRIP_ID']        = int(trip.trip_id)
-                        record['STOP_ID']        = int(stopTime.stop.stop_id)
-                        record['BLOCK_ID']       = int(trip.block_id)
-                        record['SHAPE_ID']       = int(trip.shape_id)
+                        record['SEQ']              = int(stopTime.stop_sequence)                            
                             
                         # route/trip attributes
                         record['ROUTE_TYPE']       = int(route.route_type)
@@ -224,10 +255,43 @@ class GTFSHelper():
                         record['SOL']              = startOfLine
                         record['EOL']              = endOfLine
                         
-                        # stop times, dealing with wrap-around for times past midnight            
-                        record['ARRIVAL_TIME_S']   = getWrapAroundTime(str(startDate.date()), stopTime.arrival_time)
-                        record['DEPARTURE_TIME_S'] = getWrapAroundTime(str(startDate.date()), stopTime.departure_time)
-                            
+                        # stop times        
+                        # deal with wrap-around aspect of time (past midnight >2400)
+                        arrivalTime = getWrapAroundTime(str(startDate.date()), stopTime.arrival_time)
+                        departureTime = getWrapAroundTime(str(startDate.date()), stopTime.departure_time)
+                        if startOfLine or endOfLine: 
+                            dwellTime = 0
+                        else: 
+                            timeDiff = departureTime - arrivalTime
+                            dwellTime = round(timeDiff.seconds / 60.0, 2)
+
+                        record['ARRIVAL_TIME_S']   = arrivalTime
+                        record['DEPARTURE_TIME_S'] = departureTime
+                        record['DWELL_S']          = dwellTime
+                        
+                        # distance and runtimes
+                        if startOfLine: 
+                            runtime = 0
+                        else: 
+                            timeDiff = arrivalTime - lastDepartureTime
+                            runtime = round(timeDiff.seconds / 60.0, 2)
+
+                        record['RUNTIME_S'] = runtime
+
+                        # Additional GTFS IDs.        
+                        record['ROUTE_ID']       = int(trip.route_id)
+                        record['TRIP_ID']        = int(trip.trip_id)
+                        record['STOP_ID']        = int(stopTime.stop.stop_id)
+                        record['BLOCK_ID']       = int(trip.block_id)
+                        record['SHAPE_ID']       = int(trip.shape_id)
+
+                        # indicates range this schedule is in operation    
+                        record['SCHED_START']    = startDate            # start date for this schedule
+                        record['SCHED_END']      = endDate              # end date for this schedule    
+                        
+                        # track from previous record
+                        lastDepartureTime = departureTime                                    
+                                                                                                                                    
                         data.append(record)                
                         i += 1
                                     
@@ -243,7 +307,9 @@ class GTFSHelper():
         # loop through each date, and add the appropriate service to the database
         servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate)        
         for date, servicePeriods in servicePeriodsEachDate:
-                        
+            
+            month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()            
+            
             for period in servicePeriods: 
                 print 'Writing ', date
         
@@ -251,6 +317,7 @@ class GTFSHelper():
                 
                 # update the dates
                 df['DATE'] = date
+                record['MONTH'] = month
                 for i, row in df.iterrows():
                     df['ARRIVAL_TIME_S'][i] = date + (df['ARRIVAL_TIME_S'][i] - startDate)
                     df['DEPARTURE_TIME_S'][i] = date + (df['DEPARTURE_TIME_S'][i] - startDate)
@@ -260,7 +327,6 @@ class GTFSHelper():
                     store.append('gtfs', df, data_columns=True, 
                             min_itemsize=stringLengths)
                 except ValueError: 
-                    store = pd.HDFStore(outfile)
                     print 'Structure of HDF5 file is: '
                     print store.gtfs.dtypes
                     store.close()
@@ -272,3 +338,75 @@ class GTFSHelper():
 
         store.close()
 
+
+    def joinSFMuniData(self, gtfs_file, sfmuni_file, joined_outfile):
+        """
+        Left join from GTFS to SFMuni sample.        
+        
+        gtfs_file - HDF file containing processed GTFS data      
+        sfmuni_file - HDF file containing processed, just for sampled routes
+        joined_outfile - HDF file containing merged GTFS and SFMuni data     
+        """
+        
+        # convert column specs 
+        colnames = []   
+        stringLengths= {}
+        indexColumns = []
+        joinFields = []
+        sources = {}
+        for col in self.COLUMNS: 
+            name = col[0]
+            stringLength = col[1]
+            index = col[2]
+            source = col[3]
+            
+            colnames.append(name)
+            sources[name] = source
+            if (stringLength>0): 
+                stringLengths[name] = stringLength
+            if index==1: 
+                indexColumns.append(name)
+            if source=='join': 
+                joinFields.append(name)
+        
+        # establish the stores
+        gtfs_store   = pd.HDFStore(gtfs_file)
+        sfmuni_store = pd.HDFStore(sfmuni_file)
+        out_store    = pd.HDFStore(joined_outfile)
+        
+        
+        # get the list of all dates in data set
+        dates = gtfs_store.select_column('gtfs', 'DATE').unique()
+        dates.sort()
+        print 'Retrieved a total of %i dates to process' % len(dates)
+
+        # loop through the dates, and aggregate each individually
+        for date in dates: 
+            print 'Processing ', date          
+
+            gtfs   = gtfs_store.select('gtfs', where='DATE==Timestamp(date)')
+            sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
+            joined = pd.merge(gtfs, sfmuni, how='inner', on=joinFields, 
+                                suffixes=('', '_avl'))
+
+            # calculate derived fields
+            
+            print joinFields
+            print len(gtfs)
+            print len(sfmuni)
+            print len(joined)
+                        
+            # keep only relevant columns, sorted
+            joined.sort(indexColumns, inplace=True)                        
+            joined = joined[colnames]
+            
+            # write the data
+            out_store.append('expanded', joined, data_columns=True, 
+                            min_itemsize=stringLengths)
+            
+        # close up shop
+        gtfs_store.close()
+        sfmuni_store.close()
+        out_store.close()
+
+    
