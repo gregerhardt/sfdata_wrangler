@@ -70,7 +70,7 @@ class GTFSHelper():
         ['ROUTE_TYPE',        0, 0, 'gtfs'],        # route/trip attributes 
         ['TRIP_HEADSIGN',    32, 0, 'gtfs'], 
         ['FARE',              0, 0, 'gtfs'], 
-	['PATTCODE'  ,        0, 0, 'avl'], 
+	['PATTCODE'  ,       10, 0, 'avl'], 
 	['SCHOOL'    ,        0, 0, 'avl'], 
 	['HEADWAY'   ,        0, 0, 'avl'], 
         ['STOPNAME',         32, 0, 'gtfs'],        # stop attributes
@@ -386,15 +386,11 @@ class GTFSHelper():
 
             gtfs   = gtfs_store.select('gtfs', where='DATE==Timestamp(date)')
             sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
-            joined = pd.merge(gtfs, sfmuni, how='inner', on=joinFields, 
+            joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
                                 suffixes=('', '_avl'))
 
             # calculate derived fields
             
-            print joinFields
-            print len(gtfs)
-            print len(sfmuni)
-            print len(joined)
                         
             # keep only relevant columns, sorted
             joined.sort(indexColumns, inplace=True)                        
