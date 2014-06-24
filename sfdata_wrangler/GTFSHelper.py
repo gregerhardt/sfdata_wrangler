@@ -19,6 +19,7 @@ __license__     = """
 """
 
 import pandas as pd
+import numpy as np
 import datetime
 
 import transitfeed
@@ -67,12 +68,13 @@ class GTFSHelper():
         ['DIR',               0, 1, 'join'], 
         ['TRIP',              0, 1, 'join'], 
         ['SEQ',               0, 1, 'join'], 
+        ['OBSERVED',          0, 1, 'avl'],         # observed in AVL data?
         ['ROUTE_TYPE',        0, 0, 'gtfs'],        # route/trip attributes 
         ['TRIP_HEADSIGN',    32, 0, 'gtfs'], 
+	['HEADWAY'   ,        0, 0, 'gtfs'], 
         ['FARE',              0, 0, 'gtfs'], 
 	['PATTCODE'  ,       10, 0, 'avl'], 
 	['SCHOOL'    ,        0, 0, 'avl'], 
-	['HEADWAY'   ,        0, 0, 'avl'], 
         ['STOPNAME',         32, 0, 'gtfs'],        # stop attributes
 	['STOPNAME_AVL',     32, 0, 'avl' ], 
         ['STOP_LAT',          0, 0, 'gtfs'], 
@@ -86,35 +88,35 @@ class GTFSHelper():
         ['DEPARTURE_TIME_S',  0, 0, 'gtfs'], 
 	['DEPARTURE_TIME' ,   0, 0, 'avl'], 
 	['DEPARTURE_TIME_DEV',0, 0, 'calculated'], 
-	['DWELL'     ,        0, 0, 'avl'], 
 	['DWELL_S'   ,        0, 0, 'gtfs'], 
-	['VEHMILES'  ,        0, 0, 'avl'],         # Distances and times
+	['DWELL'     ,        0, 0, 'avl'], 
 	['RUNTIME_S' ,        0, 0, 'gtfs'], 
 	['RUNTIME'   ,        0, 0, 'avl'], 
-	#['SPEED_S' ,          0, 0, 'calculated'], 
-	#['SPEED'   ,          0, 0, 'avl'], 
+	['VEHMILES'  ,        0, 0, 'avl'],         # Distances and speeds
+	#['RUNSPEED_S' ,       0, 0, 'gtfs'], 
+	#['RUNSPEED'   ,       0, 0, 'avl'], 
 	['ONTIME2'   ,        0, 0, 'calculated'], 
 	['ONTIME10'  ,        0, 0, 'calculated'], 
 	['ON'        ,        0, 0, 'avl'], # ridership
 	['OFF'       ,        0, 0, 'avl'], 
 	['LOAD_ARR'  ,        0, 0, 'avl'], 
 	['LOAD_DEP'  ,        0, 0, 'avl'], 
-	['PASSMILES' ,        0, 0, 'avl'], 
-	['PASSHOURS' ,        0, 0, 'avl'], 
+	['PASSMILES' ,        0, 0, 'calculated'], 
+	['PASSHOURS_S',       0, 0, 'calculated'], 
+	['PASSHOURS',         0, 0, 'calculated'], 
 	['RDBRDNGS'  ,        0, 0, 'avl'], 
 	['CAPACITY'  ,        0, 0, 'avl'], 
 	['DOORCYCLES',        0, 0, 'avl'], 
 	['WHEELCHAIR',        0, 0, 'avl'], 
 	['BIKERACK'  ,        0, 0, 'avl'], 	
         ['ROUTE_ID',          0, 0, 'gtfs'],  # additional IDs 
+        ['ROUTE_AVL',         0, 0, 'gtfs'],   
         ['TRIP_ID',           0, 0, 'gtfs'], 
         ['STOP_ID',           0, 0, 'gtfs'], 
 	['STOP_AVL'  ,        0, 0, 'avl'], 
         ['BLOCK_ID',          0, 0, 'gtfs'], 
         ['SHAPE_ID',          0, 0, 'gtfs'],
 	['VEHNO'     ,        0, 0, 'avl'], 
-	['LASTTRIP'  ,        0, 0, 'avl'], 
-	['NEXTTRIP'  ,        0, 0, 'avl'], 
         ['SCHED_START',       0, 0, 'gtfs'],  # range of this GTFS schedule
         ['SCHED_END',         0, 0, 'gtfs']
         ]
@@ -246,6 +248,7 @@ class GTFSHelper():
                         # route/trip attributes
                         record['ROUTE_TYPE']       = int(route.route_type)
                         record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
+                        record['HEADWAY']          = np.NaN             # calculated later
                         record['FARE']             = float(fare)  
                         
                         # stop attriutes
@@ -302,6 +305,10 @@ class GTFSHelper():
             # keep only relevant columns, sorted
             df.sort(indexColumns, inplace=True)                        
             df = df[colnames]
+            
+            # calculate the headways TODO
+            
+            # keep one dataframe for each service period
             dataframes[period.service_id] = df
 
         # loop through each date, and add the appropriate service to the database
@@ -384,13 +391,69 @@ class GTFSHelper():
         for date in dates: 
             print 'Processing ', date          
 
+            # do the join
             gtfs   = gtfs_store.select('gtfs', where='DATE==Timestamp(date)')
             sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
+            sfmuni['OBSERVED'] = 1
+                        
             joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
                                 suffixes=('', '_avl'))
 
-            # calculate derived fields
+            # initialize derived fields as missing
+            joined['ARRIVAL_TIME_DEV']   = np.NaN
+            joined['DEPARTURE_TIME_DEV'] = np.NaN
+            joined['ONTIME2']  = np.NaN
+            joined['ONTIME10'] = np.NaN
+            joined['PASSMILES']   = np.NaN
+            joined['PASSHOURS_S'] = np.NaN
+            joined['PASSHOURS']   = np.NaN
             
+
+            # calculate derived fields, in overlapping frames
+            for i, row in joined.iterrows():
+                if joined['OBSERVED'][i] == 1: 
+                    
+                    # deviation from scheduled arrival
+                    if joined['ARRIVAL_TIME'][i] >= joined['ARRIVAL_TIME_S'][i]: 
+                        diff = joined['ARRIVAL_TIME'][i] - joined['ARRIVAL_TIME_S'][i]
+                        arrivalTimeDeviation = round(diff.seconds / 60.0, 2)
+                    else: 
+                        diff = joined['ARRIVAL_TIME_S'][i] - joined['ARRIVAL_TIME'][i]
+                        arrivalTimeDeviation = - round(diff.seconds / 60.0, 2)                        
+                    joined['ARRIVAL_TIME_DEV'][i] = arrivalTimeDeviation
+    
+                    # deviation from scheduled departure
+                    if joined['DEPARTURE_TIME'][i] >= joined['DEPARTURE_TIME_S'][i]: 
+                        diff = joined['DEPARTURE_TIME'][i] - joined['DEPARTURE_TIME_S'][i]
+                        departureTimeDeviation = round(diff.seconds / 60.0, 2)
+                    else: 
+                        diff = joined['DEPARTURE_TIME_S'][i] - joined['DEPARTURE_TIME'][i]
+                        departureTimeDeviation = - round(diff.seconds / 60.0, 2)                        
+                    joined['DEPARTURE_TIME_DEV'][i] = departureTimeDeviation
+                    
+                    # ontime, within 2 minutes
+                    if arrivalTimeDeviation < 2: 
+                        joined['ONTIME2'][i] = 1
+                    else: 
+                        joined['ONTIME2'][i] = 0
+                    
+                    # ontime, within 10 minutes
+                    if arrivalTimeDeviation < 10: 
+                        joined['ONTIME10'][i] = 1
+                    else: 
+                        joined['ONTIME10'][i] = 0
+                    
+                    # passenger miles traveled
+                    joined['PASSMILES'][i] = joined['LOAD_ARR'][i] * joined['VEHMILES'][i]                
+                    
+                    # passenger hours -- scheduled time
+                    joined['PASSHOURS_S'][i] = (joined['LOAD_ARR'][i] * joined['RUNTIME_S'][i] 
+                                            + joined['LOAD_DEP'][i] * joined['DWELL_S'][i]) / 60.0
+                                            
+                    # passenger hours -- actual time
+                    joined['PASSHOURS'][i] = (joined['LOAD_ARR'][i] * joined['RUNTIME'][i] 
+                                            + joined['LOAD_DEP'][i] * joined['DWELL'][i]) / 60.0
+                    
                         
             # keep only relevant columns, sorted
             joined.sort(indexColumns, inplace=True)                        

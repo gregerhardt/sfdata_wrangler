@@ -150,7 +150,7 @@ class SFMuniDataHelper():
 
     # set the order of the columns in the resulting dataframe
     REORDERED_COLUMNS=[  
-                # index attributes
+                # calendar attributes
 		'DATE'      ,   # ( 68,  74) - date
 		'MONTH'     ,   #            - year and month
                 'DOW'       ,   #            - day of week schedule operated: 1-weekday, 2-saturday, 3-sunday
@@ -164,7 +164,7 @@ class SFMuniDataHelper():
 		'DIR'       ,   #            - direction, 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
 		'TRIP'      ,   # (119, 123) - trip 
                 'SEQ'       ,   # (  0,   5) - stop sequence
-                
+                                
                 # route/trip attributes
 		'PATTCODE'  ,   # (305, 315) - pattern code
 		'VEHNO'     ,   # (161, 165) - bus number
@@ -226,7 +226,7 @@ class SFMuniDataHelper():
 		'QC104'     ,   # (231, 234) - GPS QC
 		'QC201'     ,   # (235, 238) - count QC
 		'AQC'       ,   # (239, 242) - assignment QC
-		'DWDI'      ,   # (316, 320) - distance traveled durign dwell
+		'DWDI'      ,   # (316, 320) - distance traveled during dwell
 		'DELTAA'    ,   # (391, 397) - distance from stop at arrival
 		'DELTAD'    ,   # (398, 404) - distance from stop at departure
 		'DELTA'         # (126, 130) - delta
@@ -354,7 +354,8 @@ class SFMuniDataHelper():
             chunk['ROUTE_SHORT_NAME'] = ''
             chunk['ROUTE_LONG_NAME'] = ''
             chunk['ONTIME2'] = np.NaN
-            chunk['ONTIME10'] = np.NaN            
+            chunk['ONTIME10'] = np.NaN         
+            chunk['OBSERVED'] = 1       # all records here are observed   
             
             # iterate through the rows for computed fields
             for i, row in chunk.iterrows():

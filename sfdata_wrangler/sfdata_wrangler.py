@@ -133,7 +133,7 @@ if __name__ == "__main__":
     
     joined_outfile = "C:/CASA/DataExploration/transit_expanded.h5"
 
-    processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
-    processGTFS(gtfs_outfile)
+    #processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
+    #processGTFS(gtfs_outfile)
     joinGTFSandSFMuniData(gtfs_outfile, sfmuni_outfile, joined_outfile)
 
