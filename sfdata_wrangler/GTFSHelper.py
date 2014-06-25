@@ -46,8 +46,27 @@ def getWrapAroundTime(dateString, timeString):
     
     return time
         
-                                                
+
+def calculateHeadways(df):
+    """
+    Calculates the headways for a group. Assumes data are grouped by: 
+    ['AGENCY_ID','ROUTE_SHORT_NAME','ROUTE_LONG_NAME','DIR','SEQ']
+    (but not by TRIP).     
+    """        
+    df.sort(['DEPARTURE_TIME_S'], inplace=True)
+
+    lastDeparture = 0
+    for i, row in df.iterrows():    
+        if lastDeparture==0: 
+            df['HEADWAY'][i] = np.NaN        # missing headway for first trip
+        else:
+            diff = df['DEPARTURE_TIME_S'][i] - lastDeparture
+            df['HEADWAY'][i] = round(diff.seconds / 60.0, 2)
+        lastDeparture = df['DEPARTURE_TIME_S'][i]
+    
+    return df                                                
             
+
 class GTFSHelper():
     """ 
     Methods used for loading and converting General Transit Feed Specification
@@ -102,15 +121,17 @@ class GTFSHelper():
 	['LOAD_ARR'  ,        0, 0, 'avl'], 
 	['LOAD_DEP'  ,        0, 0, 'avl'], 
 	['PASSMILES' ,        0, 0, 'calculated'], 
-	['PASSHOURS_S',       0, 0, 'calculated'], 
 	['PASSHOURS',         0, 0, 'calculated'], 
+	['WAITHOURS',         0, 0, 'calculated'], 
+	['PASSDELAY_DEP',     0, 0, 'calculated'], 
+	['PASSDELAY_ARR',     0, 0, 'calculated'], 
 	['RDBRDNGS'  ,        0, 0, 'avl'], 
 	['CAPACITY'  ,        0, 0, 'avl'], 
 	['DOORCYCLES',        0, 0, 'avl'], 
 	['WHEELCHAIR',        0, 0, 'avl'], 
 	['BIKERACK'  ,        0, 0, 'avl'], 	
         ['ROUTE_ID',          0, 0, 'gtfs'],  # additional IDs 
-        ['ROUTE_AVL',         0, 0, 'gtfs'],   
+        ['ROUTE_AVL',         0, 0, 'avl'],   
         ['TRIP_ID',           0, 0, 'gtfs'], 
         ['STOP_ID',           0, 0, 'gtfs'], 
 	['STOP_AVL'  ,        0, 0, 'avl'], 
@@ -151,9 +172,6 @@ class GTFSHelper():
                     stringLengths[name] = stringLength
                 if index==1: 
                     indexColumns.append(name)
-
-        # open the data store
-        store = pd.HDFStore(outfile)
                         
         # establish the feed
         tfl = transitfeed.Loader(feed_path=infile)
@@ -168,7 +186,7 @@ class GTFSHelper():
         dataframes = {}
         servicePeriods = schedule.GetServicePeriodList()
         for period in servicePeriods:
-
+            
             # create an empty list of dictionaries to store the data
             data = []
         
@@ -248,7 +266,7 @@ class GTFSHelper():
                         # route/trip attributes
                         record['ROUTE_TYPE']       = int(route.route_type)
                         record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
-                        record['HEADWAY']          = np.NaN             # calculated later
+                        record['HEADWAY']          = np.NaN             # calculated below
                         record['FARE']             = float(fare)  
                         
                         # stop attriutes
@@ -300,18 +318,26 @@ class GTFSHelper():
                                     
             # convert to data frame
             print "service_id %s has %i trip-stop records" % (period.service_id, len(data))
-            df = pd.DataFrame(data)
+            df = pd.DataFrame(data)            
+            
+            # calculate the headways, based on difference in previous bus on 
+            # this route stopping at the same stop
+            groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','ROUTE_LONG_NAME','DIR','SEQ']
+            df = df.groupby(groupby).apply(calculateHeadways)
+            df = df.drop(['AGENCY_ID','ROUTE_SHORT_NAME','ROUTE_LONG_NAME','DIR','SEQ'], axis=1)
+            df = df.reset_index()
             
             # keep only relevant columns, sorted
             df.sort(indexColumns, inplace=True)                        
             df = df[colnames]
             
-            # calculate the headways TODO
-            
             # keep one dataframe for each service period
             dataframes[period.service_id] = df
 
         # loop through each date, and add the appropriate service to the database
+        print 'Writing data for periods from ', startDate, ' to ', endDate
+        store = pd.HDFStore(outfile)
+
         servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate)        
         for date, servicePeriods in servicePeriodsEachDate:
             
@@ -323,25 +349,18 @@ class GTFSHelper():
                 df = dataframes[period.service_id]
                 
                 # update the dates
-                df['DATE'] = date
-                record['MONTH'] = month
                 for i, row in df.iterrows():
-                    df['ARRIVAL_TIME_S'][i] = date + (df['ARRIVAL_TIME_S'][i] - startDate)
-                    df['DEPARTURE_TIME_S'][i] = date + (df['DEPARTURE_TIME_S'][i] - startDate)
+                    df['ARRIVAL_TIME_S'][i] = date + (df['ARRIVAL_TIME_S'][i] - df['DATE'][i])
+                    df['DEPARTURE_TIME_S'][i] = date + (df['DEPARTURE_TIME_S'][i] - df['DATE'][i])
+                df['DATE'] = date
+                df['MONTH'] = month
         
-                # write the data
-                try: 
-                    store.append('gtfs', df, data_columns=True, 
+                print stringLengths
+                print df.dtypes
+                print df.head()
+        
+                store.append('gtfs', df, data_columns=True, 
                             min_itemsize=stringLengths)
-                except ValueError: 
-                    print 'Structure of HDF5 file is: '
-                    print store.gtfs.dtypes
-                    store.close()
-                        
-                    print 'Structure of current dataframe is: '
-                    print df.dtypes
-                        
-                    raise
 
         store.close()
 
@@ -405,8 +424,10 @@ class GTFSHelper():
             joined['ONTIME2']  = np.NaN
             joined['ONTIME10'] = np.NaN
             joined['PASSMILES']   = np.NaN
-            joined['PASSHOURS_S'] = np.NaN
             joined['PASSHOURS']   = np.NaN
+            joined['WAITHOURS']   = np.NaN
+            joined['PASSDELAY_DEP'] = np.NaN
+            joined['PASSDELAY_ARR'] = np.NaN
             
 
             # calculate derived fields, in overlapping frames
@@ -447,12 +468,26 @@ class GTFSHelper():
                     joined['PASSMILES'][i] = joined['LOAD_ARR'][i] * joined['VEHMILES'][i]                
                     
                     # passenger hours -- scheduled time
-                    joined['PASSHOURS_S'][i] = (joined['LOAD_ARR'][i] * joined['RUNTIME_S'][i] 
+                    joined['PASSHOURS'][i] = (joined['LOAD_ARR'][i] * joined['RUNTIME_S'][i] 
                                             + joined['LOAD_DEP'][i] * joined['DWELL_S'][i]) / 60.0
-                                            
-                    # passenger hours -- actual time
-                    joined['PASSHOURS'][i] = (joined['LOAD_ARR'][i] * joined['RUNTIME'][i] 
-                                            + joined['LOAD_DEP'][i] * joined['DWELL'][i]) / 60.0
+                                                                                        
+                    # passenger hours of waiting time -- scheduled time
+                    joined['WAITHOURS'][i] = (joined['ON'][i] 
+                                        * 0.5 * joined['HEADWAY'][i]) / 60.0
+                    
+                    # passenger hours of delay at departure
+                    if departureTimeDeviation > 0: 
+                        joined['PASSDELAY_DEP'][i] = (joined['ON'][i] 
+                                            * departureTimeDeviation) / 60.0
+                    else: 
+                        joined['PASSDELAY_DEP'][i] = 0                    
+                    
+                    # passenger hours of delay at arrival  
+                    if arrivalTimeDeviation > 0: 
+                        joined['PASSDELAY_ARR'][i] = (joined['OFF'][i] 
+                                            * arrivalTimeDeviation) / 60.0
+                    else: 
+                        joined['PASSDELAY_ARR'][i] = 0        
                     
                         
             # keep only relevant columns, sorted
