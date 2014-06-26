@@ -65,7 +65,7 @@ def calculateHeadways(df):
         lastDeparture = df['DEPARTURE_TIME_S'][i]
     
     return df                                                
-            
+
 
 class GTFSHelper():
     """ 
@@ -137,6 +137,7 @@ class GTFSHelper():
 	['STOP_AVL'  ,        0, 0, 'avl'], 
         ['BLOCK_ID',          0, 0, 'gtfs'], 
         ['SHAPE_ID',          0, 0, 'gtfs'],
+        #['SHAPE_DIST',        0, 0, 'gtfs'],
 	['VEHNO'     ,        0, 0, 'avl'], 
         ['SCHED_START',       0, 0, 'gtfs'],  # range of this GTFS schedule
         ['SCHED_END',         0, 0, 'gtfs']
@@ -355,10 +356,6 @@ class GTFSHelper():
                 df['DATE'] = date
                 df['MONTH'] = month
         
-                print stringLengths
-                print df.dtypes
-                print df.head()
-        
                 store.append('gtfs', df, data_columns=True, 
                             min_itemsize=stringLengths)
 
@@ -410,13 +407,14 @@ class GTFSHelper():
         for date in dates: 
             print 'Processing ', date          
 
-            # do the join
-            gtfs   = gtfs_store.select('gtfs', where='DATE==Timestamp(date)')
+            # get the observed data
             sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
             sfmuni['OBSERVED'] = 1
-                        
+            
+            # join to the gtfs data (make sure they are sorted on the join)
+            gtfs   = gtfs_store.select('gtfs', where='DATE==Timestamp(date)')
             joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
-                                suffixes=('', '_avl'))
+                                suffixes=('', '_avl'), sort=True)
 
             # initialize derived fields as missing
             joined['ARRIVAL_TIME_DEV']   = np.NaN
@@ -428,12 +426,32 @@ class GTFSHelper():
             joined['WAITHOURS']   = np.NaN
             joined['PASSDELAY_DEP'] = np.NaN
             joined['PASSDELAY_ARR'] = np.NaN
-            
 
-            # calculate derived fields, in overlapping frames
+            # calculate derived fields, in overlapping frames           
+            lastRoute = 0
+            lastDir = 0
+            lastTrip = 0
+            lastDepartureTime = 0
             for i, row in joined.iterrows():
                 if joined['OBSERVED'][i] == 1: 
                     
+                    # observed runtime
+                    if (joined['ROUTE_AVL'][i]==lastRoute 
+                        and joined['DIR'][i]==lastDir 
+                        and joined['TRIP'][i]==lastTrip): 
+
+                        diff = joined['ARRIVAL_TIME'][i] - lastDepartureTime
+                        joined['RUNTIME'][i] = round(diff.seconds / 60.0, 2)
+                    else: 
+                        joined['RUNTIME'][i] = 0
+                        
+                        lastRoute = joined['ROUTE_AVL'][i]
+                        lastDir = joined['DIR'][i]
+                        lastTrip = joined['TRIP'][i]
+
+                    lastDepartureTime = joined['DEPARTURE_TIME'][i]
+
+            
                     # deviation from scheduled arrival
                     if joined['ARRIVAL_TIME'][i] >= joined['ARRIVAL_TIME_S'][i]: 
                         diff = joined['ARRIVAL_TIME'][i] - joined['ARRIVAL_TIME_S'][i]
