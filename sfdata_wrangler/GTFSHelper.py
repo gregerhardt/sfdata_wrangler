@@ -22,9 +22,15 @@ import pandas as pd
 import numpy as np
 import datetime
 
-import transitfeed
+import transitfeed  
+import pyproj  
+from shapely.geometry import Point, LineString  
             
-            
+
+#  define projection from LON, LAT to UTM zone 10
+toUTM = pyproj.Proj(proj='utm', zone=10, datum='WGS84', ellps='WGS84', units='m')            
+    
+                    
 def getWrapAroundTime(dateString, timeString):
     """
     Converts a string in the format '%H:%M:%S' to a datetime object.
@@ -65,8 +71,19 @@ def calculateHeadways(df):
         lastDeparture = df['DEPARTURE_TIME_S'][i]
     
     return df                                                
+    
 
+def reproject(latitude, longitude):
+    """Returns the x & y coordinates in meters using a sinusoidal projection"""
+    from math import pi, cos, radians
+    earth_radius = 6371009 # in meters
+    lat_dist = pi * earth_radius / 180.0
 
+    y = latitude * lat_dist
+    x = longitude * lat_dist * cos(radians(latitude))
+    return x, y
+    
+    
 class GTFSHelper():
     """ 
     Methods used for loading and converting General Transit Feed Specification
@@ -111,9 +128,10 @@ class GTFSHelper():
 	['DWELL'     ,        0, 0, 'avl'], 
 	['RUNTIME_S' ,        0, 0, 'gtfs'], 
 	['RUNTIME'   ,        0, 0, 'avl'], 
-	['VEHMILES'  ,        0, 0, 'avl'],         # Distances and speeds
-	#['RUNSPEED_S' ,       0, 0, 'gtfs'], 
-	#['RUNSPEED'   ,       0, 0, 'avl'], 
+	['SERVMILES' ,        0, 0, 'gtfs'], 
+	['VEHMILES',          0, 0, 'avl'],         # Distances and speeds
+	['RUNSPEED_S' ,       0, 0, 'gtfs'], 
+	['RUNSPEED'   ,       0, 0, 'calculated'], 
 	['ONTIME2'   ,        0, 0, 'calculated'], 
 	['ONTIME10'  ,        0, 0, 'calculated'], 
 	['ON'        ,        0, 0, 'avl'], # ridership
@@ -137,13 +155,13 @@ class GTFSHelper():
 	['STOP_AVL'  ,        0, 0, 'avl'], 
         ['BLOCK_ID',          0, 0, 'gtfs'], 
         ['SHAPE_ID',          0, 0, 'gtfs'],
-        #['SHAPE_DIST',        0, 0, 'gtfs'],
+        ['SHAPE_DIST',        0, 0, 'gtfs'],
 	['VEHNO'     ,        0, 0, 'avl'], 
         ['SCHED_START',       0, 0, 'gtfs'],  # range of this GTFS schedule
         ['SCHED_END',         0, 0, 'gtfs']
         ]
                 
-
+   
 
     def processRawData(self, infile, outfile):
         """
@@ -200,6 +218,15 @@ class GTFSHelper():
                     # determine route attributes
                     route = schedule.GetRoute(trip.route_id)
                     
+                    # get shape attributes, converted to a line
+                    shape = schedule.GetShape(trip.shape_id)
+                    shapePoints = []
+                    for p in shape.points: 
+                        x, y = toUTM(p[1], p[0])
+                        shapePoints.append((x, y))
+                    shapeLine = LineString(shapePoints)
+                    
+                    
                     # calculate fare--assume just based on route ID
                     fare = 0
                     fareAttributeList = schedule.GetFareAttributeList()
@@ -242,6 +269,9 @@ class GTFSHelper():
                                 timeOfDay='2200-0259'
                             else:
                                 timeOfDay=''
+                                
+                            # distance traveled along shape for previous stop
+                            lastDistanceTraveled = 0
                         else:
                             startOfLine = 0
                             
@@ -291,14 +321,37 @@ class GTFSHelper():
                         record['DEPARTURE_TIME_S'] = departureTime
                         record['DWELL_S']          = dwellTime
                         
-                        # distance and runtimes
+                        # runtimes
                         if startOfLine: 
                             runtime = 0
                         else: 
                             timeDiff = arrivalTime - lastDepartureTime
                             runtime = round(timeDiff.seconds / 60.0, 2)
-
                         record['RUNTIME_S'] = runtime
+                        
+                        # location along shape object (SFMTA uses meters)
+                        if stopTime.shape_dist_traveled > 0: 
+                            record['SHAPE_DIST'] = stopTime.shape_dist_traveled
+                        else: 
+                            x, y = toUTM(stopTime.stop.stop_lon, stopTime.stop.stop_lat)
+                            stopPoint = Point(x, y)
+                            projectedDist = shapeLine.project(stopPoint, normalized=True)
+                            distanceTraveled = shape.max_distance * projectedDist
+                            record['SHAPE_DIST'] = distanceTraveled
+
+                        # service miles
+                        if startOfLine: 
+                            serviceMiles = 0
+                        else: 
+                            serviceMiles = (distanceTraveled - lastDistanceTraveled) / 1609.344
+                        record['SERVMILES'] = serviceMiles
+                            
+                        # speed (mph)
+                        if runtime > 0: 
+                            record['RUNSPEED_S'] = serviceMiles / (runtime / 60.0) 
+                        else:
+                            record['RUNSPEED_S'] = 0
+                                                  
 
                         # Additional GTFS IDs.        
                         record['ROUTE_ID']       = int(trip.route_id)
@@ -306,13 +359,14 @@ class GTFSHelper():
                         record['STOP_ID']        = int(stopTime.stop.stop_id)
                         record['BLOCK_ID']       = int(trip.block_id)
                         record['SHAPE_ID']       = int(trip.shape_id)
-
+                        
                         # indicates range this schedule is in operation    
                         record['SCHED_START']    = startDate            # start date for this schedule
                         record['SCHED_END']      = endDate              # end date for this schedule    
                         
                         # track from previous record
-                        lastDepartureTime = departureTime                                    
+                        lastDepartureTime = departureTime      
+                        lastDistanceTraveled = distanceTraveled                              
                                                                                                                                     
                         data.append(record)                
                         i += 1
@@ -417,6 +471,7 @@ class GTFSHelper():
                                 suffixes=('', '_avl'), sort=True)
 
             # initialize derived fields as missing
+            joined['RUNSPEED'] = np.NaN
             joined['ARRIVAL_TIME_DEV']   = np.NaN
             joined['DEPARTURE_TIME_DEV'] = np.NaN
             joined['ONTIME2']  = np.NaN
@@ -441,16 +496,23 @@ class GTFSHelper():
                         and joined['TRIP'][i]==lastTrip): 
 
                         diff = joined['ARRIVAL_TIME'][i] - lastDepartureTime
-                        joined['RUNTIME'][i] = round(diff.seconds / 60.0, 2)
+                        runtime = round(diff.seconds / 60.0, 2)
                     else: 
-                        joined['RUNTIME'][i] = 0
+                        runtime = 0
                         
                         lastRoute = joined['ROUTE_AVL'][i]
                         lastDir = joined['DIR'][i]
                         lastTrip = joined['TRIP'][i]
-
+                        
+                    joined['RUNTIME'][i] = runtime
                     lastDepartureTime = joined['DEPARTURE_TIME'][i]
 
+                    # observed speed
+                    if runtime>0: 
+                        joined['RUNSPEED'][i] = joined['SERVMILES'][i] / (runtime / 60.0) 
+                    else: 
+                        joined['RUNSPEED'][i] = 0
+                    
             
                     # deviation from scheduled arrival
                     if joined['ARRIVAL_TIME'][i] >= joined['ARRIVAL_TIME_S'][i]: 
