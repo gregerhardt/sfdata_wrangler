@@ -129,7 +129,7 @@ class GTFSHelper():
 	['RUNTIME_S' ,        0, 0, 'gtfs'], 
 	['RUNTIME'   ,        0, 0, 'avl'], 
 	['SERVMILES' ,        0, 0, 'gtfs'], 
-	['VEHMILES',          0, 0, 'avl'],         # Distances and speeds
+	['SERVMILES_AVL',     0, 0, 'avl'],         # Distances and speeds
 	['RUNSPEED_S' ,       0, 0, 'gtfs'], 
 	['RUNSPEED'   ,       0, 0, 'calculated'], 
 	['ONTIME2'   ,        0, 0, 'calculated'], 

@@ -69,7 +69,7 @@ class SFMuniDataHelper():
 	['DELTA',          (126, 130),   'int64',   0],    # delta
 	['DOW',            (131, 132),   'int64',   0],    # day of week schedule operated: 1-weekday, 2-saturday, 3-sunday
 	['DIR',            (133, 134),   'int64',   0],   
-	['VEHMILES',       (135, 140),   'float64', 0],    # delta vehicle miles  - miles bus travels from last stop
+	['SERVMILES',       (135, 140),   'float64', 0],    # delta vehicle miles  - miles bus travels from last stop
 	['DLPMIN',         (141, 145),   'float64', 0],    # delta minutes
 	['PASSMILES',      (146, 153),   'float64', 0],    # delta passenger miles
 	['PASSHOURS',      (154, 160),   'float64', 0],    # delta passenger minutes
@@ -169,32 +169,32 @@ class SFMuniDataHelper():
 		'PATTCODE'  ,   # (305, 315) - pattern code
 		'VEHNO'     ,   # (161, 165) - bus number
 		'SCHOOL'    ,   # (329, 335) - school trip
-		'LASTTRIP'  ,   # (417, 421) - previous trip
-		'NEXTTRIP'  ,   # (422, 426) - next trip
-		'HEADWAY'   ,   #            - headway (calculated from previous trip)
+		#'LASTTRIP'  ,   # (417, 421) - previous trip
+		#'NEXTTRIP'  ,   # (422, 426) - next trip
+		#'HEADWAY'   ,   #            - headway (calculated from previous trip)
 		
 		# stop attributes
 		'STOP_AVL'  ,   # ( 10,  14) - unique stop no	
 		'STOPNAME_AVL', # ( 15,  47) - stop name	
 		'TIMEPOINT' ,   #            - flag indicating a schedule time point
-		'EOL'       ,   #            - end-of-line flag	
+		#'EOL'       ,   #            - end-of-line flag	
 		
 		# location information
 		'LAT'       ,   # ( 94, 102) - latitude
 		'LON'       ,   # (103, 112) - longitude 
-		'NS'        ,   # (289, 290) - north/south
-		'EW'        ,   # (291, 292) - east/west
-		'MAXVEL'    ,   # (293, 296) - max velocity on previous link
-		'MILES'     ,   # (113, 118) - odometer reading (miles) - cumulative, but doesn't start at zero at beginning of route
-		'GODOM'     ,   # (199, 204) - distance (GPS) - cumulative, but doesn't start at zero at beginning of route
-		'VEHMILES'  ,   # (135, 140) - delta vehicle miles - miles bus travels from last stop
+		#'NS'        ,   # (289, 290) - north/south
+		#'EW'        ,   # (291, 292) - east/west
+		#'MAXVEL'    ,   # (293, 296) - max velocity on previous link
+		#'MILES'     ,   # (113, 118) - odometer reading (miles) - cumulative, but doesn't start at zero at beginning of route
+		#'GODOM'     ,   # (199, 204) - distance (GPS) - cumulative, but doesn't start at zero at beginning of route
+		'SERVMILES'  ,   # (135, 140) - delta vehicle miles - miles bus travels from last stop
 
                 # ridership
 		'ON'        ,   # ( 55,  58) - on 
 		'OFF'       ,   # ( 59,  62) - off
 		'LOAD_ARR'  ,   #            - arriving load
 		'LOAD_DEP'  ,   # ( 63,  66) - departing load
-		'PASSMILES' ,   # (146, 153) - delta passenger miles - LOAD_ARR * VEHMILES
+		'PASSMILES' ,   # (146, 153) - delta passenger miles - LOAD_ARR * SERVMILES
 		'PASSHOURS' ,   # (154, 160) - delta passenger hours - LOAD_ARR * DLPMIN / 60 -- NOT SURE THIS IS RIGHT
 		'RDBRDNGS'  ,   # (297, 300) - rear door boardings
 		'LOADCODE'  ,   # ( 67,  67) - ADJ=*, BAL=B
@@ -205,31 +205,31 @@ class SFMuniDataHelper():
 
                 # times
 		'ARRIVAL_TIME'  ,   # ( 48,  54) - arrival time
-		'ARRIVAL_TIME_S',   # (176, 180) - schedule time
-		'ARRIVAL_TIME_DEV', # (205, 211) - schedule deviation (ARRIVAL_TIME - ARRIVAL_TIME_S) in decimal minutes
+		#'ARRIVAL_TIME_S',   # (176, 180) - schedule time
+		#'ARRIVAL_TIME_DEV', # (205, 211) - schedule deviation (ARRIVAL_TIME - ARRIVAL_TIME_S) in decimal minutes
 		'DEPARTURE_TIME' ,   # (264, 270) - departure time	
-		'DEPARTURE_TIME_S',  # (352, 356) - scheduled departure time	
-		'DEPARTURE_TIME_DEV',# (357, 363) - schedule deviation (DEPARTURE_TIME - DEPARTURE_TIME_S) in decimal minutes
-		'DWELL'     ,   # (212, 217) - dwell time (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME), zero at first and last stop
-		'DWELL_S'   ,   # (364, 368) - scheduled dwell time
-		'PULLOUT'   ,   # (345, 351) - movement time
-		'PULLDWELL' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
-		'RUNTIME'   ,   # (187, 192) - runtime from the last schedule point--ARRIVAL_TIME - DEPARTURE_TIME of previous time point. (Excludes DWELL at the time points.), in decimal minutes
-		'RUNTIME_S' ,   # (181, 186) - schedule run time from the last schedule point, in decimal minutes
-		'RECOVERY'  ,   # (375, 380) - EOL recovery time
-		'RECOVERY_S',   # (369, 374) - scheduled EOL recovery			
-		'DLPMIN'    ,   # (141, 145) - delta minutes - minutes traveled from last stop -- THIS DOESN'T SEEM TO ADD UP
-		'ONTIME2'   ,   #            - within 2 minutes of scheduled ARRIVAL_TIME
-		'ONTIME10'  ,   #            - within 10 minutes of scheduled ARRIVAL_TIME
+		#'DEPARTURE_TIME_S',  # (352, 356) - scheduled departure time	
+		#'DEPARTURE_TIME_DEV',# (357, 363) - schedule deviation (DEPARTURE_TIME - DEPARTURE_TIME_S) in decimal minutes
+		#'DWELL'     ,   # (212, 217) - dwell time (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME), zero at first and last stop
+		#'DWELL_S'   ,   # (364, 368) - scheduled dwell time
+		#'PULLOUT'   ,   # (345, 351) - movement time
+		#'PULLDWELL' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
+		#'RUNTIME'   ,   # (187, 192) - runtime from the last schedule point--ARRIVAL_TIME - DEPARTURE_TIME of previous time point. (Excludes DWELL at the time points.), in decimal minutes
+		#'RUNTIME_S' ,   # (181, 186) - schedule run time from the last schedule point, in decimal minutes
+		#'RECOVERY'  ,   # (375, 380) - EOL recovery time
+		#'RECOVERY_S',   # (369, 374) - scheduled EOL recovery			
+		#'DLPMIN'    ,   # (141, 145) - delta minutes - minutes traveled from last stop -- THIS DOESN'T SEEM TO ADD UP
+		#'ONTIME2'   ,   #            - within 2 minutes of scheduled ARRIVAL_TIME
+		#'ONTIME10'  ,   #            - within 10 minutes of scheduled ARRIVAL_TIME
 		
 		# quality control stuff
-		'QC104'     ,   # (231, 234) - GPS QC
-		'QC201'     ,   # (235, 238) - count QC
-		'AQC'       ,   # (239, 242) - assignment QC
-		'DWDI'      ,   # (316, 320) - distance traveled during dwell
-		'DELTAA'    ,   # (391, 397) - distance from stop at arrival
-		'DELTAD'    ,   # (398, 404) - distance from stop at departure
-		'DELTA'         # (126, 130) - delta
+		#'QC104'     ,   # (231, 234) - GPS QC
+		#'QC201'     ,   # (235, 238) - count QC
+		#'AQC'       ,   # (239, 242) - assignment QC
+		#'DWDI'      ,   # (316, 320) - distance traveled during dwell
+		#'DELTAA'    ,   # (391, 397) - distance from stop at arrival
+		#'DELTAD'    ,   # (398, 404) - distance from stop at departure
+		#'DELTA'         # (126, 130) - delta
 		
 		# additional identifying information (exclude unless needed)
 		#'RECORD'    ,   # (243, 244) - record type
@@ -782,8 +782,8 @@ class SFMuniDataHelper():
             ['MILES_STD'        ,'MILES'         ,'std'     ,'float64'   , 0],   
             ['GODOM'            ,'GODOM'         ,'mean'    ,'float64'   , 0],   
             ['GODOM_STD'        ,'GODOM'         ,'std'     ,'float64'   , 0],   
-            ['VEHMILES'         ,'VEHMILES'      ,'mean'    ,'float64'   , 0],   
-            ['VEHMILES_STD'     ,'VEHMILES'      ,'std'     ,'float64'   , 0],  
+            ['SERVMILES'         ,'SERVMILES'      ,'mean'    ,'float64'   , 0],   
+            ['SERVMILES_STD'     ,'SERVMILES'      ,'std'     ,'float64'   , 0],  
             ['ON'               ,'ON'            ,'mean'    ,'float64'   , 0],   
             ['ON_STD'           ,'ON'            ,'std'     ,'float64'   , 0],          # ridership
             ['OFF'              ,'OFF'           ,'mean'    ,'float64'   , 0],   
@@ -881,7 +881,7 @@ class SFMuniDataHelper():
             ['MAXVEL'           ,'MAXVEL'        ,'mean'    ,'float64'   , 0],   
             ['MILES'            ,'MILES'         ,'mean'    ,'float64'   , 0],    
             ['GODOM'            ,'GODOM'         ,'mean'    ,'float64'   , 0],   
-            ['VEHMILES'         ,'VEHMILES'      ,'sum'     ,'float64'   , 0],  
+            ['SERVMILES'         ,'SERVMILES'      ,'sum'     ,'float64'   , 0],  
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],          # ridership
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0],   
             ['LOAD_ARR'         ,'LOAD_ARR'      ,'sum'     ,'float64'   , 0],   
@@ -944,7 +944,7 @@ class SFMuniDataHelper():
    	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'    ,32],         
 	    ['SCHOOL'           ,'SCHOOL'        ,'mean'    ,'int64'     , 0], 
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
-            ['VEHMILES'         ,'VEHMILES'      ,'sum'     ,'float64'   , 0],  
+            ['SERVMILES'         ,'SERVMILES'      ,'sum'     ,'float64'   , 0],  
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],          # ridership
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0],  
             ['PASSMILES'        ,'PASSMILES'     ,'sum'     ,'float64'   , 0],   
@@ -1035,7 +1035,7 @@ class SFMuniDataHelper():
             ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],    
-            ['VEHMILES'         ,'VEHMILES'      ,'sum'     ,'float64'   , 0],  
+            ['SERVMILES'         ,'SERVMILES'      ,'sum'     ,'float64'   , 0],  
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],         # ridership
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0], 
             ['PASSMILES'        ,'PASSMILES'     ,'sum'     ,'float64'   , 0],   
