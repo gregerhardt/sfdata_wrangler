@@ -343,12 +343,12 @@ class GTFSHelper():
                         if startOfLine: 
                             serviceMiles = 0
                         else: 
-                            serviceMiles = (distanceTraveled - lastDistanceTraveled) / 1609.344
+                            serviceMiles = round((distanceTraveled - lastDistanceTraveled) / 1609.344, 3)
                         record['SERVMILES'] = serviceMiles
                             
                         # speed (mph)
                         if runtime > 0: 
-                            record['RUNSPEED_S'] = serviceMiles / (runtime / 60.0) 
+                            record['RUNSPEED_S'] = round(serviceMiles / (runtime / 60.0), 2)
                         else:
                             record['RUNSPEED_S'] = 0
                                                   
@@ -468,9 +468,10 @@ class GTFSHelper():
             # join to the gtfs data (make sure they are sorted on the join)
             gtfs   = gtfs_store.select('gtfs', where='DATE==Timestamp(date)')
             joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
-                                suffixes=('', '_avl'), sort=True)
+                                suffixes=('', '_AVL'), sort=True)
 
             # initialize derived fields as missing
+            joined['RUNTIME'] = np.NaN
             joined['RUNSPEED'] = np.NaN
             joined['ARRIVAL_TIME_DEV']   = np.NaN
             joined['DEPARTURE_TIME_DEV'] = np.NaN
@@ -509,7 +510,7 @@ class GTFSHelper():
 
                     # observed speed
                     if runtime>0: 
-                        joined['RUNSPEED'][i] = joined['SERVMILES'][i] / (runtime / 60.0) 
+                        joined['RUNSPEED'][i] = round(joined['SERVMILES'][i] / (runtime / 60.0), 2)
                     else: 
                         joined['RUNSPEED'][i] = 0
                     
@@ -545,7 +546,7 @@ class GTFSHelper():
                         joined['ONTIME10'][i] = 0
                     
                     # passenger miles traveled
-                    joined['PASSMILES'][i] = joined['LOAD_ARR'][i] * joined['VEHMILES'][i]                
+                    joined['PASSMILES'][i] = joined['LOAD_ARR'][i] * joined['SERVMILES'][i]                
                     
                     # passenger hours -- scheduled time
                     joined['PASSHOURS'][i] = (joined['LOAD_ARR'][i] * joined['RUNTIME_S'][i] 

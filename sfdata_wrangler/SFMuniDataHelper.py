@@ -99,8 +99,8 @@ class SFMuniDataHelper():
 	['UOFF',           (275, 278),   'int64',   0],    # unadjusted off
 	['CAPACITY',       (279, 283),   'int64',   0],    # capacity
 	['OVER',           (284, 288),   'int64',   0],    # 5 over cap
-	['NS',             (289, 290),   'object',  2],    # north/south
-	['EW',             (291, 292),   'object',  2],    # east/west
+	['NS',             (289, 290),   'object',  0],    # north/south
+	['EW',             (291, 292),   'object',  0],    # east/west
 	['MAXVEL',         (293, 296),   'float64', 0],    # max velocity on previous link
 	['RDBRDNGS',       (297, 301),   'int64',   0],    # rear door boardings
 	['DV',             (302, 304),   'int64',   0],    # division
@@ -210,10 +210,10 @@ class SFMuniDataHelper():
 		'DEPARTURE_TIME' ,   # (264, 270) - departure time	
 		#'DEPARTURE_TIME_S',  # (352, 356) - scheduled departure time	
 		#'DEPARTURE_TIME_DEV',# (357, 363) - schedule deviation (DEPARTURE_TIME - DEPARTURE_TIME_S) in decimal minutes
-		#'DWELL'     ,   # (212, 217) - dwell time (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME), zero at first and last stop
+		'DWELL'     ,   # (212, 217) - dwell time (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME), zero at first and last stop
 		#'DWELL_S'   ,   # (364, 368) - scheduled dwell time
-		#'PULLOUT'   ,   # (345, 351) - movement time
-		#'PULLDWELL' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
+		'PULLOUT'   ,   # (345, 351) - movement time
+		'PULLDWELL' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
 		#'RUNTIME'   ,   # (187, 192) - runtime from the last schedule point--ARRIVAL_TIME - DEPARTURE_TIME of previous time point. (Excludes DWELL at the time points.), in decimal minutes
 		#'RUNTIME_S' ,   # (181, 186) - schedule run time from the last schedule point, in decimal minutes
 		#'RECOVERY'  ,   # (375, 380) - EOL recovery time
@@ -281,7 +281,7 @@ class SFMuniDataHelper():
             colnames.append(col[0])
             colspecs.append(col[1])
             coltypes.append(col[2])
-            if (col[2]=='object'): 
+            if (col[2]=='object' and col[3]>0): 
                 stringLengths[col[0]] = col[3]
         stringLengths['TOD']              = 10
         stringLengths['AGENCY_ID']        = 10
