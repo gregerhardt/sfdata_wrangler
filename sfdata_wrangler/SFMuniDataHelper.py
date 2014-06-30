@@ -564,22 +564,13 @@ class SFMuniDataHelper():
     
     
     
-    def aggregateTransitRecords(self, hdf_infile, hdf_aggfile, inkey, outkey, 
-        columnSpecs, append):
+    def aggregateTransitRecords(self, df, columnSpecs):
         """
         Calculates monthly averages.  The counting equipment is only on about
         25% of the busses, so we need to average across multiple days (in this
         case the whole month) to account for all of the trips made on each route.
         
-        hdf_infile - HDF5 file with detailed sample data to aggregate
-
-        hdf_aggfile- HDF5 file for writing monthly averages
-
-        inkey   - key to read data from (i.e. 'sample')
-
-        outkey  - key to write out in HDFstore (i.e. 'avg_daily')
-                  This determines both the name of the dataframe written to the
-                  HDFStore, and also the days selected for averaging. 
+        df - dataframe to aggregate
 
         columnSpecs - 2-dimensional list of specifications for each column
 
@@ -602,7 +593,8 @@ class SFMuniDataHelper():
                                      method.  Will usually be 'first', 'mean', 
                                      or 'std'.  Can also be 'none' if the field
                                      is not to be aggregated, or 'groupby'
-                                     if it is one of the groupby fields. 
+                                     if it is one of the groupby fields. count will
+                                     aggregate the number of records. 
 
                           type -     the data type for the output field.  Will
                                      usually be 'int64', 'float64', 'object' or
@@ -611,8 +603,7 @@ class SFMuniDataHelper():
                           stringLength - if the type is 'object', the width
                                          of the field in characters.  Otherwise 0.
         
-        append - True/False - determines whether to append or overwrite
-                              output HDFstore                
+        returns - an aggregated dataframe, also the stringLengths to facilitate writing
         """        
 
         # convert to formats used by standard methods.  
@@ -622,7 +613,7 @@ class SFMuniDataHelper():
         stringLengths= {}
         groupby   = []
         aggMethod = {}
-        timeFields = []
+        countFields = []
         
         for col in columnSpecs:
             
@@ -639,8 +630,8 @@ class SFMuniDataHelper():
             if (dtype=='object'): 
                 stringLengths[outfield] = stringLength
 
-            # skip aggregation if none
-            if aggregation != 'none': 
+            # skip aggregation if none, or no input field
+            if aggregation != 'none' and infield != 'none': 
                 if aggregation == 'groupby': 
                     groupby.append(outfield)
                 else:     
@@ -648,85 +639,30 @@ class SFMuniDataHelper():
                         aggMethod[infield][outfield] = aggregation
                     else:
                         aggMethod[infield] = {outfield : aggregation}
+                        
+            # these fields get the count of the number of records
+            if aggregation == 'count': 
+                countFields.append(outfield)
+                                    
+        # group
+        grouped = df.groupby(groupby)
+        aggregated = grouped.aggregate(aggMethod)
             
-            # keep track of input datetime64 fields
-            if (dtype=='datetime64'):
-                timeFields.append(infield)
-            
-        # open and initialize the store
-        instore = pd.HDFStore(hdf_infile)
-        outstore = pd.HDFStore(hdf_aggfile)
+        # drop multi-level columns
+        levels = aggregated.columns.levels
+        labels = aggregated.columns.labels
+        aggregated.columns = levels[1][labels[1]]
 
-        # only append if we're calculating the daily totals
-        if not append: 
-            try: 
-                outstore.remove(outkey)
-            except KeyError: 
-                print "HDFStore does not contain object ", outkey
-        
-        # get the list of all months in data set
-        months = instore.select_column(inkey, 'MONTH').unique()
-        months.sort()
-        print 'Retrieved a total of %i months to process' % len(months)
+        # add count fields
+        for field in countFields: 
+            aggregated[field] = grouped.size()
+                                            
+        # clean up structure of dataframe
+        aggregated = aggregated.sort_index()
+        aggregated = aggregated.reset_index()     
+        aggregated = aggregated[colorder]       
 
-        # loop through the dates, and aggregate each individually
-        for month in months: 
-            print 'Processing ', month            
-
-            df = instore.select(inkey, where='MONTH==Timestamp(month)')
-            
-            # normalize times to offset from start of month
-            if 'DATE' in df:
-                for col in timeFields:
-                    if col in df: 
-                        offset = df[col] - df['DATE']
-                        df[col] = month + offset
-            
-            # group
-            grouped = df.groupby(groupby)
-            aggregated = grouped.aggregate(aggMethod)
-            
-            # drop multi-level columns
-            levels = aggregated.columns.levels
-            labels = aggregated.columns.labels
-            aggregated.columns = levels[1][labels[1]]
-            
-            # keep the month
-            aggregated['MONTH']    = month
-            
-            # measure the number of observations if needed
-            if 'NUMDAYS' not in aggMethod: 
-                aggregated['NUMDAYS'] = len(df['DATE'].unique())
-            if 'TOTTRIPS' not in aggMethod: 
-                aggregated['TOTTRIPS'] = len(df['DATE'].unique())
-            if 'OBSTRIPS' not in aggMethod: 
-                aggregated['OBSTRIPS'] = grouped.size()
-
-            # if we're aggregating by TOD, it is 'DAILY'
-            if 'TOD' not in groupby: 
-                if 'TOD' not in aggMethod:
-                    aggregated['TOD'] = 'DAILY'
-                
-            # force column types, but can't cast to datetime64, so skip those
-            for outfield in coltypes:
-                if coltypes[outfield] != 'datetime64': 
-                    if outfield in aggregated: 
-                        aggregated[outfield] = aggregated[outfield].astype(
-                            coltypes[outfield])
-                            
-            # clean up structure of dataframe
-            aggregated = aggregated.sort_index()
-            aggregated = aggregated.reset_index()     
-            aggregated = aggregated[colorder]       
-
-            # write
-            outstore.append(outkey, aggregated, data_columns=True, 
-                min_itemsize=stringLengths)
-            
-        instore.close()
-        outstore.close()
-
-        
+        return aggregated, stringLengths
 
 
     def calcMonthlyAverages(self, hdf_infile, hdf_aggfile, inkey, outkey):
@@ -749,99 +685,136 @@ class SFMuniDataHelper():
         #   output field, but it is calculated separately
         #   outfield,            infield,  aggregationMethod, type, stringLength                
         columnSpecs = [              
-            ['MONTH'            ,'none'          ,'none'    ,'datetime64', 0],         # monthly aggregations
-            ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],         # grouping fields
-            ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],         
-            ['ROUTE_AVL'        ,'ROUTE_AVL'     ,'groupby' ,'int64'     , 0], 
+            ['MONTH'            ,'MONTH'         ,'first'   ,'datetime64', 0],         # monthly aggregations   
+            ['DOW'              ,'DOW'           ,'first'   ,'int64'     , 0],
+            ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         # stats for observations
+            ['TOTTRIPS'         ,'none'          ,'count'   ,'int64'     , 0],      
+            ['OBSTRIPS'         ,'OBSERVED'      ,'sum'     ,'float64'   , 0],     
+   	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields        
+   	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','groupby','object'   ,10],         
+   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','groupby' ,'object'   ,32],  
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
             ['TRIP'             ,'TRIP'          ,'groupby' ,'int64'     , 0], 
-            ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],                  
-   	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'first'   ,'object'    ,10],          # route/trip attribute
-   	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','first' ,'object'    ,10],         
-   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'    ,32],  
-            ['PATTCODE'         ,'PATTCODE'      ,'first'   ,'object'    ,10],        
-   	    ['VEHNO'            ,'VEHNO'         ,'first'   ,'int64'     , 0],   
-	    ['SCHOOL'           ,'SCHOOL'        ,'first'   ,'int64'     , 0],   
-	    ['LASTTRIP'         ,'LASTTRIP'      ,'first'   ,'int64'     , 0],   
-            ['NEXTTRIP'         ,'NEXTTRIP'      ,'first'   ,'int64'     , 0], 
+            ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],       
+            ['ROUTE_TYPE'       ,'ROUTE_TYPE'    ,'first'   ,'int64'     , 0],         # route attributes  
+            ['TRIP_HEADSIGN'    ,'TRIP_HEADSIGN' ,'first'   ,'object'    ,32],   
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
-            ['HEADWAY_STD'      ,'HEADWAY'       ,'std'     ,'float64'   , 0],   
-            ['STOP_AVL'         ,'STOP_AVL'      ,'first'   ,'int64'     , 0],          # stop attributes
-            ['STOPNAME_AVL'     ,'STOPNAME_AVL'  ,'first'   ,'object'    ,32],   
-            ['TIMEPOINT'        ,'TIMEPOINT'     ,'first'   ,'int64'     , 0],   
+            ['FARE'             ,'FARE'          ,'mean'    ,'float64'   , 0], 
+            ['PATTCODE'         ,'PATTCODE'      ,'first'   ,'object'    ,10],  
+	    ['SCHOOL'           ,'SCHOOL'        ,'first'   ,'int64'     , 0],    
+            ['STOPNAME'         ,'STOPNAME'      ,'first'   ,'object'    ,32],         # stop attributes
+            ['STOPNAME_AVL'     ,'STOPNAME_AVL'  ,'first'   ,'object'    ,32],  
+            ['STOP_LAT'         ,'STOP_LAT'      ,'first'   ,'float64'   , 0],   
+            ['STOP_LON'         ,'STOP_LON'      ,'first'   ,'float64'   , 0],   
             ['EOL'              ,'EOL'           ,'first'   ,'int64'     , 0],   
-            ['LAT'              ,'LAT'           ,'mean'    ,'float64'   , 0],   
-            ['LAT_STD'          ,'LAT'           ,'std'     ,'float64'   , 0],          # location information
-            ['LON'              ,'LON'           ,'mean'    ,'float64'   , 0],   
-            ['LON_STD'          ,'LON'           ,'std'     ,'float64'   , 0],   
-            ['NS'               ,'NS'            ,'first'   ,'object'    , 2],       
-            ['EW'               ,'EW'            ,'first'   ,'object'    , 2],       
-            ['MAXVEL'           ,'MAXVEL'        ,'mean'    ,'float64'   , 0],   
-            ['MAXVEL_STD'       ,'MAXVEL'        ,'std'     ,'float64'   , 0],   
-            ['MILES'            ,'MILES'         ,'mean'    ,'float64'   , 0],   
-            ['MILES_STD'        ,'MILES'         ,'std'     ,'float64'   , 0],   
-            ['GODOM'            ,'GODOM'         ,'mean'    ,'float64'   , 0],   
-            ['GODOM_STD'        ,'GODOM'         ,'std'     ,'float64'   , 0],   
-            ['SERVMILES'         ,'SERVMILES'      ,'mean'    ,'float64'   , 0],   
-            ['SERVMILES_STD'     ,'SERVMILES'      ,'std'     ,'float64'   , 0],  
-            ['ON'               ,'ON'            ,'mean'    ,'float64'   , 0],   
-            ['ON_STD'           ,'ON'            ,'std'     ,'float64'   , 0],          # ridership
+            ['SOL'              ,'SOL'           ,'first'   ,'int64'     , 0],   
+            ['TIMEPOINT'        ,'TIMEPOINT'     ,'first'   ,'int64'     , 0],  
+            ['ARRIVAL_TIME_S'       ,'ARRIVAL_TIME_S'    ,self.meanTimes,'datetime64', 0],   # times   
+            ['ARRIVAL_TIME'         ,'ARRIVAL_TIME'      ,self.meanTimes,'datetime64', 0],      
+            ['ARRIVAL_TIME_DEV'     ,'ARRIVAL_TIME_DEV'  ,'mean'    ,'float64'   , 0],   
+            ['ARRIVAL_TIME_DEV_STD' ,'ARRIVAL_TIME_DEV'  ,'std'     ,'float64'   , 0],  
+            ['DEPARTURE_TIME_S'      ,'DEPARTURE_TIME_S'   ,self.meanTimes,'datetime64', 0],  
+            ['DEPARTURE_TIME'        ,'DEPARTURE_TIME'     ,self.meanTimes,'datetime64', 0],  
+            ['DEPARTURE_TIME_DEV'    ,'DEPARTURE_TIME_DEV' ,'mean'    ,'float64'   , 0],   
+            ['DEPARTURE_TIME_DEV_STD','DEPARTURE_TIME_DEV' ,'std'     ,'float64'   , 0], 
+            ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],
+            ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],   
+            ['DWELL_STD'        ,'DWELL'         ,'std'     ,'float64'   , 0],     
+            ['RUNTIME_S'        ,'RUNTIME_S'     ,'mean'    ,'float64'   , 0],
+            ['RUNTIME'          ,'RUNTIME'       ,'mean'    ,'float64'   , 0],   
+            ['RUNTIME_STD'      ,'RUNTIME'       ,'std'     ,'float64'   , 0],    
+            ['SERVMILES'        ,'SERVMILES'     ,'mean'    ,'float64'   , 0],
+            ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'mean'    ,'float64'   , 0],    
+            ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
+            ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],  
+            ['RUNSPEED_STD'     ,'RUNSPEED'      ,'std'     ,'float64'   , 0],                  
+            ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
+            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
+            ['ON'               ,'ON'            ,'mean'    ,'float64'   , 0],          # ridership   
+            ['ON_STD'           ,'ON'            ,'std'     ,'float64'   , 0],
             ['OFF'              ,'OFF'           ,'mean'    ,'float64'   , 0],   
             ['OFF_STD'          ,'OFF'           ,'std'     ,'float64'   , 0],  
             ['LOAD_ARR'         ,'LOAD_ARR'      ,'mean'    ,'float64'   , 0],   
             ['LOAD_ARR_STD'     ,'LOAD_ARR'      ,'std'     ,'float64'   , 0],  
             ['LOAD_DEP'         ,'LOAD_DEP'      ,'mean'    ,'float64'   , 0],   
-            ['LOAD_DEP_STD'     ,'LOAD_DEP'      ,'std'     ,'float64'   , 0],  
+            ['LOAD_DEP_STD'     ,'LOAD_DEP'      ,'std'     ,'float64'   , 0],             
             ['PASSMILES'        ,'PASSMILES'     ,'mean'    ,'float64'   , 0],   
             ['PASSMILES_STD'    ,'PASSMILES'     ,'std'     ,'float64'   , 0],  
             ['PASSHOURS'        ,'PASSHOURS'     ,'mean'    ,'float64'   , 0],   
             ['PASSHOURS_STD'    ,'PASSHOURS'     ,'std'     ,'float64'   , 0],  
             ['RDBRDNGS'         ,'RDBRDNGS'      ,'mean'    ,'float64'   , 0],   
             ['RDBRDNGS_STD'     ,'RDBRDNGS'      ,'std'     ,'float64'   , 0],  
-            ['LOADCODE'         ,'LOADCODE'      ,'mean'    ,'float64'   , 0],   
-            ['LOADCODE_STD'     ,'LOADCODE'      ,'std'     ,'float64'   , 0],  
             ['CAPACITY'         ,'CAPACITY'      ,'mean'    ,'float64'   , 0],   
-            ['CAPACITY_STD'     ,'CAPACITY'      ,'std'     ,'float64'   , 0],  
             ['DOORCYCLES'       ,'DOORCYCLES'    ,'mean'    ,'float64'   , 0],   
             ['DOORCYCLES_STD'   ,'DOORCYCLES'    ,'std'     ,'float64'   , 0],  
             ['WHEELCHAIR'       ,'WHEELCHAIR'    ,'mean'    ,'float64'   , 0],   
             ['WHEELCHAIR_STD'   ,'WHEELCHAIR'    ,'std'     ,'float64'   , 0],  
             ['BIKERACK'         ,'BIKERACK'      ,'mean'    ,'float64'   , 0],   
-            ['BIKERACK_STD'     ,'BIKERACK'      ,'std'     ,'float64'   , 0],   
-            ['ARRIVAL_TIME'         ,'ARRIVAL_TIME'      ,self.meanTimes,'datetime64', 0],         # times
-            ['ARRIVAL_TIME_S'       ,'ARRIVAL_TIME_S'    ,'first'   ,'datetime64', 0],            
-            ['ARRIVAL_TIME_DEV'     ,'ARRIVAL_TIME_DEV'  ,'mean'    ,'float64'   , 0],   
-            ['ARRIVAL_TIME_DEV_STD' ,'ARRIVAL_TIME_DEV'  ,'std'     ,'float64'   , 0],  
-            ['DEPARTURE_TIME'        ,'DEPARTURE_TIME'     ,self.meanTimes,'datetime64', 0],  
-            ['DEPARTURE_TIME_S'      ,'DEPARTURE_TIME_S'   ,'first'   ,'datetime64', 0],  
-            ['DEPARTURE_TIME_DEV'    ,'DEPARTURE_TIME_DEV' ,'mean'    ,'float64'   , 0],   
-            ['DEPARTURE_TIME_DEV_STD','DEPARTURE_TIME_DEV' ,'std'     ,'float64'   , 0], 
-            ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],   
-            ['DWELL_STD'        ,'DWELL'         ,'std'     ,'float64'   , 0],   
-            ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],
-            ['PULLOUT'          ,'PULLOUT'       ,self.meanTimes,'datetime64', 0],   
-            ['PULLDWELL'        ,'PULLDWELL'     ,'mean'    ,'float64'   , 0],   
-            ['PULLDWELL_STD'    ,'PULLDWELL'     ,'std'     ,'float64'   , 0],   
-            ['RUNTIME'          ,'RUNTIME'       ,'mean'    ,'float64'   , 0],   
-            ['RUNTIME_STD'      ,'RUNTIME'       ,'std'     ,'float64'   , 0],   
-            ['RUNTIME_S'        ,'RUNTIME_S'     ,'mean'    ,'float64'   , 0],     
-            ['RECOVERY'         ,'RECOVERY'      ,'mean'    ,'float64'   , 0],   
-            ['RECOVERY_STD'     ,'RECOVERY'      ,'std'     ,'float64'   , 0],    
-            ['RECOVERY_S'       ,'RECOVERY_S'    ,'mean'    ,'float64'   , 0],   
-            ['DLPMIN'           ,'DLPMIN'        ,'mean'    ,'float64'   , 0],   
-            ['DLPMIN_STD'       ,'DLPMIN'        ,'std'     ,'float64'   , 0],     
-            ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
-            ['ONTIME2_STD'      ,'ONTIME2'       ,'std'     ,'float64'   , 0],   
-            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10_STD'     ,'ONTIME10'      ,'std'     ,'float64'   , 0], 
-            ['NUMDAYS'          ,'none'          ,'none'    ,'int64'     , 0],          # stats for observations
-            ['TOTTRIPS'         ,'none'          ,'none'    ,'int64'     , 0],                  
-            ['OBSTRIPS'         ,'none'          ,'none'    ,'int64'     , 0]         
+            ['BIKERACK_STD'     ,'BIKERACK'      ,'std'     ,'float64'   , 0],  
+            ['ROUTE_ID'         ,'ROUTE_ID'      ,'first'   ,'int64'     , 0],         # additional IDs   
+            ['ROUTE_AVL'        ,'ROUTE_AVL'     ,'first'   ,'int64'     , 0],          
+            ['TRIP_ID'          ,'TRIP_ID'       ,'first'   ,'int64'     , 0],         
+            ['STOP_ID'          ,'STOP_ID'       ,'first'   ,'int64'     , 0],           
+            ['STOP_AVL'         ,'STOP_AVL'      ,'first'   ,'float64'   , 0],          
+            ['BLOCK_ID'         ,'BLOCK_ID'      ,'first'   ,'int64'     , 0],           
+            ['SHAPE_ID'         ,'SHAPE_ID'      ,'first'   ,'int64'     , 0],           
+            ['SHAPE_DIST'       ,'SHAPE_DIST'    ,'first'   ,'float64'   , 0],           
+            ['VEHNO'            ,'VEHNO'         ,'first'   ,'float64'   , 0]     
             ]
                 
-        self.aggregateTransitRecords(hdf_infile, hdf_aggfile, inkey, outkey, 
-            columnSpecs, False)
+        # open the data stores
+        instore = pd.HDFStore(hdf_infile)
+        outstore = pd.HDFStore(hdf_aggfile)
         
+        # only append if we're calculating the daily totals
+        try: 
+            outstore.remove(outkey)
+        except KeyError: 
+            print "HDFStore does not contain object ", outkey
+
+        # get the list of months and days of week to loop through
+        months = instore.select_column('expanded', 'MONTH').unique()
+        months.sort()
+        print 'Retrieved a total of %i months to process' % len(months)
+
+        daysOfWeek = instore.select_column('expanded', 'DOW').unique()
+        print 'For each month, processing %i days of week' % len(daysOfWeek)
+
+        # loop through the months, and days of week
+        for month in months: 
+            print 'Processing ', month
+            
+            for dow in daysOfWeek: 
+                dow = int(dow)
+    
+                # get a months worth of data for this day of week
+                df = instore.select(inkey, where='MONTH==Timestamp(month) & DOW==dow')
+    
+                # count the number of days in this period
+                df['NUMDAYS'] = len(df['DATE'].unique())
+                print '   Processing day of week %i with with %i unique dates.' % (
+                    dow, len(df['DATE'].unique()))
+                
+                # normalize times to offset from start of month
+                timeFields = ['ARRIVAL_TIME_S', 
+                            'ARRIVAL_TIME', 
+                            'DEPARTURE_TIME_S', 
+                            'DEPARTURE_TIME'] 
+                for col in timeFields:
+                    if col in df: 
+                        offset = df[col] - df['DATE']
+                        df[col] = month + offset
+    
+                # aggregate
+                aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecs)
+    
+                # write
+                outstore.append(outkey, aggregated, data_columns=True, 
+                    min_itemsize=stringLengths)
+                    
+        instore.close()
+        outstore.close()
+       
                 
 
     def calculateRouteStopTotals(self, hdffile, inkey, outkey):
@@ -854,6 +827,7 @@ class SFMuniDataHelper():
         outkey  - string - key for writing the aggregated dataframe to the store
                                                               
         """
+
         # specify 'groupby' as aggregation method as appropriate
         # specify 'none' as aggregation method if we want to include the 
         #   output field, but it is calculated separately
@@ -1077,19 +1051,20 @@ class SFMuniDataHelper():
 
         totSec = 0
         count = 0  # deal with missing values
-        for datetime in datetimeSeries:
-            if pd.notnull(datetime):
-                days = datetime.toordinal()
-                totSec += (24*3600*(days) + 3600*(datetime.hour) 
-                        + 60*(datetime.minute) + datetime.second) 
+        for dt in datetimeSeries:
+            if pd.notnull(dt):
+                days = dt.toordinal()
+                totSec += (24*3600*(days) + 3600*(dt.hour) 
+                        + 60*(dt.minute) + dt.second) 
                 count += 1
 
         if count==0: 
-            return datetime
-        else:                 
+            return pd.NaT
+        else:  
+                    
             meanSec = totSec / count
             days = meanSec/(24*3600)
-            date = datetime.fromordinal(days)
+            date = datetime.datetime.fromordinal(days)
             
             stringDatetime = (str(date.month) + ' ' 
                             + str(date.day) + ' ' 
@@ -1097,7 +1072,7 @@ class SFMuniDataHelper():
                             + str((meanSec/3600)%24) + ' ' 
                             + str((meanSec/60)%60) + ' '
                             + str(meanSec%60))
-            
+                   
             mean = pd.to_datetime(stringDatetime, format="%m %d %Y %H %M %S")
     
             return mean

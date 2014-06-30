@@ -569,7 +569,8 @@ class GTFSHelper():
                                             * arrivalTimeDeviation) / 60.0
                     else: 
                         joined['PASSDELAY_ARR'][i] = 0        
-                    
+                else: 
+                    joined['OBSERVED'] = 0    
                         
             # keep only relevant columns, sorted
             joined.sort(indexColumns, inplace=True)                        
