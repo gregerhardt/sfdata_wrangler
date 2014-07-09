@@ -837,6 +837,7 @@ class SFMuniDataHelper():
         # convert column specs 
         colnames = []   
         stringLengths= {}
+        dataTypes = {}
         joinFields = []
         imputedFields = []
         for col in columnSpecs: 
@@ -846,16 +847,18 @@ class SFMuniDataHelper():
             stringLength = col[3]
             
             colnames.append(name)
+            dataTypes[name] = dtype
+            
             if (stringLength>0): 
                 stringLengths[name] = stringLength
             if method=='join': 
                 joinFields.append(name)
-            if method=='imputed':
+            if method=='impute':
                 imputedFields.append(name)
         
         # if no data in sourceDf, then nothing to do
         if len(sourceDf)==0: 
-            print '  No records in source dataframe'
+            print '  Imputing month %i.  No records in source dataframe'
             return targetDf, stringLengths    
             
         # join the data
@@ -876,16 +879,23 @@ class SFMuniDataHelper():
                     successfulMatches += 1
                     
                     joined['IMPUTED'][i] = imputedIdentifier
+                    joined['IMPTRIPS'][i] = joined['OBSTRIPS_SOURCE'][i]
                     for col in imputedFields:
-                        joined[col][i] = joined[col + '_SOURCE'][i]
+                        if (dataTypes[col]=='datetime64'): 
+                            oldTime = pd.Timestamp(joined[col + '_SOURCE'][i])
+                            newTime = oldTime + pd.DateOffset(months=-imputedIdentifier)
+                            joined[col][i] = newTime
+                        else: 
+                            joined[col][i] = joined[col + '_SOURCE'][i]
             
         # keep only the relevant columns               
         result = joined[colnames]     
 
         # report some statistics
         stillMissing = missingRecords - successfulMatches
-        print '  For %i total records, started with %i missing' \
-            ' and finished with %i.' % (totalRecords, missingRecords, stillMissing)
+        print '  Imputing month %i.  For %i total records, started with '\
+               '%i missing and finished with %i.' % (
+               imputedIdentifier, totalRecords, missingRecords, stillMissing)
         
         return result, stringLengths
 
@@ -911,6 +921,7 @@ class SFMuniDataHelper():
             ['NUMDAYS'               ,'keep'    ,'int64'     , 0],         # stats for observations
             ['TOTTRIPS'              ,'keep'    ,'int64'     , 0],      
             ['OBSTRIPS'              ,'keep'    ,'float64'   , 0],   
+            ['IMPTRIPS'              ,'keep'    ,'float64'   , 0],   
             ['IMPUTED'               ,'keep'    ,'int64'     , 0],  
             ['AGENCY_ID'             ,'join'    ,'object'    ,10],         # grouping fields        
             ['ROUTE_SHORT_NAME'      ,'join'    ,'object'    ,10],         
@@ -998,10 +1009,7 @@ class SFMuniDataHelper():
 
         # loop through the months, and days of week
         for month in months: 
-            print 'Processing ', month
-            lastMonth = pd.Timestamp(month) + pd.DateOffset(months=-1)
-            nextMonth = pd.Timestamp(month) + pd.DateOffset(months=1)
-            
+            print 'Processing ', month            
             
             for dow in daysOfWeek: 
                 print ' Processing day of week ', dow
@@ -1009,17 +1017,24 @@ class SFMuniDataHelper():
     
                 # get a months worth of data for this day of week
                 df = instore.select(inkey, where='MONTH==Timestamp(month) and DOW==dow')
+                df['IMPTRIPS'] = 0
                 df['IMPUTED'] = 0
-                                
-                # try filling in missing values with data from previous month
-                # set value for IMPUTED field to -1
-                sourceDf = instore.select(inkey, where='MONTH==Timestamp(lastMonth) and DOW==dow and OBSTRIPS>=1')
-                df, stringLengths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, -1) 
                 
-                # try filling in missing values with data from next month
-                # set value for IMPUTED field to 1
-                sourceDf = instore.select(inkey, where='MONTH==Timestamp(nextMonth) and DOW==dow and OBSTRIPS>=1')
-                df, stringLegnths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, 1) 
+                # go up to two months in either direction out looking for a match
+                for i in range(1, 3): 
+
+                    lastMonth = pd.Timestamp(month) + pd.DateOffset(months=-i)
+                    nextMonth = pd.Timestamp(month) + pd.DateOffset(months=i)
+                                
+                    # try filling in missing values with data from previous month
+                    # set value for IMPUTED field to -i
+                    sourceDf = instore.select(inkey, where='MONTH==Timestamp(lastMonth) and DOW==dow and OBSTRIPS>=1')
+                    df, stringLengths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, -i) 
+                
+                    # try filling in missing values with data from next month
+                    # set value for IMPUTED field to i
+                    sourceDf = instore.select(inkey, where='MONTH==Timestamp(nextMonth) and DOW==dow and OBSTRIPS>=1')
+                    df, stringLegnths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, i) 
     
                 # write
                 outstore.append(outkey, df, data_columns=True, 
