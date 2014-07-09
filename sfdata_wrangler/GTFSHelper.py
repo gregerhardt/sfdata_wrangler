@@ -104,7 +104,7 @@ class GTFSHelper():
         ['DIR',               0, 1, 'join'], 
         ['TRIP',              0, 1, 'join'], 
         ['SEQ',               0, 1, 'join'], 
-        ['OBSERVED',          0, 1, 'avl'],         # observed in AVL data?
+        ['OBSERVED',          0, 1, 'gtfs'],        # observed in AVL data?
         ['ROUTE_TYPE',        0, 0, 'gtfs'],        # route/trip attributes 
         ['TRIP_HEADSIGN',    32, 0, 'gtfs'], 
 	['HEADWAY'   ,        0, 0, 'gtfs'], 
@@ -285,6 +285,7 @@ class GTFSHelper():
                         record['DATE'] = startDate
                         record['DOW']  = int(trip.service_id)
                         record['TOD']  = timeOfDay
+                        record['OBSERVED'] = 0
         
                         # For matching to AVL data
                         record['AGENCY_ID']        = str(route.agency_id)

@@ -788,13 +788,17 @@ class SFMuniDataHelper():
                 dow = int(dow)
     
                 # get a months worth of data for this day of week
-                df = instore.select(inkey, where='MONTH==Timestamp(month) & DOW==dow')
+                df = instore.select(inkey, where='MONTH==Timestamp(month) and DOW==dow')
     
                 # count the number of days in this period
                 df['NUMDAYS'] = len(df['DATE'].unique())
                 print '   Processing day of week %i with with %i unique dates.' % (
                     dow, len(df['DATE'].unique()))
-                
+
+
+                # replace missing values with zeros as appropriate
+                df['OBSERVED'] = df['OBSERVED'].fillna(value=0)                
+                                                
                 # normalize times to offset from start of month
                 timeFields = ['ARRIVAL_TIME_S', 
                             'ARRIVAL_TIME', 
@@ -815,7 +819,214 @@ class SFMuniDataHelper():
         instore.close()
         outstore.close()
        
+    def imputeMissingRecordValues(self, targetDf, sourceDf, columnSpecs, imputedIdentifier):
+        """
+        Fill missing values in targetDf, with matching values from sourceDf. 
+        
+        targetDf - dataframe with missing values we want to fill in (will be overwritten)
+        sourceDf - dataframe with same specification, but values to draw from
+        columnSpecs - where to get each column from.  Can be: 
+                      'join' if it is an index field to join between two data sets
+                      'keep' if to keep value from targetDf
+                      'impute' if to take value from sourceDf
+        imputedIdentifier - integer used to fill field 'IMPUTED'
+        
+        Overwrites same datastore.  
+        """
+        
+        # convert column specs 
+        colnames = []   
+        stringLengths= {}
+        joinFields = []
+        imputedFields = []
+        for col in columnSpecs: 
+            name = col[0]
+            method = col[1]
+            dtype = col[2]
+            stringLength = col[3]
+            
+            colnames.append(name)
+            if (stringLength>0): 
+                stringLengths[name] = stringLength
+            if method=='join': 
+                joinFields.append(name)
+            if method=='imputed':
+                imputedFields.append(name)
+        
+        # if no data in sourceDf, then nothing to do
+        if len(sourceDf)==0: 
+            print '  No records in source dataframe'
+            return targetDf, stringLengths    
+            
+        # join the data
+        joined = pd.merge(targetDf, sourceDf, how='left', on=joinFields, 
+                                suffixes=('', '_SOURCE'), sort=True)
+        
+        # select the records with missing data, and fill in as appropriate
+        totalRecords = 0
+        missingRecords = 0
+        successfulMatches = 0 
+        for i, row in joined.iterrows():
+            totalRecords += 1
+                 
+            if (joined['OBSTRIPS'][i]==0 and joined['IMPUTED'][i]==0):
+                missingRecords += 1
                 
+                if (joined['OBSTRIPS_SOURCE'][i]>0):
+                    successfulMatches += 1
+                    
+                    joined['IMPUTED'][i] = imputedIdentifier
+                    for col in imputedFields:
+                        joined[col][i] = joined[col + '_SOURCE'][i]
+            
+        # keep only the relevant columns               
+        result = joined[colnames]     
+
+        # report some statistics
+        stillMissing = missingRecords - successfulMatches
+        print '  For %i total records, started with %i missing' \
+            ' and finished with %i.' % (totalRecords, missingRecords, stillMissing)
+        
+        return result, stringLengths
+
+
+    def imputeMissingValuesByMonth(self, hdf_infile, hdf_outfile, inkey, outkey):
+        """
+        For each month in the monthly average data frame, looks to imput missing
+        values based on the same trip occurring the month before or the month after.
+        
+        hdffile - HDF5 file with data store
+        key - name of key with monthly average data
+        
+        Overwrites same datastore.  
+        """
+        
+        # specify method as 'join' if it is a field to join on with the previous or next month.  
+        # specify method as 'keep' to keep value from current month
+        # specify as 'impute' to impute value from previous or next month
+        #        #   outfield,            method, type, stringLength                
+        columnSpecs = [         
+            ['MONTH'                 ,'keep'    ,'datetime64', 0],         # monthly aggregations   
+            ['DOW'                   ,'keep'    ,'int64'     , 0],
+            ['NUMDAYS'               ,'keep'    ,'int64'     , 0],         # stats for observations
+            ['TOTTRIPS'              ,'keep'    ,'int64'     , 0],      
+            ['OBSTRIPS'              ,'keep'    ,'float64'   , 0],   
+            ['IMPUTED'               ,'keep'    ,'int64'     , 0],  
+            ['AGENCY_ID'             ,'join'    ,'object'    ,10],         # grouping fields        
+            ['ROUTE_SHORT_NAME'      ,'join'    ,'object'    ,10],         
+            ['ROUTE_LONG_NAME'       ,'join'    ,'object'    ,32],  
+            ['DIR'                   ,'join'    ,'int64'     , 0], 
+            ['TRIP'                  ,'join'    ,'int64'     , 0], 
+            ['SEQ'                   ,'join'    ,'int64'     , 0],       
+            ['ROUTE_TYPE'            ,'keep'    ,'int64'     , 0],         # route attributes  
+            ['TRIP_HEADSIGN'         ,'keep'    ,'object'    ,32],   
+            ['HEADWAY'               ,'keep'    ,'float64'   , 0],   
+            ['FARE'                  ,'keep'    ,'float64'   , 0], 
+            ['PATTCODE'              ,'impute'  ,'object'    ,10],  
+            ['SCHOOL'                ,'impute'  ,'int64'     , 0],    
+            ['STOPNAME'              ,'keep'    ,'object'    ,32],         # stop attributes
+            ['STOPNAME_AVL'          ,'impute'  ,'object'    ,32],  
+            ['STOP_LAT'              ,'keep'    ,'float64'   , 0],   
+            ['STOP_LON'              ,'keep'    ,'float64'   , 0],   
+            ['EOL'                   ,'keep'    ,'int64'     , 0],   
+            ['SOL'                   ,'keep'    ,'int64'     , 0],   
+            ['TIMEPOINT'             ,'impute'  ,'int64'     , 0],  
+            ['ARRIVAL_TIME_S'        ,'impute'  ,'datetime64',0],         # times   
+            ['ARRIVAL_TIME'          ,'impute'  ,'datetime64',0],      
+            ['ARRIVAL_TIME_DEV'      ,'impute'  ,'float64'  , 0],   
+            ['ARRIVAL_TIME_DEV_STD'  ,'impute'  ,'float64'   , 0],  
+            ['DEPARTURE_TIME_S'      ,'impute'  ,'datetime64', 0],  
+            ['DEPARTURE_TIME'        ,'impute'  ,'datetime64', 0],  
+            ['DEPARTURE_TIME_DEV'    ,'impute'  ,'float64'   , 0],   
+            ['DEPARTURE_TIME_DEV_STD','impute'  ,'float64'   , 0], 
+            ['DWELL_S'               ,'keep'    ,'float64'   , 0],
+            ['DWELL'                 ,'impute'  ,'float64'   , 0],   
+            ['DWELL_STD'             ,'impute'  ,'float64'   , 0],     
+            ['RUNTIME_S'             ,'keep'    ,'float64'   , 0],
+            ['RUNTIME'               ,'impute'  ,'float64'   , 0],   
+            ['RUNTIME_STD'           ,'impute'  ,'float64'   , 0],    
+            ['SERVMILES'             ,'keep'    ,'float64'   , 0],
+            ['SERVMILES_AVL'         ,'impute'  ,'float64'   , 0],    
+            ['RUNSPEED_S'            ,'keep'    ,'float64'   , 0],
+            ['RUNSPEED'              ,'impute'  ,'float64'   , 0],  
+            ['RUNSPEED_STD'          ,'impute'  ,'float64'   , 0],                  
+            ['ONTIME2'               ,'impute'  ,'float64'   , 0],   
+            ['ONTIME10'              ,'impute'  ,'float64'   , 0],              
+            ['ON'                    ,'impute'  ,'float64'   , 0],          # ridership   
+            ['ON_STD'                ,'impute'  ,'float64'   , 0],
+            ['OFF'                   ,'impute'  ,'float64'   , 0],   
+            ['OFF_STD'               ,'impute'  ,'float64'   , 0],  
+            ['LOAD_ARR'              ,'impute'  ,'float64'   , 0],   
+            ['LOAD_ARR_STD'          ,'impute'  ,'float64'   , 0],  
+            ['LOAD_DEP'              ,'impute'  ,'float64'   , 0],   
+            ['LOAD_DEP_STD'          ,'impute'  ,'float64'   , 0],             
+            ['PASSMILES'             ,'impute'  ,'float64'   , 0],   
+            ['PASSMILES_STD'         ,'impute'  ,'float64'   , 0],  
+            ['PASSHOURS'             ,'impute'  ,'float64'   , 0],   
+            ['PASSHOURS_STD'         ,'impute'  ,'float64'   , 0],  
+            ['RDBRDNGS'              ,'impute'  ,'float64'   , 0],   
+            ['RDBRDNGS_STD'          ,'impute'  ,'float64'   , 0],  
+            ['CAPACITY'              ,'impute'  ,'float64'   , 0],   
+            ['DOORCYCLES'            ,'impute'  ,'float64'   , 0],   
+            ['DOORCYCLES_STD'        ,'impute'  ,'float64'   , 0],  
+            ['WHEELCHAIR'            ,'impute'  ,'float64'   , 0],   
+            ['WHEELCHAIR_STD'        ,'impute'  ,'float64'   , 0],  
+            ['BIKERACK'              ,'impute'  ,'float64'   , 0],   
+            ['BIKERACK_STD'          ,'impute'  ,'float64'   , 0],  
+            ['ROUTE_ID'              ,'keep'    ,'int64'     , 0],         # additional IDs   
+            ['ROUTE_AVL'             ,'impute'  ,'int64'     , 0],          
+            ['TRIP_ID'               ,'keep'    ,'int64'     , 0],         
+            ['STOP_ID'               ,'keep'    ,'int64'     , 0],           
+            ['STOP_AVL'              ,'impute'  ,'float64'   , 0],          
+            ['BLOCK_ID'              ,'keep'    ,'int64'     , 0],           
+            ['SHAPE_ID'              ,'keep'    ,'int64'     , 0],           
+            ['SHAPE_DIST'            ,'keep'    ,'float64'   , 0],           
+            ['VEHNO'                 ,'impute'  ,'float64'   , 0]     
+            ]
+              
+        # open the data stores
+        instore = pd.HDFStore(hdf_infile)        
+        outstore = pd.HDFStore(hdf_outfile)       
+
+        # get the list of months and days of week to loop through
+        months = instore.select_column('average', 'MONTH').unique()
+        months.sort()
+        print 'Retrieved a total of %i months to process' % len(months)
+
+        daysOfWeek = instore.select_column('average', 'DOW').unique()
+        print 'For each month, processing %i days of week' % len(daysOfWeek)
+
+        # loop through the months, and days of week
+        for month in months: 
+            print 'Processing ', month
+            lastMonth = pd.Timestamp(month) + pd.DateOffset(months=-1)
+            nextMonth = pd.Timestamp(month) + pd.DateOffset(months=1)
+            
+            
+            for dow in daysOfWeek: 
+                print ' Processing day of week ', dow
+                dow = int(dow)
+    
+                # get a months worth of data for this day of week
+                df = instore.select(inkey, where='MONTH==Timestamp(month) and DOW==dow')
+                df['IMPUTED'] = 0
+                                
+                # try filling in missing values with data from previous month
+                # set value for IMPUTED field to -1
+                sourceDf = instore.select(inkey, where='MONTH==Timestamp(lastMonth) and DOW==dow and OBSTRIPS>=1')
+                df, stringLengths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, -1) 
+                
+                # try filling in missing values with data from next month
+                # set value for IMPUTED field to 1
+                sourceDf = instore.select(inkey, where='MONTH==Timestamp(nextMonth) and DOW==dow and OBSTRIPS>=1')
+                df, stringLegnths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, 1) 
+    
+                # write
+                outstore.append(outkey, df, data_columns=True, 
+                    min_itemsize=stringLengths)
+                    
+        instore.close()
+                    
 
     def calculateRouteStopTotals(self, hdffile, inkey, outkey):
         """

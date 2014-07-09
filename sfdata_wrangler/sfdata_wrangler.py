@@ -115,19 +115,22 @@ if __name__ == "__main__":
     joined_outfile = "C:/CASA/DataExploration/transit_expanded.h5"
     
     sfmuni_aggfile = "C:/CASA/DataExploration/sfmuni_aggregate.h5"
+
+    imputed_outfile = "C:/CASA/DataExploration/sfmuni_imputed.h5"
     
 
-    processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
-    processGTFS(gtfs_outfile)
-    joinGTFSandSFMuniData(gtfs_outfile, sfmuni_outfile, joined_outfile)
+    #processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
+    #processGTFS(gtfs_outfile)
+    #joinGTFSandSFMuniData(gtfs_outfile, sfmuni_outfile, joined_outfile)
 
     startTime = datetime.datetime.now()   
     print 'Started aggregating data at ', startTime
     
     # calculate monthly averages
     sfmuniHelper = SFMuniDataHelper()
-    sfmuniHelper.calcMonthlyAverages(joined_outfile, sfmuni_aggfile, 'expanded', 'average')
-
+    #sfmuniHelper.calcMonthlyAverages(joined_outfile, sfmuni_aggfile, 'expanded', 'average')
+    sfmuniHelper.imputeMissingValuesByMonth(sfmuni_aggfile, imputed_outfile, 'average', 'df')
+    
     # aggregate trips into daily totals        
     #sfmuniHelper.calculateRouteStopTotals(aggfile, 'average',  'route_stops')
 
