@@ -97,7 +97,7 @@ class GTFSHelper():
 	['MONTH',             0, 0, 'gtfs'],        # Calendar attributes
 	['DATE',              0, 1, 'gtfs'],  
         ['DOW',               0, 1, 'gtfs'], 
-        ['TOD',               0, 0, 'gtfs'],
+        ['TOD',              10, 1, 'gtfs'],
         ['AGENCY_ID',        10, 0, 'join'],        # for matching to AVL data
         ['ROUTE_SHORT_NAME', 32, 1, 'join'], 
         ['ROUTE_LONG_NAME',  32, 1, 'join'], 
@@ -148,6 +148,9 @@ class GTFSHelper():
 	['DOORCYCLES',        0, 0, 'avl'], 
 	['WHEELCHAIR',        0, 0, 'avl'], 
 	['BIKERACK'  ,        0, 0, 'avl'], 	
+	['VC' ,               0, 0, 'calculated'],   # crowding
+	['CROWDED',           0, 0, 'calculated'], 
+	['CROWDHOURS',        0, 0, 'calculated'], 
         ['ROUTE_ID',          0, 0, 'gtfs'],  # additional IDs 
         ['ROUTE_AVL',         0, 0, 'avl'],   
         ['TRIP_ID',           0, 0, 'gtfs'], 
@@ -483,6 +486,9 @@ class GTFSHelper():
             joined['WAITHOURS']   = np.NaN
             joined['PASSDELAY_DEP'] = np.NaN
             joined['PASSDELAY_ARR'] = np.NaN
+            joined['VC'] = np.NaN
+            joined['CROWDED'] = np.NaN
+            joined['CROWDHOURS'] = np.NaN
 
             # calculate derived fields, in overlapping frames           
             lastRoute = 0
@@ -570,6 +576,19 @@ class GTFSHelper():
                                             * arrivalTimeDeviation) / 60.0
                     else: 
                         joined['PASSDELAY_ARR'][i] = 0        
+                    
+                    # volume-capacity ratio
+                    joined['VC'][i] = joined['LOAD_ARR'][i] / joined['CAPACITY'][i]    
+                    
+                    # croweded if VC>1
+                    if (joined['VC'][i] > 1.0):
+                        joined['CROWDED'][i] = 1.0
+                    else: 
+                        joined['CROWDED'][i] = 0.0
+                        
+                    joined['CROWDHOURS'] = joined['CROWDED'] * joined['PASSHOURS']
+                        
+                        
                 else: 
                     joined['OBSERVED'] = 0    
                         

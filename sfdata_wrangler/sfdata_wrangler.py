@@ -120,28 +120,28 @@ if __name__ == "__main__":
     
 
     #processSFMuniData(sfmuni_outfile, sfmuni_aggfile, route_equiv)
-    #processGTFS(gtfs_outfile)
+    processGTFS(gtfs_outfile)
     #joinGTFSandSFMuniData(gtfs_outfile, sfmuni_outfile, joined_outfile)
 
     startTime = datetime.datetime.now()   
     print 'Started aggregating data at ', startTime
     
-    # calculate monthly averages
-    sfmuniHelper = SFMuniDataHelper()
-    #sfmuniHelper.calcMonthlyAverages(joined_outfile, sfmuni_aggfile, 'expanded', 'average')
-    sfmuniHelper.imputeMissingValuesByMonth(sfmuni_aggfile, imputed_outfile, 'average', 'df')
+    # create the helper object
+    #sfmuniHelper = SFMuniDataHelper()
     
-    # aggregate trips into daily totals        
-    #sfmuniHelper.calculateRouteStopTotals(aggfile, 'average',  'route_stops')
-
-    # sum route totals
-    #sfmuniHelper.calculateRouteTotals(aggfile, 'route_stops',  'routes')     
+    # calculate monthly averages, and aggregate the unweighted data
+    #sfmuniHelper.calcMonthlyAverages(joined_outfile, sfmuni_aggfile, 'expanded', 'df')
+    #sfmuniHelper.calculateRouteStopTotals(sfmuni_aggfile, 'df',  'route_stops')
+    #sfmuniHelper.calculateRouteTotals(sfmuni_aggfile, 'route_stops',  'routes')  
+    #sfmuniHelper.calculateStopTotals(sfmuni_aggfile, 'route_stops',  'stops')
+    #sfmuniHelper.calculateSystemTotals(sfmuni_aggfile, 'route_stops',  'system')
     
-    # sum stop totals    
-    #sfmuniHelper.calculateStopTotals(aggfile, 'route_stops',  'stops')
-    
-    # sum system totals    
-    #sfmuniHelper.calculateSystemTotals(aggfile, 'route_stops',  'system')
+    # impute the data, and add weights.  Calculate new aggregations. 
+    #sfmuniHelper.imputeMissingValuesByMonth(sfmuni_aggfile, imputed_outfile, 'average', 'df')
+    #sfmuniHelper.calculateRouteStopTotals(imputed_outfile, 'route_stops',  'route_stops')
+    #sfmuniHelper.calculateRouteTotals(imputed_outfile, 'route_stops',  'routes')  
+    #sfmuniHelper.calculateStopTotals(imputed_outfile, 'route_stops',  'stops')
+    #sfmuniHelper.calculateSystemTotals(imputed_outfile, 'route_stops',  'system')
         
     aggregatedTime = datetime.datetime.now()
     print 'Finished aggregating SFMuni data in ', (aggregatedTime - startTime) 
