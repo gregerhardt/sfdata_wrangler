@@ -469,8 +469,10 @@ class GTFSHelper():
             sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
             sfmuni['OBSERVED'] = 1
             
-            # join to the gtfs data (make sure they are sorted on the join)
-            gtfs   = gtfs_store.select('gtfs', where='DATE==Timestamp(date)')
+            # get the GTFS data
+            gtfs   = gtfs_store.select('gtfs', where='DATE==Timestamp(date)')    
+            
+            # join 
             joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
                                 suffixes=('', '_AVL'), sort=True)
 
@@ -496,7 +498,8 @@ class GTFSHelper():
             lastTrip = 0
             lastDepartureTime = 0
             for i, row in joined.iterrows():
-                if joined['OBSERVED'][i] == 1: 
+                if joined['OBSERVED_AVL'][i] == 1: 
+                    joined['OBSERVED'][i] = 1
                     
                     # observed runtime
                     if (joined['ROUTE_AVL'][i]==lastRoute 
@@ -586,12 +589,9 @@ class GTFSHelper():
                     else: 
                         joined['CROWDED'][i] = 0.0
                         
-                    joined['CROWDHOURS'] = joined['CROWDED'] * joined['PASSHOURS']
+                    joined['CROWDHOURS'][i] = joined['CROWDED'][i] * joined['PASSHOURS'][i]
                         
-                        
-                else: 
-                    joined['OBSERVED'] = 0    
-                        
+                                                
             # keep only relevant columns, sorted
             joined.sort(indexColumns, inplace=True)                        
             joined = joined[colnames]

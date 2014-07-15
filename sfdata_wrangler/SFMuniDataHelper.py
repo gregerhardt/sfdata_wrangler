@@ -721,12 +721,12 @@ class SFMuniDataHelper():
         columnSpecs = [              
             ['MONTH'            ,'MONTH'         ,'first'   ,'datetime64', 0],         # monthly aggregations   
             ['DOW'              ,'DOW'           ,'first'   ,'int64'     , 0],
-            ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],
+            ['TOD'              ,'TOD'           ,'first'   ,'object'    ,10],
             ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         # stats for observations
             ['TOTTRIPS'         ,'none'          ,'count'   ,'int64'     , 0],      
             ['OBSTRIPS'         ,'OBSERVED'      ,'sum'     ,'float64'   , 0],   
-            ['IMPTRIPS'         ,'none'          ,'none'    ,'float64'   , 0],    
-            ['WEIGHT'           ,'none'          ,'none'    ,'float64'   , 0],   
+            ['IMPTRIPS'         ,'IMPTRIPS'      ,'sum'     ,'float64'   , 0],    
+            ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0],   
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields        
    	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','groupby','object'   ,10],         
    	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','groupby' ,'object'   ,32],  
@@ -734,7 +734,7 @@ class SFMuniDataHelper():
             ['TRIP'             ,'TRIP'          ,'groupby' ,'int64'     , 0], 
             ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],       
             ['ROUTE_TYPE'       ,'ROUTE_TYPE'    ,'first'   ,'int64'     , 0],         # route attributes  
-            ['TRIP_HEADSIGN'    ,'TRIP_HEADSIGN' ,'first'   ,'object'    ,32],   
+            ['TRIP_HEADSIGN'    ,'TRIP_HEADSIGN' ,'first'   ,'object'    ,64],   
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
             ['FARE'             ,'FARE'          ,'mean'    ,'float64'   , 0], 
             ['PATTCODE'         ,'PATTCODE'      ,'first'   ,'object'    ,10],  
@@ -825,49 +825,50 @@ class SFMuniDataHelper():
 
         daysOfWeek = instore.select_column('expanded', 'DOW').unique()
         print 'For each month, processing %i days of week' % len(daysOfWeek)
-
+        
+        timesOfDay = instore.select_column('expanded', 'TOD').unique()
+        print 'For each month, processing %i times of day' % len(timesOfDay)
+        
         # loop through the months, and days of week
         for month in months: 
             print 'Processing ', month
             
             for dow in daysOfWeek: 
                 dow = int(dow)
-    
-                # get a months worth of data for this day of week
-                df = instore.select(inkey, where='MONTH==Timestamp(month) and DOW==dow')
-    
-                # count the number of days in this period
-                df['NUMDAYS'] = len(df['DATE'].unique())
-                print '   Processing day of week %i with with %i unique dates.' % (
-                    dow, len(df['DATE'].unique()))
-
-
-                # replace missing values with zeros as appropriate
-                df['OBSERVED'] = df['OBSERVED'].fillna(value=0)                
-
-                # nothing is imputed, and weights are all 1                                                
-                df['IMPTRIPS'] = 0
-                df['WEIGHT'] = 1.0
-
-                # normalize times to offset from start of month
-                timeFields = ['ARRIVAL_TIME_S', 
-                            'ARRIVAL_TIME', 
-                            'DEPARTURE_TIME_S', 
-                            'DEPARTURE_TIME'] 
-                for col in timeFields:
-                    if col in df: 
-                        offset = df[col] - df['DATE']
-                        df[col] = month + offset
-    
-                # aggregate
-                aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecs)
                 
-                # update speeds
-                aggregated = self.updateSpeeds(aggregated)
+                for tod in timesOfDay: 
+        
+                    # get a months worth of data for this day of week
+                    df = instore.select(inkey, where='MONTH==Timestamp(month) and DOW==dow and TOD=tod')
+        
+                    # count the number of days in this period
+                    df['NUMDAYS'] = len(df['DATE'].unique())
+                    print '   Processing day of week %i, and time of day %s with with %i unique dates.' % (
+                        dow, tod, len(df['DATE'].unique()))
     
-                # write
-                outstore.append(outkey, aggregated, data_columns=True, 
-                    min_itemsize=stringLengths)
+                    # nothing is imputed, and weights are all 1                                                
+                    df['IMPTRIPS'] = 0
+                    df['WEIGHT'] = 1.0
+    
+                    # normalize times to offset from start of month
+                    timeFields = ['ARRIVAL_TIME_S', 
+                                'ARRIVAL_TIME', 
+                                'DEPARTURE_TIME_S', 
+                                'DEPARTURE_TIME'] 
+                    for col in timeFields:
+                        if col in df: 
+                            offset = df[col] - df['DATE']
+                            df[col] = month + offset
+        
+                    # aggregate
+                    aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecs)
+                    
+                    # update speeds
+                    aggregated = self.updateSpeeds(aggregated)
+        
+                    # write
+                    outstore.append(outkey, aggregated, data_columns=True, 
+                        min_itemsize=stringLengths)
                     
         instore.close()
         outstore.close()
@@ -911,7 +912,7 @@ class SFMuniDataHelper():
         
         # if no data in sourceDf, then nothing to do
         if len(sourceDf)==0: 
-            print '  Imputing month %i.  No records in source dataframe'
+            print '  Imputing month %i.  No records in source dataframe' % imputedIdentifier
             return targetDf, stringLengths    
             
         # join the data
@@ -990,7 +991,7 @@ class SFMuniDataHelper():
             ['TRIP'                  ,'join'    ,'int64'     , 0], 
             ['SEQ'                   ,'join'    ,'int64'     , 0],       
             ['ROUTE_TYPE'            ,'keep'    ,'int64'     , 0],         # route attributes  
-            ['TRIP_HEADSIGN'         ,'keep'    ,'object'    ,32],   
+            ['TRIP_HEADSIGN'         ,'keep'    ,'object'    ,64],   
             ['HEADWAY'               ,'keep'    ,'float64'   , 0],   
             ['FARE'                  ,'keep'    ,'float64'   , 0], 
             ['PATTCODE'              ,'impute'  ,'object'    ,10],  
@@ -1075,11 +1076,11 @@ class SFMuniDataHelper():
             print "HDFStore does not contain object ", outkey
 
         # get the list of months and days of week to loop through
-        months = instore.select_column('average', 'MONTH').unique()
+        months = instore.select_column(inkey, 'MONTH').unique()
         months.sort()
         print 'Retrieved a total of %i months to process' % len(months)
 
-        daysOfWeek = instore.select_column('average', 'DOW').unique()
+        daysOfWeek = instore.select_column(inkey, 'DOW').unique()
         print 'For each month, processing %i days of week' % len(daysOfWeek)
 
         # loop through the months, and days of week
@@ -1167,13 +1168,14 @@ class SFMuniDataHelper():
             ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'float64'   , 0], 
             ['IMPTRIPS'         ,'IMPTRIPS'      ,'sum'     ,'float64'   , 0], 
             ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0], 
+            ['NUMSTOPS'         ,'none'          ,'count'   ,'int64'     , 0],      
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields        
    	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','groupby','object'   ,10],         
    	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','groupby' ,'object'   ,32],  
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
             ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],       
             ['ROUTE_TYPE'       ,'ROUTE_TYPE'    ,'first'   ,'int64'     , 0],         # route attributes  
-            ['TRIP_HEADSIGN'    ,'TRIP_HEADSIGN' ,'first'   ,'object'    ,32],   
+            ['TRIP_HEADSIGN'    ,'TRIP_HEADSIGN' ,'first'   ,'object'    ,64],   
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
             ['FARE'             ,'FARE'          ,'mean'    ,'float64'   , 0], 
 	    ['SCHOOL'           ,'SCHOOL'        ,'first'   ,'int64'     , 0],    
@@ -1186,12 +1188,12 @@ class SFMuniDataHelper():
             ['TIMEPOINT'        ,'TIMEPOINT'     ,'first'   ,'int64'     , 0],     
             ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'mean','float64'  , 0],        # times 
             ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','mean','float64'  , 0],   
-            ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],
-            ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],    
-            ['RUNTIME_S'        ,'RUNTIME_S'     ,'mean'    ,'float64'   , 0],
-            ['RUNTIME'          ,'RUNTIME'       ,'mean'    ,'float64'   , 0],   
-            ['SERVMILES'        ,'SERVMILES'     ,'mean'    ,'float64'   , 0],
-            ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'mean'    ,'float64'   , 0],    
+            ['DWELL_S'          ,'DWELL_S'       ,'sum'     ,'float64'   , 0],
+            ['DWELL'            ,'DWELL'         ,'sum'     ,'float64'   , 0],    
+            ['RUNTIME_S'        ,'RUNTIME_S'     ,'sum'     ,'float64'   , 0],
+            ['RUNTIME'          ,'RUNTIME'       ,'sum'     ,'float64'   , 0],   
+            ['SERVMILES'        ,'SERVMILES'     ,'sum'     ,'float64'   , 0],
+            ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'sum'     ,'float64'   , 0],    
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                 
             ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
@@ -1288,12 +1290,13 @@ class SFMuniDataHelper():
             ['OBSTRIPS'         ,'OBSTRIPS'      ,'max'     ,'float64'   , 0], 
             ['IMPTRIPS'         ,'IMPTRIPS'      ,'max'     ,'float64'   , 0], 
             ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0], 
+            ['NUMSTOPS'         ,'NUMSTOPS'      ,'sum'     ,'int64'     , 0],   
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields        
    	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','groupby','object'   ,10],         
    	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','groupby' ,'object'   ,32],  
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0],       
             ['ROUTE_TYPE'       ,'ROUTE_TYPE'    ,'first'   ,'int64'     , 0],         # route attributes  
-            ['TRIP_HEADSIGN'    ,'TRIP_HEADSIGN' ,'first'   ,'object'    ,32],   
+            ['TRIP_HEADSIGN'    ,'TRIP_HEADSIGN' ,'first'   ,'object'    ,64],   
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
             ['FARE'             ,'FARE'          ,'mean'    ,'float64'   , 0], 
 	    ['SCHOOL'           ,'SCHOOL'        ,'first'   ,'int64'     , 0],    
@@ -1387,7 +1390,8 @@ class SFMuniDataHelper():
             ['TOTTRIPS'         ,'TOTTRIPS'      ,'sum'     ,'int64'     , 0],      
             ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'float64'   , 0], 
             ['IMPTRIPS'         ,'IMPTRIPS'      ,'sum'     ,'float64'   , 0], 
-            ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0],        
+            ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0],       
+            ['NUMSTOPS'         ,'NUMSTOPS'      ,'sum'     ,'int64'     , 0],   
             ['STOP_ID'          ,'STOP_ID'       ,'groupby' ,'int64'     , 0],         # group by stop ID        
             ['STOP_AVL'         ,'STOP_AVL'      ,'first'   ,'float64'   , 0], 
    	    ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
@@ -1402,8 +1406,8 @@ class SFMuniDataHelper():
             ['TIMEPOINT'        ,'TIMEPOINT'     ,'mean'    ,'int64'     , 0],     
             ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'mean','float64'  , 0],        # times 
             ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','mean','float64'  , 0],   
-            ['DWELL_S'          ,'DWELL_S'       ,'mean'    ,'float64'   , 0],
-            ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],                 
+            ['DWELL_S'          ,'DWELL_S'       ,'sum'     ,'float64'   , 0],
+            ['DWELL'            ,'DWELL'         ,'sum'     ,'float64'   , 0],                 
             ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
             ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],        # ridership   
@@ -1474,6 +1478,7 @@ class SFMuniDataHelper():
             ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'float64'   , 0], 
             ['IMPTRIPS'         ,'IMPTRIPS'      ,'sum'     ,'float64'   , 0], 
             ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0], 
+            ['NUMSTOPS'         ,'NUMSTOPS'      ,'sum'     ,'int64'     , 0],  
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields 
             ['HEADWAY'          ,'HEADWAY'       ,'mean'    ,'float64'   , 0],   
             ['FARE'             ,'FARE'          ,'mean'    ,'float64'   , 0], 
@@ -1596,14 +1601,14 @@ class SFMuniDataHelper():
 
         for i, row in df.iterrows():    
             if (df['RUNTIME_S'][i]>0): 
-                df['RUNSPEED_S'] = round(df['SERVMILES'] / (df['RUNTIME_S']), 2)
+                df['RUNSPEED_S'][i] = round(df['SERVMILES'][i] / (df['RUNTIME_S'][i]/60.0), 2)
             else: 
-                df['RUNSPEED_S'] = 0
+                df['RUNSPEED_S'][i] = 0
 
             if (df['RUNTIME'][i]>0): 
-                df['RUNSPEED'] = round(df['SERVMILES'] / (df['RUNTIME']), 2)
+                df['RUNSPEED'][i] = round(df['SERVMILES'][i] / (df['RUNTIME'][i]/60.0), 2)
             else: 
-                df['RUNSPEED'] = 0
+                df['RUNSPEED'][i] = 0
 
         return df
         
