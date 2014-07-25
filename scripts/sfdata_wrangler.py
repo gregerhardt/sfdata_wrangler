@@ -20,27 +20,33 @@ __license__     = """
 import sys
 import datetime
 
+sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 from SFMuniDataHelper import SFMuniDataHelper
 from GTFSHelper import GTFSHelper
 
 
 USAGE = r"""
 
- python sfdata_wrangler.py convertAVLAPC
-                           convertGTFS
-                           join
-                           aggregateUnweighted
-                           aggregateWeighted
-                             
+ python sfdata_wrangler.py [stepsToRun]
    
  e.g.
 
- python sfdata_wrangler True True True True True
-                           
+ python sfdata_wrangler convertAVLAPC convertGTFS join aggUnweighted aggWeighted
  
- Note: file names should be edited directly in this script. 
+ Notes: - steps shoudl choose from list of valid steps
+        - file names should be edited directly in this script. 
  
 """
+
+    
+# VALID STEPS-- list of allowable steps to run
+VALID_STEPS = [ 'convertAVLAPC', 
+                'convertGTFS', 
+                'join', 
+                'aggUnweighted', 
+                'aggWeighted'
+                ]    
+                
 
 # INPUT FILES--change as needed
 ROUTE_EQUIV = "C:/CASA/Data/MUNI/routeEquiv.csv"
@@ -65,8 +71,9 @@ RAW_STP_FILES =["C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
                 "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp"
                 ]
     
+# these should be ordered from old to new, and the software will fill in any gaps
 RAW_GTFS_FILES = [
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310.zip",  # 20090221 to 20090626
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310.zip",  # 20090221 to 20090626
                                                                                            # overlap of 13 days
   "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310.zip",  # 20090613 to 20091204
   "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
@@ -95,34 +102,36 @@ GTFS_OUTFILE    = "C:/CASA/DataExploration/gtfs.h5"
 JOINED_OUTFILE  = "C:/CASA/DataExploration/transit_expanded.h5"    
 SFMUNI_AGGFILE  = "C:/CASA/DataExploration/sfmuni_aggregate.h5"
 IMPUTED_AGGFILE = "C:/CASA/DataExploration/sfmuni_imputed.h5"
-    
+
 
 # main function call
 if __name__ == "__main__":
 
-    if len(sys.argv) < 6:
+    if len(sys.argv) < 2:
         print USAGE
+        print 'Valid steps include: ', VALID_STEPS
         sys.exit(2)
 
-    CONVERT_AVLAPC       = sys.argv[1]
-    CONVERT_GTFS         = sys.argv[2]
-    JOIN                 = sys.argv[3]
-    AGGREGATE_UNWEIGHTED = sys.argv[4]
-    AGGREGATE_WEIGHTED   = sys.argv[5]
+    STEPS_TO_RUN = sys.argv[1:]
+    for step in STEPS_TO_RUN: 
+        if not (step in VALID_STEPS): 
+            print step, ' is not a valid step to run'
+            print 'Valid steps include: ', VALID_STEPS
+            sys.exit(2)
     
     # create the helper
     sfmuniHelper = SFMuniDataHelper()
     sfmuniHelper.readRouteEquiv(ROUTE_EQUIV)
 
     # convert the AVL/APC data
-    if CONVERT_AVLAPC: 
+    if 'convertAVLAPC' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         for infile in RAW_STP_FILES: 
             sfmuniHelper.processRawData(infile, SFMUNI_OUTFILE)
         print 'Finished converting SFMuni data in ', (datetime.datetime.now() - startTime)
 
     # process GTFS data
-    if CONVERT_GTFS: 
+    if 'convertGTFS' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         gtfsHelper = GTFSHelper()
         for infile in RAW_GTFS_FILES: 
@@ -130,13 +139,13 @@ if __name__ == "__main__":
         print 'Finished converting GTFS in ', (datetime.datetime.now() - startTime)
 
     # join the AVL/APC data to the GTFS data
-    if JOIN: 
+    if 'join' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         gtfsHelper.joinSFMuniData(GTFS_OUTFILE, SFMUNI_OUTFILE, JOINED_OUTFILE)
         print 'Finished joining GTFS and SFMuni data in ', (datetime.datetime.now() - startTime)
         
     # calculate monthly averages, and aggregate the unweighted data
-    if AGGREGATE_UNWEIGHTED: 
+    if 'aggUnweighted' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         sfmuniHelper.calcMonthlyAverages(JOINED_OUTFILE, SFMUNI_AGGFILE, 'expanded', 'df')
         sfmuniHelper.calculateRouteStopTotals(SFMUNI_AGGFILE, 'df',  'route_stops')
@@ -146,7 +155,7 @@ if __name__ == "__main__":
         print 'Finished unweighted aggregations in ', (datetime.datetime.now() - startTime) 
     
     # impute the data, and add weights.  Calculate new aggregations. 
-    if AGGREGATE_WEIGHTED: 
+    if 'aggWeighted' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         sfmuniHelper.imputeMissingValuesByMonth(SFMUNI_AGGFILE, IMPUTED_AGGFILE, 'df', 'df')
         sfmuniHelper.calculateRouteStopTotals(IMPUTED_AGGFILE, 'df',  'route_stops')
