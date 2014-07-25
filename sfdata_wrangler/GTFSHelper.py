@@ -195,14 +195,37 @@ class GTFSHelper():
                 if index==1: 
                     indexColumns.append(name)
                         
+        # open the data store for output
+        store = pd.HDFStore(outfile)                
+        
         # establish the feed
         tfl = transitfeed.Loader(feed_path=infile)
         schedule = tfl.Load()
         
+        # adjust the start date to make sure we don't overlap with 
+        # previously written records, and also that we don't leave any gaps
+        try: 
+            existingDates = store.select_column('gtfs', 'DATE').unique()
+            newStartDate = pd.to_datetime(existingDates.max()) + pd.DateOffset(days=1)
+        except: 
+            print 'No need to check start date at start of file.'
+        dateRange = schedule.GetDateRange()
+        startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
+        if startDate != newStartDate:
+            print 'To avoid gaps and overlaps, startDate is changed to ', newStartDate 
+            dateString = ("{0:0>4}".format(newStartDate.year) + 
+                "{0:0>2}".format(newStartDate.month) + "{0:0>2}".format(newStartDate.day))
+            servicePeriods = schedule.GetServicePeriodList()
+            for period in servicePeriods:
+                period.SetStartDate(dateString)
+
         # determine the dates
         dateRange = schedule.GetDateRange()
         startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
         endDate   = pd.to_datetime(dateRange[1], format='%Y%m%d')
+
+        dateRange = schedule.GetDateRange()
+        startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
 
         # create dictionary with one dataframe for each service period
         dataframes = {}
@@ -393,9 +416,9 @@ class GTFSHelper():
             # keep one dataframe for each service period
             dataframes[period.service_id] = df
 
+
         # loop through each date, and add the appropriate service to the database
         print 'Writing data for periods from ', startDate, ' to ', endDate
-        store = pd.HDFStore(outfile)
 
         servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate)        
         for date, servicePeriods in servicePeriodsEachDate:
