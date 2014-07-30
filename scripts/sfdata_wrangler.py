@@ -31,9 +31,9 @@ USAGE = r"""
    
  e.g.
 
- python sfdata_wrangler convertAVLAPC convertGTFS join aggUnweighted aggWeighted
+ python sfdata_wrangler convertAVLAPC expand aggUnweighted aggWeighted
  
- Notes: - steps shoudl choose from list of valid steps
+ Notes: - steps should choose from list of valid steps
         - file names should be edited directly in this script. 
  
 """
@@ -41,8 +41,7 @@ USAGE = r"""
     
 # VALID STEPS-- list of allowable steps to run
 VALID_STEPS = [ 'convertAVLAPC', 
-                'convertGTFS', 
-                'join', 
+                'expand', 
                 'aggUnweighted', 
                 'aggWeighted'
                 ]    
@@ -73,7 +72,7 @@ RAW_STP_FILES =["C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
     
 # these should be ordered from old to new, and the software will fill in any gaps
 RAW_GTFS_FILES = [
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310.zip",  # 20090221 to 20090626
+  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310.zip",  # 20090221 to 20090626
                                                                                            # overlap of 13 days
   "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310.zip",  # 20090613 to 20091204
   "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
@@ -98,8 +97,7 @@ RAW_GTFS_FILES = [
 
 # OUTPUT FILES--change as needed
 SFMUNI_OUTFILE  = "C:/CASA/DataExploration/sfmuni.h5"    
-GTFS_OUTFILE    = "C:/CASA/DataExploration/gtfs.h5"    
-JOINED_OUTFILE  = "C:/CASA/DataExploration/transit_expanded.h5"    
+EXPANDED_OUTFILE= "C:/CASA/DataExploration/transit_expanded.h5"    
 SFMUNI_AGGFILE  = "C:/CASA/DataExploration/sfmuni_aggregate.h5"
 IMPUTED_AGGFILE = "C:/CASA/DataExploration/sfmuni_imputed.h5"
 
@@ -130,24 +128,18 @@ if __name__ == "__main__":
             sfmuniHelper.processRawData(infile, SFMUNI_OUTFILE)
         print 'Finished converting SFMuni data in ', (datetime.datetime.now() - startTime)
 
-    # process GTFS data
-    if 'convertGTFS' in STEPS_TO_RUN: 
+    # process GTFS data, and join AVL/APC data to it. 
+    if 'expand' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         gtfsHelper = GTFSHelper()
         for infile in RAW_GTFS_FILES: 
-            gtfsHelper.processRawData(infile, GTFS_OUTFILE)        
-        print 'Finished converting GTFS in ', (datetime.datetime.now() - startTime)
+            gtfsHelper.processRawData(infile, SFMUNI_OUTFILE, EXPANDED_OUTFILE)        
+        print 'Finished converting and joining GTFS in ', (datetime.datetime.now() - startTime)
 
-    # join the AVL/APC data to the GTFS data
-    if 'join' in STEPS_TO_RUN: 
-        startTime = datetime.datetime.now()   
-        gtfsHelper.joinSFMuniData(GTFS_OUTFILE, SFMUNI_OUTFILE, JOINED_OUTFILE)
-        print 'Finished joining GTFS and SFMuni data in ', (datetime.datetime.now() - startTime)
-        
     # calculate monthly averages, and aggregate the unweighted data
     if 'aggUnweighted' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sfmuniHelper.calcMonthlyAverages(JOINED_OUTFILE, SFMUNI_AGGFILE, 'expanded', 'df')
+        sfmuniHelper.calcMonthlyAverages(EXPANDED_OUTFILE, SFMUNI_AGGFILE, 'expanded', 'df')
         sfmuniHelper.calculateRouteStopTotals(SFMUNI_AGGFILE, 'df',  'route_stops')
         sfmuniHelper.calculateRouteTotals(SFMUNI_AGGFILE, 'route_stops',  'routes')  
         sfmuniHelper.calculateStopTotals(SFMUNI_AGGFILE, 'route_stops',  'stops')

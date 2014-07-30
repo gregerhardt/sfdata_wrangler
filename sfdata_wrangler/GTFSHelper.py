@@ -166,7 +166,7 @@ class GTFSHelper():
                 
    
 
-    def processRawData(self, infile, outfile):
+    def processRawData(self, gtfs_file, sfmuni_file, outfile):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
         This will be done for every individual day, so you get a list of 
@@ -176,7 +176,7 @@ class GTFSHelper():
         outfile - output file name in h5 format, same as AVL/APC format
         """
         
-        print datetime.datetime.now(), 'Converting raw data in file: ', infile
+        print datetime.datetime.now(), 'Converting raw data in file: ', gtfs_file
         
         # convert column specs 
         colnames = []   
@@ -195,22 +195,24 @@ class GTFSHelper():
                 if index==1: 
                     indexColumns.append(name)
                         
-        # open the data store for output
-        store = pd.HDFStore(outfile)                
+        # open the data stores
+        sfmuni_store = pd.HDFStore(sfmuni_file)
+        out_store = pd.HDFStore(outfile)                
         
         # establish the feed
-        tfl = transitfeed.Loader(feed_path=infile)
+        tfl = transitfeed.Loader(feed_path=gtfs_file)
         schedule = tfl.Load()
         
         # adjust the start date to make sure we don't overlap with 
         # previously written records, and also that we don't leave any gaps
+        dateRange = schedule.GetDateRange()
+        startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
+        newStartDate = startDate
         try: 
-            existingDates = store.select_column('gtfs', 'DATE').unique()
+            existingDates = out_store.select_column('gtfs', 'DATE').unique()
             newStartDate = pd.to_datetime(existingDates.max()) + pd.DateOffset(days=1)
         except: 
             print 'No need to check start date at start of file.'
-        dateRange = schedule.GetDateRange()
-        startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
         if startDate != newStartDate:
             print 'To avoid gaps and overlaps, startDate is changed to ', newStartDate 
             dateString = ("{0:0>4}".format(newStartDate.year) + 
@@ -426,7 +428,7 @@ class GTFSHelper():
             month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()            
             
             for period in servicePeriods: 
-                print 'Writing ', date
+                print 'Joining and writing ', date
         
                 df = dataframes[period.service_id]
                 
@@ -436,14 +438,20 @@ class GTFSHelper():
                     df['DEPARTURE_TIME_S'][i] = date + (df['DEPARTURE_TIME_S'][i] - df['DATE'][i])
                 df['DATE'] = date
                 df['MONTH'] = month
+                
+                # join the sfmuni data
+                sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
+                joined = self.joinSFMuniData(df, sfmuni)
         
-                store.append('gtfs', df, data_columns=True, 
+                # write the output
+                out_store.append('expanded', joined, data_columns=True, 
                             min_itemsize=stringLengths)
 
-        store.close()
+        sfmuni_store.close()
+        out_store.close()
 
 
-    def joinSFMuniData(self, gtfs_file, sfmuni_file, joined_outfile):
+    def joinSFMuniData(self, gtfs, sfmuni):
         """
         Left join from GTFS to SFMuni sample.        
         
@@ -473,159 +481,133 @@ class GTFSHelper():
             if source=='join': 
                 joinFields.append(name)
         
-        # establish the stores
-        gtfs_store   = pd.HDFStore(gtfs_file)
-        sfmuni_store = pd.HDFStore(sfmuni_file)
-        out_store    = pd.HDFStore(joined_outfile)
-        
-        
-        # get the list of all dates in data set
-        dates = gtfs_store.select_column('gtfs', 'DATE').unique()
-        dates.sort()
-        print 'Retrieved a total of %i dates to process' % len(dates)
 
-        # loop through the dates, and aggregate each individually
-        for date in dates: 
-            print 'Processing ', date          
+        sfmuni['OBSERVED'] = 1
 
-            # get the observed data
-            sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
-            sfmuni['OBSERVED'] = 1
-            
-            # get the GTFS data
-            gtfs   = gtfs_store.select('gtfs', where='DATE==Timestamp(date)')    
-            
-            # join 
-            joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
+        # join 
+        joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
                                 suffixes=('', '_AVL'), sort=True)
 
-            # initialize derived fields as missing
-            joined['RUNTIME'] = np.NaN
-            joined['RUNSPEED'] = np.NaN
-            joined['ARRIVAL_TIME_DEV']   = np.NaN
-            joined['DEPARTURE_TIME_DEV'] = np.NaN
-            joined['ONTIME2']  = np.NaN
-            joined['ONTIME10'] = np.NaN
-            joined['PASSMILES']   = np.NaN
-            joined['PASSHOURS']   = np.NaN
-            joined['WAITHOURS']   = np.NaN
-            joined['PASSDELAY_DEP'] = np.NaN
-            joined['PASSDELAY_ARR'] = np.NaN
-            joined['VC'] = np.NaN
-            joined['CROWDED'] = np.NaN
-            joined['CROWDHOURS'] = np.NaN
+        # initialize derived fields as missing
+        joined['RUNTIME'] = np.NaN
+        joined['RUNSPEED'] = np.NaN
+        joined['ARRIVAL_TIME_DEV']   = np.NaN
+        joined['DEPARTURE_TIME_DEV'] = np.NaN
+        joined['ONTIME2']  = np.NaN
+        joined['ONTIME10'] = np.NaN
+        joined['PASSMILES']   = np.NaN
+        joined['PASSHOURS']   = np.NaN
+        joined['WAITHOURS']   = np.NaN
+        joined['PASSDELAY_DEP'] = np.NaN
+        joined['PASSDELAY_ARR'] = np.NaN
+        joined['VC'] = np.NaN
+        joined['CROWDED'] = np.NaN
+        joined['CROWDHOURS'] = np.NaN
 
-            # calculate derived fields, in overlapping frames           
-            lastRoute = 0
-            lastDir = 0
-            lastTrip = 0
-            lastDepartureTime = 0
-            for i, row in joined.iterrows():
-                if joined['OBSERVED_AVL'][i] == 1: 
-                    joined['OBSERVED'][i] = 1
-                    
-                    # observed runtime
-                    if (joined['ROUTE_AVL'][i]==lastRoute 
-                        and joined['DIR'][i]==lastDir 
-                        and joined['TRIP'][i]==lastTrip): 
+        # calculate derived fields, in overlapping frames           
+        lastRoute = 0
+        lastDir = 0
+        lastTrip = 0
+        lastDepartureTime = 0
+        for i, row in joined.iterrows():
+            if joined['OBSERVED_AVL'][i] == 1: 
+                joined['OBSERVED'][i] = 1
+                
+                # observed runtime
+                if (joined['ROUTE_AVL'][i]==lastRoute 
+                    and joined['DIR'][i]==lastDir 
+                    and joined['TRIP'][i]==lastTrip): 
 
-                        diff = joined['ARRIVAL_TIME'][i] - lastDepartureTime
-                        runtime = round(diff.seconds / 60.0, 2)
-                    else: 
-                        runtime = 0
+                    diff = joined['ARRIVAL_TIME'][i] - lastDepartureTime
+                    runtime = round(diff.seconds / 60.0, 2)
+                else: 
+                    runtime = 0
                         
-                        lastRoute = joined['ROUTE_AVL'][i]
-                        lastDir = joined['DIR'][i]
-                        lastTrip = joined['TRIP'][i]
+                    lastRoute = joined['ROUTE_AVL'][i]
+                    lastDir = joined['DIR'][i]
+                    lastTrip = joined['TRIP'][i]
                         
-                    joined['RUNTIME'][i] = runtime
-                    lastDepartureTime = joined['DEPARTURE_TIME'][i]
+                joined['RUNTIME'][i] = runtime
+                lastDepartureTime = joined['DEPARTURE_TIME'][i]
 
-                    # observed speed
-                    if runtime>0: 
-                        joined['RUNSPEED'][i] = round(joined['SERVMILES'][i] / (runtime / 60.0), 2)
-                    else: 
-                        joined['RUNSPEED'][i] = 0
+                # observed speed
+                if runtime>0: 
+                    joined['RUNSPEED'][i] = round(joined['SERVMILES'][i] / (runtime / 60.0), 2)
+                else: 
+                    joined['RUNSPEED'][i] = 0
                     
             
-                    # deviation from scheduled arrival
-                    if joined['ARRIVAL_TIME'][i] >= joined['ARRIVAL_TIME_S'][i]: 
-                        diff = joined['ARRIVAL_TIME'][i] - joined['ARRIVAL_TIME_S'][i]
-                        arrivalTimeDeviation = round(diff.seconds / 60.0, 2)
-                    else: 
-                        diff = joined['ARRIVAL_TIME_S'][i] - joined['ARRIVAL_TIME'][i]
-                        arrivalTimeDeviation = - round(diff.seconds / 60.0, 2)                        
-                    joined['ARRIVAL_TIME_DEV'][i] = arrivalTimeDeviation
+                # deviation from scheduled arrival
+                if joined['ARRIVAL_TIME'][i] >= joined['ARRIVAL_TIME_S'][i]: 
+                    diff = joined['ARRIVAL_TIME'][i] - joined['ARRIVAL_TIME_S'][i]
+                    arrivalTimeDeviation = round(diff.seconds / 60.0, 2)
+                else: 
+                    diff = joined['ARRIVAL_TIME_S'][i] - joined['ARRIVAL_TIME'][i]
+                    arrivalTimeDeviation = - round(diff.seconds / 60.0, 2)                        
+                joined['ARRIVAL_TIME_DEV'][i] = arrivalTimeDeviation
     
-                    # deviation from scheduled departure
-                    if joined['DEPARTURE_TIME'][i] >= joined['DEPARTURE_TIME_S'][i]: 
-                        diff = joined['DEPARTURE_TIME'][i] - joined['DEPARTURE_TIME_S'][i]
-                        departureTimeDeviation = round(diff.seconds / 60.0, 2)
-                    else: 
-                        diff = joined['DEPARTURE_TIME_S'][i] - joined['DEPARTURE_TIME'][i]
-                        departureTimeDeviation = - round(diff.seconds / 60.0, 2)                        
-                    joined['DEPARTURE_TIME_DEV'][i] = departureTimeDeviation
-                    
-                    # ontime, within 2 minutes
-                    if arrivalTimeDeviation < 2: 
-                        joined['ONTIME2'][i] = 1
-                    else: 
-                        joined['ONTIME2'][i] = 0
-                    
-                    # ontime, within 10 minutes
-                    if arrivalTimeDeviation < 10: 
-                        joined['ONTIME10'][i] = 1
-                    else: 
-                        joined['ONTIME10'][i] = 0
-                    
-                    # passenger miles traveled
-                    joined['PASSMILES'][i] = joined['LOAD_ARR'][i] * joined['SERVMILES'][i]                
-                    
-                    # passenger hours -- scheduled time
-                    joined['PASSHOURS'][i] = (joined['LOAD_ARR'][i] * joined['RUNTIME_S'][i] 
-                                            + joined['LOAD_DEP'][i] * joined['DWELL_S'][i]) / 60.0
+                # deviation from scheduled departure
+                if joined['DEPARTURE_TIME'][i] >= joined['DEPARTURE_TIME_S'][i]: 
+                    diff = joined['DEPARTURE_TIME'][i] - joined['DEPARTURE_TIME_S'][i]
+                    departureTimeDeviation = round(diff.seconds / 60.0, 2)
+                else: 
+                    diff = joined['DEPARTURE_TIME_S'][i] - joined['DEPARTURE_TIME'][i]
+                    departureTimeDeviation = - round(diff.seconds / 60.0, 2)                        
+                joined['DEPARTURE_TIME_DEV'][i] = departureTimeDeviation
+                
+                # ontime, within 2 minutes
+                if arrivalTimeDeviation < 2: 
+                    joined['ONTIME2'][i] = 1
+                else: 
+                    joined['ONTIME2'][i] = 0
+                
+                # ontime, within 10 minutes
+                if arrivalTimeDeviation < 10: 
+                    joined['ONTIME10'][i] = 1
+                else: 
+                    joined['ONTIME10'][i] = 0
+                
+                # passenger miles traveled
+                joined['PASSMILES'][i] = joined['LOAD_ARR'][i] * joined['SERVMILES'][i]                
+                
+                # passenger hours -- scheduled time
+                joined['PASSHOURS'][i] = (joined['LOAD_ARR'][i] * joined['RUNTIME_S'][i] 
+                                        + joined['LOAD_DEP'][i] * joined['DWELL_S'][i]) / 60.0
                                                                                         
-                    # passenger hours of waiting time -- scheduled time
-                    joined['WAITHOURS'][i] = (joined['ON'][i] 
-                                        * 0.5 * joined['HEADWAY'][i]) / 60.0
+                # passenger hours of waiting time -- scheduled time
+                joined['WAITHOURS'][i] = (joined['ON'][i] 
+                                    * 0.5 * joined['HEADWAY'][i]) / 60.0
                     
-                    # passenger hours of delay at departure
-                    if departureTimeDeviation > 0: 
-                        joined['PASSDELAY_DEP'][i] = (joined['ON'][i] 
-                                            * departureTimeDeviation) / 60.0
-                    else: 
-                        joined['PASSDELAY_DEP'][i] = 0                    
+                # passenger hours of delay at departure
+                if departureTimeDeviation > 0: 
+                    joined['PASSDELAY_DEP'][i] = (joined['ON'][i] 
+                                        * departureTimeDeviation) / 60.0
+                else: 
+                    joined['PASSDELAY_DEP'][i] = 0                    
+                
+                # passenger hours of delay at arrival  
+                if arrivalTimeDeviation > 0: 
+                    joined['PASSDELAY_ARR'][i] = (joined['OFF'][i] 
+                                        * arrivalTimeDeviation) / 60.0
+                else: 
+                    joined['PASSDELAY_ARR'][i] = 0        
+                
+                # volume-capacity ratio
+                joined['VC'][i] = joined['LOAD_ARR'][i] / joined['CAPACITY'][i]    
+                
+                # croweded if VC>1
+                if (joined['VC'][i] > 1.0):
+                    joined['CROWDED'][i] = 1.0
+                else: 
+                    joined['CROWDED'][i] = 0.0
                     
-                    # passenger hours of delay at arrival  
-                    if arrivalTimeDeviation > 0: 
-                        joined['PASSDELAY_ARR'][i] = (joined['OFF'][i] 
-                                            * arrivalTimeDeviation) / 60.0
-                    else: 
-                        joined['PASSDELAY_ARR'][i] = 0        
-                    
-                    # volume-capacity ratio
-                    joined['VC'][i] = joined['LOAD_ARR'][i] / joined['CAPACITY'][i]    
-                    
-                    # croweded if VC>1
-                    if (joined['VC'][i] > 1.0):
-                        joined['CROWDED'][i] = 1.0
-                    else: 
-                        joined['CROWDED'][i] = 0.0
-                        
-                    joined['CROWDHOURS'][i] = joined['CROWDED'][i] * joined['PASSHOURS'][i]
+                joined['CROWDHOURS'][i] = joined['CROWDED'][i] * joined['PASSHOURS'][i]
                         
                                                 
             # keep only relevant columns, sorted
-            joined.sort(indexColumns, inplace=True)                        
-            joined = joined[colnames]
+        joined.sort(indexColumns, inplace=True)                        
+        joined = joined[colnames]
             
-            # write the data
-            out_store.append('expanded', joined, data_columns=True, 
-                            min_itemsize=stringLengths)
-            
-        # close up shop
-        gtfs_store.close()
-        sfmuni_store.close()
-        out_store.close()
+        return joined
 
     
