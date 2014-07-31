@@ -76,8 +76,8 @@ class SFMuniDataHelper():
     # number of rows to read at a time
     CHUNKSIZE = 100000
 
-    # by default, read the first 75 columns, through NEXTTRIP
-    COLUMNS_TO_READ = [i for i in range(75)]
+    # by default, read the first 62 columns, through PULLOUT_INT
+    COLUMNS_TO_READ = [i for i in range(62)]
 
     # specifies how to read in each column from raw input files
     #   columnName,        inputColumns, dataType, stringLength
@@ -186,9 +186,7 @@ class SFMuniDataHelper():
     REORDERED_COLUMNS=[  
                 # calendar attributes
 		'DATE'      ,   # ( 68,  74) - date
-		'MONTH'     ,   #            - year and month
                 'DOW'       ,   #            - day of week schedule operated: 1-weekday, 2-saturday, 3-sunday
-		'TOD'       ,   #            - aggregate time period
 		
 		# index attributes
 		'ROUTE_AVL' ,   # ( 75,  79)
@@ -203,24 +201,15 @@ class SFMuniDataHelper():
 		'PATTCODE'  ,   # (305, 315) - pattern code
 		'VEHNO'     ,   # (161, 165) - bus number
 		'SCHOOL'    ,   # (329, 335) - school trip
-		#'LASTTRIP'  ,   # (417, 421) - previous trip
-		#'NEXTTRIP'  ,   # (422, 426) - next trip
-		#'HEADWAY'   ,   #            - headway (calculated from previous trip)
 		
 		# stop attributes
 		'STOP_AVL'  ,   # ( 10,  14) - unique stop no	
 		'STOPNAME_AVL', # ( 15,  47) - stop name	
 		'TIMEPOINT' ,   #            - flag indicating a schedule time point
-		#'EOL'       ,   #            - end-of-line flag	
 		
 		# location information
 		'LAT'       ,   # ( 94, 102) - latitude
 		'LON'       ,   # (103, 112) - longitude 
-		#'NS'        ,   # (289, 290) - north/south
-		#'EW'        ,   # (291, 292) - east/west
-		#'MAXVEL'    ,   # (293, 296) - max velocity on previous link
-		#'MILES'     ,   # (113, 118) - odometer reading (miles) - cumulative, but doesn't start at zero at beginning of route
-		#'GODOM'     ,   # (199, 204) - distance (GPS) - cumulative, but doesn't start at zero at beginning of route
 		'SERVMILES'  ,   # (135, 140) - delta vehicle miles - miles bus travels from last stop
 
                 # ridership
@@ -239,44 +228,11 @@ class SFMuniDataHelper():
 
                 # times
 		'ARRIVAL_TIME'  ,   # ( 48,  54) - arrival time
-		#'ARRIVAL_TIME_S',   # (176, 180) - schedule time
-		#'ARRIVAL_TIME_DEV', # (205, 211) - schedule deviation (ARRIVAL_TIME - ARRIVAL_TIME_S) in decimal minutes
 		'DEPARTURE_TIME' ,   # (264, 270) - departure time	
-		#'DEPARTURE_TIME_S',  # (352, 356) - scheduled departure time	
-		#'DEPARTURE_TIME_DEV',# (357, 363) - schedule deviation (DEPARTURE_TIME - DEPARTURE_TIME_S) in decimal minutes
 		'DWELL'     ,   # (212, 217) - dwell time (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME), zero at first and last stop
-		#'DWELL_S'   ,   # (364, 368) - scheduled dwell time
 		'PULLOUT'   ,   # (345, 351) - movement time
 		'PULLDWELL' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
-		#'RUNTIME'   ,   # (187, 192) - runtime from the last schedule point--ARRIVAL_TIME - DEPARTURE_TIME of previous time point. (Excludes DWELL at the time points.), in decimal minutes
-		#'RUNTIME_S' ,   # (181, 186) - schedule run time from the last schedule point, in decimal minutes
-		#'RECOVERY'  ,   # (375, 380) - EOL recovery time
-		#'RECOVERY_S',   # (369, 374) - scheduled EOL recovery			
-		#'DLPMIN'    ,   # (141, 145) - delta minutes - minutes traveled from last stop -- THIS DOESN'T SEEM TO ADD UP
-		#'ONTIME2'   ,   #            - within 2 minutes of scheduled ARRIVAL_TIME
-		#'ONTIME10'  ,   #            - within 10 minutes of scheduled ARRIVAL_TIME
 		
-		# quality control stuff
-		#'QC104'     ,   # (231, 234) - GPS QC
-		#'QC201'     ,   # (235, 238) - count QC
-		#'AQC'       ,   # (239, 242) - assignment QC
-		#'DWDI'      ,   # (316, 320) - distance traveled during dwell
-		#'DELTAA'    ,   # (391, 397) - distance from stop at arrival
-		#'DELTAD'    ,   # (398, 404) - distance from stop at departure
-		#'DELTA'         # (126, 130) - delta
-		
-		# additional identifying information (exclude unless needed)
-		#'RECORD'    ,   # (243, 244) - record type
-		#'BLOCK'     ,   # ( 87,  93)    
-		#'DBNN'      ,   # (171, 175) - data batch    
-		#'TRIPID_2'  ,   # (336, 344) - long trip ID
-		#'RUN'       ,   # (321, 328) - run      
-		#'VERSN'     ,   # (258, 263) - import version
-		#'DV'        ,   # (301, 304) - division
-		#'MSFILE'    ,   # (218, 226) - sign up YYMM
-		#'MC'        ,   # (410, 412) - municipal code
-		#'DIV'       ,   # (413, 416) - division
-		#'ECNT'      ,   # (405, 409) - error count   
 		]         
 		    
     # uniquely define the records
@@ -317,7 +273,6 @@ class SFMuniDataHelper():
             coltypes.append(col[2])
             if (col[2]=='object' and col[3]>0): 
                 stringLengths[col[0]] = col[3]
-        stringLengths['TOD']              = 10
         stringLengths['AGENCY_ID']        = 10
         stringLengths['ROUTE_SHORT_NAME'] = 10
         stringLengths['ROUTE_LONG_NAME']  = 32
@@ -342,22 +297,12 @@ class SFMuniDataHelper():
         rowsWritten = 0
         for chunk in reader:   
 
-            # only for testing    
-            #if rowsRead>500000: 
-            #    break
-                        
             rowsRead    += len(chunk)
 
             # sometimes the rear-door boardings is 4 digits, in which case 
             # the remaining columns get mis-alinged
             chunk = chunk[chunk['RDBRDNGS']<1000]
             
-            # check for further data mis-alignments
-            if (chunk['NEXTTRIP'].dtype == np.dtype('int64')):
-                chunk = chunk[chunk['NEXTTRIP']!=999]
-            else:
-                chunk = chunk[(chunk['NEXTTRIP'].str.strip()).str.count(' ')==0]
-
             # because of misalinged row, it sometimes auto-detects inconsistent
             # data types, so force them as specified.  Must be in same order 
             # as above
@@ -383,12 +328,9 @@ class SFMuniDataHelper():
             # generate empty fields        
             chunk['TIMEPOINT'] = 0 
             chunk['EOL'] = 0
-            chunk['TOD'] = ''
             chunk['AGENCY_ID'] = ''
             chunk['ROUTE_SHORT_NAME'] = ''
             chunk['ROUTE_LONG_NAME'] = ''
-            chunk['ONTIME2'] = np.NaN
-            chunk['ONTIME10'] = np.NaN         
             chunk['OBSERVED'] = 1       # all records here are observed   
             
             # iterate through the rows for computed fields
@@ -398,41 +340,13 @@ class SFMuniDataHelper():
                 if (chunk['ARRIVAL_TIME_S_INT'][i] < 9999): 
                     chunk['TIMEPOINT'][i] = 1
                 
-                    # ontime performance
-                    if (chunk['ARRIVAL_TIME_DEV'][i] < 2.0): 
-                        chunk['ONTIME2'][i] = 1
-                    else: 
-                        chunk['ONTIME2'][i] = 0
-                        
-                    if (chunk['ARRIVAL_TIME_DEV'][i] < 10.0): 
-                        chunk['ONTIME10'][i] = 1
-                    else: 
-                        chunk['ONTIME10'][i] = 0
-                        
                 # identify end-of-line stops
                 chunk['EOL'][i] = str(chunk['STOPNAME_AVL'][i]).count("- EOL")            
                 
                 # exclude beginning and end of line from DWELL time
                 if ((chunk['EOL'][i] == 1) or (chunk['SEQ'][i] == 1)): 
                     chunk['DWELL'][i] = 0
-            
-                # compute TEP time periods -- need to iterate
-                if (chunk['TRIP'][i] >= 300  and chunk['TRIP'][i] < 600):  
-                    chunk['TOD'][i]='0300-0559'
-                elif (chunk['TRIP'][i] >= 600  and chunk['TRIP'][i] < 900):  
-                    chunk['TOD'][i]='0600-0859'
-                elif (chunk['TRIP'][i] >= 900  and chunk['TRIP'][i] < 1400): 
-                    chunk['TOD'][i]='0900-1359'
-                elif (chunk['TRIP'][i] >= 1400 and chunk['TRIP'][i] < 1600): 
-                    chunk['TOD'][i]='1400-1559'
-                elif (chunk['TRIP'][i] >= 1600 and chunk['TRIP'][i] < 1900): 
-                    chunk['TOD'][i]='1600-1859'
-                elif (chunk['TRIP'][i] >= 1900 and chunk['TRIP'][i] < 2200): 
-                    chunk['TOD'][i]='1900-2159'
-                elif (chunk['TRIP'][i] >= 2200 and chunk['TRIP'][i] < 9999): 
-                    chunk['TOD'][i]='2200-0259'
-                # TODO also include key for 'DAILY'
-                            
+                                        
                 # match to GTFS indices using route equivalency
                 r = chunk['ROUTE_AVL'][i]
                 try: 
@@ -446,17 +360,10 @@ class SFMuniDataHelper():
             # trick here is that the MUNI service day starts and ends at 3 am, 
             # so boardings from midnight to 3 have a service date of the day before
             chunk['DATE']        = ''
-            chunk['MONTH']       = pd.to_datetime('1900-01-01')
             chunk['ARRIVAL_TIME']    = ''
             chunk['DEPARTURE_TIME']   = ''
             chunk['PULLOUT']     = ''
-            chunk['ARRIVAL_TIME_S']  = '0101010101'
-            chunk['DEPARTURE_TIME_S'] = '0101010101'
             chunk['PULLDWELL']   = 0.0
-            chunk['HEADWAY']     = 0.0
-            chunk['TRIP_STR']    = ''
-            chunk['LASTTRIP_STR']= ''
-            chunk['NEXTTRIP_STR']= ''
     
             # convert to string formats
             for i, row in chunk.iterrows():        
@@ -477,35 +384,11 @@ class SFMuniDataHelper():
                 chunk['PULLOUT'][i] = (chunk['DATE'][i] + 
                     "{0:0>6}".format(chunk['PULLOUT_INT'][i]))               
                 
-                # schedule times only at timepoints
-                if (chunk['TIMEPOINT'][i]==1): 
-                    if (chunk['ARRIVAL_TIME_S_INT'][i] >= 2400): 
-                        chunk['ARRIVAL_TIME_S_INT'][i] = chunk['ARRIVAL_TIME_S_INT'][i] - 2400                        
-                    chunk['ARRIVAL_TIME_S'][i] = (chunk['DATE'][i] + 
-                        "{0:0>4}".format(chunk['ARRIVAL_TIME_S_INT'][i]))           
-                    if chunk['ARRIVAL_TIME_S'][i].endswith('60'): 
-                        chunk['ARRIVAL_TIME_S_INT'][i] = chunk['ARRIVAL_TIME_S_INT'][i] + 40
-                        chunk['ARRIVAL_TIME_S'][i] = (chunk['DATE'][i] + 
-                            "{0:0>4}".format(chunk['ARRIVAL_TIME_S_INT'][i])) 
-    
-                    if (chunk['DEPARTURE_TIME_S_INT'][i] >= 2400): 
-                        chunk['DEPARTURE_TIME_S_INT'][i] = chunk['DEPARTURE_TIME_S_INT'][i] - 2400
-                    chunk['DEPARTURE_TIME_S'][i] = (chunk['DATE'][i] + 
-                        "{0:0>4}".format(chunk['DEPARTURE_TIME_S_INT'][i]))          
-                    if chunk['DEPARTURE_TIME_S'][i].endswith('60'): 
-                        chunk['DEPARTURE_TIME_S_INT'][i] = chunk['DEPARTURE_TIME_S_INT'][i] + 40
-                        chunk['DEPARTURE_TIME_S'][i] = (chunk['DATE'][i] + 
-                            "{0:0>4}".format(chunk['DEPARTURE_TIME_S_INT'][i]))
-    
             # convert to timedate formats
-            chunk['DATE']   = pd.to_datetime(chunk['DATE'], format="%m%d%y")
-            
+            chunk['DATE']   = pd.to_datetime(chunk['DATE'], format="%m%d%y")            
             chunk['ARRIVAL_TIME']    = pd.to_datetime(chunk['ARRIVAL_TIME'],    format="%m%d%y%H%M%S")        
             chunk['DEPARTURE_TIME']   = pd.to_datetime(chunk['DEPARTURE_TIME'],   format="%m%d%y%H%M%S")    
             chunk['PULLOUT']     = pd.to_datetime(chunk['PULLOUT'],     format="%m%d%y%H%M%S")
-            chunk['ARRIVAL_TIME_S']  = pd.to_datetime(chunk['ARRIVAL_TIME_S'],  format="%m%d%y%H%M") 
-            chunk['DEPARTURE_TIME_S'] = pd.to_datetime(chunk['DEPARTURE_TIME_S'], format="%m%d%y%H%M")    
-
     
             # deal with offsets for midnight to 3 am
             for i, row in chunk.iterrows():       
@@ -517,45 +400,12 @@ class SFMuniDataHelper():
     
                 if (chunk['PULLOUT'][i].hour < 3): 
                     chunk['PULLOUT'][i]   = chunk['PULLOUT'][i] + pd.DateOffset(days=1)
-                
-                # schedule only valide at timepoints
-                if (chunk['TIMEPOINT'][i] == 0): 
-    
-                    chunk['ARRIVAL_TIME_S'][i]    = pd.NaT
-                    chunk['DEPARTURE_TIME_S'][i]   = pd.NaT
-                    chunk['ARRIVAL_TIME_DEV'][i]  = np.NaN
-                    chunk['DEPARTURE_TIME_DEV'][i] = np.NaN
-                    chunk['RUNTIME'][i]       = np.NaN
-                    chunk['RUNTIME_S'][i]     = np.NaN
-    
-                else:  
-                    # offsets
-                    if (chunk['ARRIVAL_TIME_S'][i].hour < 3): 
-                        chunk['ARRIVAL_TIME_S'][i] = chunk['ARRIVAL_TIME_S'][i] + pd.DateOffset(days=1)
-    
-                    if (chunk['DEPARTURE_TIME_S'][i].hour < 3): 
-                        chunk['DEPARTURE_TIME_S'][i] = chunk['DEPARTURE_TIME_S'][i] + pd.DateOffset(days=1)
-                
-                # calculate headway
-                trip = 60*(chunk['TRIP'][i] // 100.0) + (chunk['TRIP'][i] % 100.0)
-                if (chunk['LASTTRIP'][i]<9999): 
-                    lasttrip = 60*(chunk['LASTTRIP'][i] // 100.0) + (chunk['LASTTRIP'][i] % 100.0)
-                    headway = trip - lasttrip
-                else: 
-                    nexttrip = 60*(chunk['NEXTTRIP'][i] // 100.0) + (chunk['NEXTTRIP'][i] % 100.0) 
-                    headway = nexttrip - trip
-                chunk['HEADWAY'][i] = round(headway, 2)
-                    
-            
+                                            
                 # PULLDWELL = pullout dwell (time interval between door close and movement)
                 if (chunk['EOL'][i]==0):
                     pulldwell = chunk['PULLOUT'][i] - chunk['DEPARTURE_TIME'][i]
                     chunk['PULLDWELL'][i] = round(pulldwell.seconds / 60.0, 2)
                     
-                # to make it easier to look up dates    
-                chunk['MONTH'][i] = ((chunk['DATE'][i]).to_period('month')).to_timestamp()
-                              
-
             # drop duplicates (not sure why these occur) and sort
             chunk.drop_duplicates(cols=self.INDEX_COLUMNS, inplace=True) 
             chunk.sort(self.INDEX_COLUMNS, inplace=True)

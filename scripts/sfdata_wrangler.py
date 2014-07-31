@@ -40,7 +40,7 @@ USAGE = r"""
 
     
 # VALID STEPS-- list of allowable steps to run
-VALID_STEPS = [ 'convertAVLAPC', 
+VALID_STEPS = [ 'clean', 
                 'expand', 
                 'aggUnweighted', 
                 'aggWeighted'
@@ -50,54 +50,54 @@ VALID_STEPS = [ 'convertAVLAPC',
 # INPUT FILES--change as needed
 ROUTE_EQUIV = "C:/CASA/Data/MUNI/routeEquiv.csv"
 
-RAW_STP_FILES =["C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp",
+RAW_STP_FILES =[#"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp",
                 "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp",
                 "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1005.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1009.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1101.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1110.stp",    
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1201.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1203.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1206.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1209.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1212.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1306.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1308.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp"
+                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1009.stp"
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1101.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1110.stp",    
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1201.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1203.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1206.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1209.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1212.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1306.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1308.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp"
                 ]
     
 # these should be ordered from old to new, and the software will fill in any gaps
 RAW_GTFS_FILES = [
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310.zip",  # 20090221 to 20090626
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310.zip",  # 20090221 to 20090626
                                                                                            # overlap of 13 days
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310.zip",  # 20090613 to 20091204
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310.zip",  # 20090613 to 20091204
   "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
   "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100812_0223.zip",  # 20100508 to 20100903
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100908_0243.zip",  # 20100904 to 20101231
+  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100908_0243.zip"  # 20100904 to 20101231
                                                                                            # gap of 2 days
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110420_0243.zip",  # 20110122 to 20110610
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110420_0243.zip",  # 20110122 to 20110610
                                                                                            # gap of 2 days
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110910_0449.zip",  # 20110613 to 20111014
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20111210_0410.zip",  # 20111015 to 20120120
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120319_0337.zip",  # 20120121 to 20120615
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110910_0449.zip",  # 20110613 to 20111014
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20111210_0410.zip",  # 20111015 to 20120120
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120319_0337.zip",  # 20120121 to 20120615
                                                                                            # overlap of 6 days
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130302_0432.zip",  # 20120929 to 20130322
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130302_0432.zip",  # 20120929 to 20130322
                                                                                            # gap of 8 days
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip"   # 20131026 to 20140131  
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip"   # 20131026 to 20140131  
   ]
         
 
 # OUTPUT FILES--change as needed
 SFMUNI_OUTFILE  = "C:/CASA/DataExploration/sfmuni.h5"    
-EXPANDED_OUTFILE= "C:/CASA/DataExploration/transit_expanded.h5"    
+EXPANDED_OUTFILE= "C:/CASA/DataExploration/sfmuni_expanded.h5"    
 SFMUNI_AGGFILE  = "C:/CASA/DataExploration/sfmuni_aggregate.h5"
 IMPUTED_AGGFILE = "C:/CASA/DataExploration/sfmuni_imputed.h5"
 
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     sfmuniHelper.readRouteEquiv(ROUTE_EQUIV)
 
     # convert the AVL/APC data
-    if 'convertAVLAPC' in STEPS_TO_RUN: 
+    if 'clean' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         for infile in RAW_STP_FILES: 
             sfmuniHelper.processRawData(infile, SFMUNI_OUTFILE)

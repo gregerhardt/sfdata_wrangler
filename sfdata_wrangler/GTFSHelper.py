@@ -428,24 +428,27 @@ class GTFSHelper():
             month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()            
             
             for period in servicePeriods: 
-                print 'Joining and writing ', date
-        
-                df = dataframes[period.service_id]
-                
-                # update the dates
-                for i, row in df.iterrows():
-                    df['ARRIVAL_TIME_S'][i] = date + (df['ARRIVAL_TIME_S'][i] - df['DATE'][i])
-                    df['DEPARTURE_TIME_S'][i] = date + (df['DEPARTURE_TIME_S'][i] - df['DATE'][i])
-                df['DATE'] = date
-                df['MONTH'] = month
-                
-                # join the sfmuni data
+                # get the corresponding MUNI data for this date
                 sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
-                joined = self.joinSFMuniData(df, sfmuni)
-        
-                # write the output
-                out_store.append('expanded', joined, data_columns=True, 
-                            min_itemsize=stringLengths)
+                if len(sfmuni)>0: 
+                    print 'Writing ', date, ' with ', len(sfmuni), ' observed records.'
+            
+                    df = dataframes[period.service_id]
+                    
+                    # update the dates
+                    for i, row in df.iterrows():
+                        df['ARRIVAL_TIME_S'][i] = date + (df['ARRIVAL_TIME_S'][i] - df['DATE'][i])
+                        df['DEPARTURE_TIME_S'][i] = date + (df['DEPARTURE_TIME_S'][i] - df['DATE'][i])
+                    df['DATE'] = date
+                    df['MONTH'] = month
+                    
+                    # join the sfmuni data
+                    joined = self.joinSFMuniData(df, sfmuni)
+            
+    
+                    # write the output
+                    out_store.append('expanded', joined, data_columns=True, 
+                                min_itemsize=stringLengths)
 
         sfmuni_store.close()
         out_store.close()
