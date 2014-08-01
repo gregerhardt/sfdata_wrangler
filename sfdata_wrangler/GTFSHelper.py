@@ -190,10 +190,10 @@ class GTFSHelper():
             
             if source=='gtfs' or source=='join': 
                 colnames.append(name)
-                if (stringLength>0): 
-                    stringLengths[name] = stringLength
-                if index==1: 
-                    indexColumns.append(name)
+            if (stringLength>0): 
+                stringLengths[name] = stringLength
+            if index==1: 
+                indexColumns.append(name)
                         
         # open the data stores
         sfmuni_store = pd.HDFStore(sfmuni_file)
