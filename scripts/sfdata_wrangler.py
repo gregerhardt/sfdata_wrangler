@@ -156,6 +156,6 @@ if __name__ == "__main__":
         sfmuniHelper.calculateSystemTotals(IMPUTED_AGGFILE, 'route_stops',  'system')
         print 'Finished weighted aggregations in ', (datetime.datetime.now() - startTime) 
         
-    print 'Run complete!'
+    print 'Run complete!  Time for a pint!'
     
     

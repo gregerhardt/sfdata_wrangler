@@ -610,7 +610,7 @@ class SFMuniDataHelper():
             ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'mean'    ,'float64'   , 0],    
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                
-            ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
+            ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
             ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
             ['ON'               ,'ON'            ,'mean'    ,'float64'   , 0],          # ridership   
             ['OFF'              ,'OFF'           ,'mean'    ,'float64'   , 0],  
@@ -867,7 +867,7 @@ class SFMuniDataHelper():
             ['SERVMILES_AVL'         ,'impute'  ,'float64'   , 0],    
             ['RUNSPEED_S'            ,'keep'    ,'float64'   , 0],
             ['RUNSPEED'              ,'impute'  ,'float64'   , 0],                 
-            ['ONTIME2'               ,'impute'  ,'float64'   , 0],   
+            ['ONTIME4'               ,'impute'  ,'float64'   , 0],   
             ['ONTIME10'              ,'impute'  ,'float64'   , 0],       
             ['ON'                    ,'impute'  ,'float64'   , 0],          # ridership 
             ['OFF'                   ,'impute'  ,'float64'   , 0],   
@@ -1046,7 +1046,7 @@ class SFMuniDataHelper():
             ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'sum'     ,'float64'   , 0],    
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                 
-            ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
+            ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
             ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],          # ridership   
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0],   
@@ -1160,7 +1160,7 @@ class SFMuniDataHelper():
             ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'sum'     ,'float64'   , 0],    
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                 
-            ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
+            ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
             ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],          # ridership   
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0],   
@@ -1258,7 +1258,7 @@ class SFMuniDataHelper():
             ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','mean','float64'  , 0],   
             ['DWELL_S'          ,'DWELL_S'       ,'sum'     ,'float64'   , 0],
             ['DWELL'            ,'DWELL'         ,'sum'     ,'float64'   , 0],                 
-            ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
+            ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
             ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],        # ridership   
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0], 
@@ -1342,7 +1342,7 @@ class SFMuniDataHelper():
             ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'sum'     ,'float64'   , 0],    
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                 
-            ['ONTIME2'          ,'ONTIME2'       ,'mean'    ,'float64'   , 0],   
+            ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
             ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],          # ridership   
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0],           

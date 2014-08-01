@@ -132,7 +132,7 @@ class GTFSHelper():
 	['SERVMILES_AVL',     0, 0, 'avl'],         # Distances and speeds
 	['RUNSPEED_S' ,       0, 0, 'gtfs'], 
 	['RUNSPEED'   ,       0, 0, 'calculated'], 
-	['ONTIME2'   ,        0, 0, 'calculated'], 
+	['ONTIME4'   ,        0, 0, 'calculated'], 
 	['ONTIME10'  ,        0, 0, 'calculated'], 
 	['ON'        ,        0, 0, 'avl'], # ridership
 	['OFF'       ,        0, 0, 'avl'], 
@@ -496,7 +496,7 @@ class GTFSHelper():
         joined['RUNSPEED'] = np.NaN
         joined['ARRIVAL_TIME_DEV']   = np.NaN
         joined['DEPARTURE_TIME_DEV'] = np.NaN
-        joined['ONTIME2']  = np.NaN
+        joined['ONTIME4']  = np.NaN
         joined['ONTIME10'] = np.NaN
         joined['PASSMILES']   = np.NaN
         joined['PASSHOURS']   = np.NaN
@@ -558,14 +558,14 @@ class GTFSHelper():
                     departureTimeDeviation = - round(diff.seconds / 60.0, 2)                        
                 joined['DEPARTURE_TIME_DEV'][i] = departureTimeDeviation
                 
-                # ontime, within 2 minutes
-                if arrivalTimeDeviation < 2: 
-                    joined['ONTIME2'][i] = 1
+                # ontime, from -1 to 4 minutes
+                if (arrivalTimeDeviation>-1.0 and arrivalTimeDeviation < 4.0): 
+                    joined['ONTIME4'][i] = 1
                 else: 
-                    joined['ONTIME2'][i] = 0
+                    joined['ONTIME4'][i] = 0
                 
-                # ontime, within 10 minutes
-                if arrivalTimeDeviation < 10: 
+                # ontime, from -1 to 10 minutes
+                if (arrivalTimeDeviation>-1.0 and arrivalTimeDeviation < 10.0): 
                     joined['ONTIME10'][i] = 1
                 else: 
                     joined['ONTIME10'][i] = 0
@@ -599,7 +599,7 @@ class GTFSHelper():
                 joined['VC'][i] = joined['LOAD_ARR'][i] / joined['CAPACITY'][i]    
                 
                 # croweded if VC>1
-                if (joined['VC'][i] > 1.0):
+                if (joined['VC'][i] > 0.85):
                     joined['CROWDED'][i] = 1.0
                 else: 
                     joined['CROWDED'][i] = 0.0
