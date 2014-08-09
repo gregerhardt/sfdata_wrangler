@@ -355,7 +355,7 @@ class GTFSHelper():
                             runtime = 0
                         else: 
                             timeDiff = arrivalTime - lastDepartureTime
-                            runtime = round(timeDiff.seconds / 60.0, 2)
+                            runtime = max(0, round(timeDiff.total_seconds() / 60.0, 2))
                         record['RUNTIME_S'] = runtime
                         
                         # location along shape object (SFMTA uses meters)
@@ -522,7 +522,7 @@ class GTFSHelper():
                     and joined['TRIP'][i]==lastTrip): 
 
                     diff = joined['ARRIVAL_TIME'][i] - lastDepartureTime
-                    runtime = round(diff.seconds / 60.0, 2)
+                    runtime = max(0, round(diff.total_seconds() / 60.0, 2))
                 else: 
                     runtime = 0
                         

@@ -943,53 +943,59 @@ class SFMuniDataHelper():
     
                 # get a months worth of data for this day of week
                 df = instore.select(inkey, where='MONTH==Timestamp(month) and DOW==dow')
-                df['IMPUTED'] = 0
                 
-                # go up to two months in either direction out looking for a match
-                for i in range(1, 3): 
-
-                    lastMonth = pd.Timestamp(month) + pd.DateOffset(months=-i)
-                    nextMonth = pd.Timestamp(month) + pd.DateOffset(months=i)
-                                
-                    # try filling in missing values with data from previous month
-                    # set value for IMPUTED field to -i
-                    sourceDf = instore.select(inkey, where='MONTH==Timestamp(lastMonth) and DOW==dow and OBSTRIPS>=1')
-                    df, stringLengths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, -i) 
-                
-                    # try filling in missing values with data from next month
-                    # set value for IMPUTED field to i
-                    sourceDf = instore.select(inkey, where='MONTH==Timestamp(nextMonth) and DOW==dow and OBSTRIPS>=1')
-                    df, stringLegnths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, i) 
-
-                # calculate the WEIGHT
-                print '  calculating weights.'
-                groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','ROUTE_LONG_NAME','DIR','SEQ']
-                df = df.groupby(groupby).apply(calculateWeight)
-
-                # scale up the ridership based on weight   
-                # TODO - scale standard deviations too?             
-                df['ON']            = df['WEIGHT'] * df['ON']          
-                df['OFF']           = df['WEIGHT'] * df['OFF']        
-                df['LOAD_ARR']      = df['WEIGHT'] * df['LOAD_ARR']   
-                df['LOAD_DEP']      = df['WEIGHT'] * df['LOAD_DEP']   
-                df['PASSMILES']     = df['WEIGHT'] * df['PASSMILES']  
-                df['PASSHOURS']     = df['WEIGHT'] * df['PASSHOURS']  
-                df['WAITHOURS']     = df['WEIGHT'] * df['WAITHOURS']  
-                df['PASSDELAY_DEP'] = df['WEIGHT'] * df['PASSDELAY_DEP']  
-                df['PASSDELAY_ARR'] = df['WEIGHT'] * df['PASSDELAY_ARR']  
-                df['RDBRDNGS']      = df['WEIGHT'] * df['RDBRDNGS']   
-                df['CAPACITY']      = df['WEIGHT'] * df['CAPACITY']   
-                df['DOORCYCLES']    = df['WEIGHT'] * df['DOORCYCLES'] 
-                df['WHEELCHAIR']    = df['WEIGHT'] * df['WHEELCHAIR'] 
-                df['BIKERACK']      = df['WEIGHT'] * df['BIKERACK']    
-                #df['VC'] is a ratio, so no need to scale
-                #df['CROWDED'] is based on a ratio, so no need to scale
-                df['CROWDHOURS']    = df['WEIGHT'] * df['CROWDHOURS']    
+                # skip if there are no records
+                if (len(df)==0):
+                    print '0 records, so skipping to next day of week/month'
+                else: 
+                    
+                    df['IMPUTED'] = 0
+                    
+                    # go up to two months in either direction out looking for a match
+                    for i in range(1, 3): 
     
-                # write
-                print '  writing data.'
-                outstore.append(outkey, df, data_columns=True, 
-                    min_itemsize=stringLengths)
+                        lastMonth = pd.Timestamp(month) + pd.DateOffset(months=-i)
+                        nextMonth = pd.Timestamp(month) + pd.DateOffset(months=i)
+                                    
+                        # try filling in missing values with data from previous month
+                        # set value for IMPUTED field to -i
+                        sourceDf = instore.select(inkey, where='MONTH==Timestamp(lastMonth) and DOW==dow and OBSTRIPS>=1')
+                        df, stringLengths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, -i) 
+                    
+                        # try filling in missing values with data from next month
+                        # set value for IMPUTED field to i
+                        sourceDf = instore.select(inkey, where='MONTH==Timestamp(nextMonth) and DOW==dow and OBSTRIPS>=1')
+                        df, stringLegnths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, i) 
+    
+                    # calculate the WEIGHT
+                    print '  calculating weights.'
+                    groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','ROUTE_LONG_NAME','DIR','SEQ']
+                    df = df.groupby(groupby).apply(calculateWeight)
+    
+                    # scale up the ridership based on weight   
+                    # TODO - scale standard deviations too?             
+                    df['ON']            = df['WEIGHT'] * df['ON']          
+                    df['OFF']           = df['WEIGHT'] * df['OFF']        
+                    df['LOAD_ARR']      = df['WEIGHT'] * df['LOAD_ARR']   
+                    df['LOAD_DEP']      = df['WEIGHT'] * df['LOAD_DEP']   
+                    df['PASSMILES']     = df['WEIGHT'] * df['PASSMILES']  
+                    df['PASSHOURS']     = df['WEIGHT'] * df['PASSHOURS']  
+                    df['WAITHOURS']     = df['WEIGHT'] * df['WAITHOURS']  
+                    df['PASSDELAY_DEP'] = df['WEIGHT'] * df['PASSDELAY_DEP']  
+                    df['PASSDELAY_ARR'] = df['WEIGHT'] * df['PASSDELAY_ARR']  
+                    df['RDBRDNGS']      = df['WEIGHT'] * df['RDBRDNGS']   
+                    df['CAPACITY']      = df['WEIGHT'] * df['CAPACITY']   
+                    df['DOORCYCLES']    = df['WEIGHT'] * df['DOORCYCLES'] 
+                    df['WHEELCHAIR']    = df['WEIGHT'] * df['WHEELCHAIR'] 
+                    df['BIKERACK']      = df['WEIGHT'] * df['BIKERACK']    
+                    #df['VC'] is a ratio, so no need to scale
+                    #df['CROWDED'] is based on a ratio, so no need to scale
+                    df['CROWDHOURS']    = df['WEIGHT'] * df['CROWDHOURS']    
+        
+                    # write
+                    print '  writing data.'
+                    outstore.append(outkey, df, data_columns=True, 
+                        min_itemsize=stringLengths)
                     
         instore.close()
                     
@@ -1042,8 +1048,8 @@ class SFMuniDataHelper():
             ['DWELL'            ,'DWELL'         ,'sum'     ,'float64'   , 0],    
             ['RUNTIME_S'        ,'RUNTIME_S'     ,'sum'     ,'float64'   , 0],
             ['RUNTIME'          ,'RUNTIME'       ,'sum'     ,'float64'   , 0],   
+            ['SERVMILES_S'      ,'SERVMILES_S'   ,'sum'     ,'float64'   , 0],
             ['SERVMILES'        ,'SERVMILES'     ,'sum'     ,'float64'   , 0],
-            ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'sum'     ,'float64'   , 0],    
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                 
             ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
@@ -1071,6 +1077,12 @@ class SFMuniDataHelper():
             ['STOP_AVL'         ,'STOP_AVL'      ,'first'   ,'float64'   , 0],          
             ['BLOCK_ID'         ,'BLOCK_ID'      ,'first'   ,'int64'     , 0]   
             ]
+        
+        # for calculating daily totals
+        columnSpecsDaily = columnSpecs
+        for i in range(0, len(columnSpecsDaily)):
+            if columnSpecsDaily[i][0] == 'TOD':
+                columnSpecsDaily[i][2] = 'first'
 
         # open the data stores
         store = pd.HDFStore(hdffile)
@@ -1092,7 +1104,14 @@ class SFMuniDataHelper():
                 
             # get a months worth of data for this day of week
             df = store.select(inkey, where='MONTH==Timestamp(month)')
-                                                
+            
+            # apply weights to SERVMILES_S, DWELL, RUNTIME,
+            # because they were not weighted previously. 
+            df['SERVMILES_S'] = df['SERVMILES']  # unweighted, but for everything
+            df['SERVMILES']     = df['WEIGHT'] * df['SERVMILES']
+            df['DWELL']         = df['WEIGHT'] * df['DWELL']
+            df['RUNTIME']       = df['WEIGHT'] * df['RUNTIME']
+                                                            
             # aggregate
             aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecs)
                     
@@ -1104,10 +1123,7 @@ class SFMuniDataHelper():
                 min_itemsize=stringLengths)
                 
             # now calculate a daily total, and append that
-            for i in range(0, len(columnSpecs)):
-                if columnSpecs[i][0] == 'TOD':
-                    columnSpecs[i][2] = 'first'
-            aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecs)
+            aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecsDaily)
             aggregated = self.updateSpeeds(aggregated)
             aggregated['TOD'] = 'Daily'
             store.append(outkey, aggregated, data_columns=True, 
@@ -1155,9 +1171,9 @@ class SFMuniDataHelper():
             ['DWELL_S'          ,'DWELL_S'       ,'sum'     ,'float64'   , 0],
             ['DWELL'            ,'DWELL'         ,'sum'     ,'float64'   , 0],    
             ['RUNTIME_S'        ,'RUNTIME_S'     ,'sum'     ,'float64'   , 0],
-            ['RUNTIME'          ,'RUNTIME'       ,'sum'     ,'float64'   , 0],   
+            ['RUNTIME'          ,'RUNTIME'       ,'sum'     ,'float64'   , 0],  
+            ['SERVMILES_S'      ,'SERVMILES_S'   ,'sum'     ,'float64'   , 0], 
             ['SERVMILES'        ,'SERVMILES'     ,'sum'     ,'float64'   , 0],
-            ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'sum'     ,'float64'   , 0],    
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                 
             ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
@@ -1176,8 +1192,8 @@ class SFMuniDataHelper():
             ['DOORCYCLES'       ,'DOORCYCLES'    ,'sum'     ,'float64'   , 0],   
             ['WHEELCHAIR'       ,'WHEELCHAIR'    ,'sum'     ,'float64'   , 0],  
             ['BIKERACK'         ,'BIKERACK'      ,'sum'     ,'float64'   , 0],   
-            ['VC'               ,'VC'            ,'mean'    ,'float64'   , 0],         # crowding
-            ['CROWDED'          ,'CROWDED'       ,'mean'    ,'float64'   , 0],   
+            ['VC'               ,'VC'            ,'max'     ,'float64'   , 0],         # crowding
+            ['CROWDED'          ,'CROWDED'       ,'max'     ,'float64'   , 0],   
             ['CROWDHOURS'       ,'CROWDHOURS'    ,'sum'     ,'float64'   , 0],  
             ['ROUTE_ID'         ,'ROUTE_ID'      ,'first'   ,'int64'     , 0],         # additional IDs   
             ['ROUTE_AVL'        ,'ROUTE_AVL'     ,'first'   ,'int64'     , 0]  
@@ -1337,9 +1353,9 @@ class SFMuniDataHelper():
             ['DWELL_S'          ,'DWELL_S'       ,'sum'     ,'float64'   , 0],
             ['DWELL'            ,'DWELL'         ,'sum'     ,'float64'   , 0],    
             ['RUNTIME_S'        ,'RUNTIME_S'     ,'sum'     ,'float64'   , 0],
-            ['RUNTIME'          ,'RUNTIME'       ,'sum'     ,'float64'   , 0],   
-            ['SERVMILES'        ,'SERVMILES'     ,'sum'     ,'float64'   , 0],
-            ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'sum'     ,'float64'   , 0],    
+            ['RUNTIME'          ,'RUNTIME'       ,'sum'     ,'float64'   , 0],    
+            ['SERVMILES_S'      ,'SERVMILES_S'   ,'sum'     ,'float64'   , 0], 
+            ['SERVMILES'        ,'SERVMILES'     ,'sum'     ,'float64'   , 0], 
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                 
             ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
@@ -1441,6 +1457,7 @@ class SFMuniDataHelper():
         dataframe - a series of Datetime objects, must have fields:   
             RUNTIME_S
             RUNTIME        
+            SERVMILES_S   
             SERVMILES   
             RUNSPEED_S
             RUNSPEED
@@ -1450,8 +1467,16 @@ class SFMuniDataHelper():
         """
 
         for i, row in df.iterrows():    
+            # FOR DEBUGGING ONLY
+            if (df['RUNTIME'][i]>(10 * df['RUNTIME_S'][i])): 
+                df['RUNTIME'][i] = df['RUNTIME_S'][i]
+            
+            # REGULAR CODE
             if (df['RUNTIME_S'][i]>0): 
-                df['RUNSPEED_S'][i] = round(df['SERVMILES'][i] / (df['RUNTIME_S'][i]/60.0), 2)
+                if 'SERVMILES_S' in df: 
+                    df['RUNSPEED_S'][i] = round(df['SERVMILES_S'][i] / (df['RUNTIME_S'][i]/60.0), 2)
+                else: 
+                    df['RUNSPEED_S'][i] = round(df['SERVMILES'][i] / (df['RUNTIME_S'][i]/60.0), 2)
             else: 
                 df['RUNSPEED_S'][i] = 0
 
