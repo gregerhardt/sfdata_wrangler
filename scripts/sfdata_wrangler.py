@@ -139,7 +139,7 @@ if __name__ == "__main__":
     # calculate monthly averages, and aggregate the unweighted data
     if 'aggUnweighted' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sfmuniHelper.calcMonthlyAverages(EXPANDED_OUTFILE, SFMUNI_AGGFILE, 'expanded', 'df')
+    #    sfmuniHelper.calcMonthlyAverages(EXPANDED_OUTFILE, SFMUNI_AGGFILE, 'expanded', 'df')
         sfmuniHelper.calculateRouteStopTotals(SFMUNI_AGGFILE, 'df',  'route_stops')
         sfmuniHelper.calculateRouteTotals(SFMUNI_AGGFILE, 'route_stops',  'routes')  
         sfmuniHelper.calculateStopTotals(SFMUNI_AGGFILE, 'route_stops',  'stops')
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     # impute the data, and add weights.  Calculate new aggregations. 
     if 'aggWeighted' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sfmuniHelper.imputeMissingValuesByMonth(SFMUNI_AGGFILE, IMPUTED_AGGFILE, 'df', 'df')
+    #    sfmuniHelper.imputeMissingValuesByMonth(SFMUNI_AGGFILE, IMPUTED_AGGFILE, 'df', 'df')
         sfmuniHelper.calculateRouteStopTotals(IMPUTED_AGGFILE, 'df',  'route_stops')
         sfmuniHelper.calculateRouteTotals(IMPUTED_AGGFILE, 'route_stops',  'routes')  
         sfmuniHelper.calculateStopTotals(IMPUTED_AGGFILE, 'route_stops',  'stops')
