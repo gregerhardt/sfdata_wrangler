@@ -1078,11 +1078,12 @@ class SFMuniDataHelper():
             ['BLOCK_ID'         ,'BLOCK_ID'      ,'first'   ,'int64'     , 0]   
             ]
         
+        # TODO - there is a bug in the calculation of daily totals--do differently
         # for calculating daily totals
-        columnSpecsDaily = columnSpecs
-        for i in range(0, len(columnSpecsDaily)):
-            if columnSpecsDaily[i][0] == 'TOD':
-                columnSpecsDaily[i][2] = 'first'
+        #columnSpecsDaily = columnSpecs
+        #for i in range(0, len(columnSpecsDaily)):
+        #    if columnSpecsDaily[i][0] == 'TOD':
+        #        columnSpecsDaily[i][2] = 'first'
 
         # open the data stores
         store = pd.HDFStore(hdffile)
@@ -1122,12 +1123,13 @@ class SFMuniDataHelper():
             store.append(outkey, aggregated, data_columns=True, 
                 min_itemsize=stringLengths)
                 
+            # TODO - there is a bug in the calculation of daily totals--do differently
             # now calculate a daily total, and append that
-            aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecsDaily)
-            aggregated = self.updateSpeeds(aggregated)
-            aggregated['TOD'] = 'Daily'
-            store.append(outkey, aggregated, data_columns=True, 
-                min_itemsize=stringLengths)
+            #aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecsDaily)
+            #aggregated = self.updateSpeeds(aggregated)
+            #aggregated['TOD'] = 'Daily'
+            #store.append(outkey, aggregated, data_columns=True, 
+            #    min_itemsize=stringLengths)
                                 
         store.close()
 
