@@ -35,7 +35,7 @@ USAGE = r"""
    
  e.g.
 
- python clean matchPoints pathIdent timeAlloc timeAgg
+ python readNetwork convertPoints identifyTrips createTraj timeAlloc TimeAgg
  
  Notes: - steps should choose from list of valid steps
         - file names should be edited directly in this script. 
@@ -46,8 +46,8 @@ USAGE = r"""
 # VALID STEPS-- list of allowable steps to run
 VALID_STEPS = [ 'readNetwork',                 
                 'convertPoints', 
-                'extractTrips', 
-                'pathID', 
+                'identifyTrips', 
+                'createTraj', 
                 'timeAlloc', 
                 'timeAgg'
                 ]    
@@ -95,41 +95,23 @@ if __name__ == "__main__":
     if 'convertPoints' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         for infile in RAW_TAXI_FILES: 
-            sftaxiHelper.processRawData(infile, TAXI_OUTFILE)
+            sftaxiHelper.processRawData(infile, TAXI_OUTFILE, 'points')
         print 'Finished converting taxi GPS data in ', (datetime.datetime.now() - startTime)
 
     # extract trips
-    if 'extractTrips' in STEPS_TO_RUN: 
+    if 'identifyTrips' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sftaxiHelper.extractGPSTrips(TAXI_OUTFILE)            
-        print 'Finished extracting taxi trips in ', (datetime.datetime.now() - startTime)
+        sftaxiHelper.identifyGPSTrips(TAXI_OUTFILE, 'points', 'trip_points')            
+        print 'Finished identifying taxi trips in ', (datetime.datetime.now() - startTime)
+
+    # create trajectories
+    if 'createTraj' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()   
+        sftaxiHelper.createTrajectories(TAXI_OUTFILE, 'trip_points')            
+        print 'Finished creating taxi trajectories in ', (datetime.datetime.now() - startTime)
 
     
 
-    """
-    # identify the paths traversed in the network
-    #   OUTPUT: list of path objects
-    if 'pathID' in STEPS_TO_RUN: 
-        startTime = datetime.datetime.now()   
-#        netHelper = NetworkHelper(HWYNET_FILE)
-#        sftaxiHelper.identifyPaths(TAXI_OUTFILE, netHelper)  
-        print 'Finished identifying paths in ', (datetime.datetime.now() - startTime) 
-    
-    # allocate the travel times from paths to links
-    #   OUTPUT: list of link objects, with duplicates
-    if 'timeAlloc' in STEPS_TO_RUN: 
-        startTime = datetime.datetime.now()   
-        
-        print 'Finished allocating travel time to links in ', (datetime.datetime.now() - startTime) 
-
-    # aggregate the link travel times
-    #   OUTPUT: list of link objects, without duplicates
-    if 'timeAgg' in STEPS_TO_RUN: 
-        startTime = datetime.datetime.now()   
-        
-        print 'Finished aggregating link travel times in ', (datetime.datetime.now() - startTime) 
-    """
-    
             
     print 'Run complete!  Time for a pint!'
     
