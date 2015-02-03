@@ -19,9 +19,15 @@ __license__     = """
 
 import sys
 import datetime
+import pandas as pd
 
+sys.path.append('C:/CASA/Workspace/dta')
+sys.path.append('C:/CASA/Workspace/Path-Inference-Filter/mm')
 sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
+
+import dta
 from SFTaxiDataHelper import SFTaxiDataHelper
+from NetworkHelper import NetworkHelper
 
 USAGE = r"""
 
@@ -38,8 +44,9 @@ USAGE = r"""
 
     
 # VALID STEPS-- list of allowable steps to run
-VALID_STEPS = [ 'readNetwork', 
-                'matchPoints', 
+VALID_STEPS = [ 'readNetwork',                 
+                'convertPoints', 
+                'extractTrips', 
                 'pathID', 
                 'timeAlloc', 
                 'timeAgg'
@@ -47,7 +54,8 @@ VALID_STEPS = [ 'readNetwork',
                 
 
 # INPUT FILES--change as needed
-HWYNET_FILE = "C:/CASA/Data/network/transcad/SanFranciscoSubArea_2010-assign.shp"
+INPUT_DYNAMEQ_NET_DIR    = "C:/CASA/Data/network/dynameq/validation2010.july19_Sig/Reports/Export"
+INPUT_DYNAMEQ_NET_PREFIX = "pb_july19_830p"
 
 RAW_TAXI_FILES =["C:/CASA/Data/taxi/2009-02-13.txt"
                 ]
@@ -76,23 +84,29 @@ if __name__ == "__main__":
     # create the helper
     sftaxiHelper = SFTaxiDataHelper()
     
-    # reads the network into a networkX format
-    #    OUTPUT: network data structure
+    # reads the SF network, using from the Dynameq structure. 
     if 'readNetwork' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         netHelper = NetworkHelper()
-        netHelper.readShapeFile(HWYNET_FILE) 
+        net = netHelper.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
         print 'Finished reading highway network in ', (datetime.datetime.now() - startTime)
 
-
-    # convert the raw data and join closest node to each taxi GPS point. 
-    #    OUTPUT: list of points with network node IDs appended
-    if 'matchPoints' in STEPS_TO_RUN: 
+    # convert the taxi data
+    if 'convertPoints' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         for infile in RAW_TAXI_FILES: 
             sftaxiHelper.processRawData(infile, TAXI_OUTFILE)
-        print 'Finished matching taxi gps points to network nodes in ', (datetime.datetime.now() - startTime)
+        print 'Finished converting taxi GPS data in ', (datetime.datetime.now() - startTime)
 
+    # extract trips
+    if 'extractTrips' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()   
+        sftaxiHelper.extractGPSTrips(TAXI_OUTFILE)            
+        print 'Finished extracting taxi trips in ', (datetime.datetime.now() - startTime)
+
+    
+
+    """
     # identify the paths traversed in the network
     #   OUTPUT: list of path objects
     if 'pathID' in STEPS_TO_RUN: 
@@ -114,7 +128,9 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         
         print 'Finished aggregating link travel times in ', (datetime.datetime.now() - startTime) 
-        
+    """
+    
+            
     print 'Run complete!  Time for a pint!'
     
     

@@ -18,10 +18,12 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import networkx as nx
-import datetime
-                    
-                                    
+import sys
+
+import dta
+from dta.Logger import DtaLogger
+from dta.Utils import Time       
+         
 class NetworkHelper():
     """ 
     Methods used to read and process highway network. 
@@ -31,17 +33,21 @@ class NetworkHelper():
         """
         Constructor.             
         """   
-                    
-    def readShapeFile(self, infile):
-        """
-        Reads a link shapefile and converts it to network structure.
+
+    def readDTANetwork(self, inputDir, filePrefix):
         
-        infile  - link shapefile from travel model
-        """
+        # The SanFrancisco network will use feet for vehicle lengths and coordinates, and miles for link lengths
+        dta.VehicleType.LENGTH_UNITS= "feet"
+        dta.Node.COORDINATE_UNITS   = "feet"
+        dta.RoadLink.LENGTH_UNITS   = "miles"
+
+        dta.setupLogging("c:/temp/dta.INFO.log", "c:/temp/visualizeDTAResults.DEBUG.log", logToConsole=False)
+
+        scenario = dta.DynameqScenario()
+        scenario.read(inputDir, filePrefix) 
+        net = dta.DynameqNetwork(scenario)
+
+        net.read(inputDir, filePrefix)
         
-        print datetime.datetime.now(), 'Reading network in file: ', infile
-        
-        net = nx.read_shp(infile)
-        
-    
+        return net
         

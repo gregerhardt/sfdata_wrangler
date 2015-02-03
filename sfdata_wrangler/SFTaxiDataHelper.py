@@ -20,8 +20,13 @@ __license__     = """
 
 import pandas as pd
 import datetime
+from path_inference import utils
 
-                    
+# used to calculate number of points in each trip
+def setNumPointsAndLength(df):
+    df['num_points'] = len(df)
+    df['trip_length'] = df['feet'].sum()
+    return df                    
                                     
 class SFTaxiDataHelper():
     """ 
@@ -31,6 +36,18 @@ class SFTaxiDataHelper():
 
     # number of rows to read at a time
     CHUNKSIZE = 100000
+    
+    # speed threshold under which vehicles are considered stationary
+    #   1 mph = 88 ft/min, or about 3.5 vehicle lengths between recordings
+    SPEED_THRESHOLD = 1.0  # mph
+    
+    # time vehicle must be stationary for the record to be dropped
+    #   longer than the cycle length of the signals
+    TIME_THRESHOLD = 120.0   # seconds
+    
+    # threshold at which an entire trip (secquence of points) is counted
+    #   500 ft is about the length of a city block
+    TRIP_DIST_THRESHOLD = 500
 
     def __init__(self):
         """
@@ -64,28 +81,15 @@ class SFTaxiDataHelper():
             rowsRead    += len(chunk)
         
             # convert to timedate formats
-            chunk['time'] = pd.to_datetime(chunk['time'],format="%Y-%m-%d %H:%M:%S")        
-
+            chunk['date'] = pd.to_datetime(chunk['time'],format="%Y-%m-%d",exact=False)  
+            chunk['time'] = pd.to_datetime(chunk['time'],format="%Y-%m-%d %H:%M:%S")  
+            
+            # sort and assign a unique index
+            chunk.sort(['date','cab_id','time'], inplace=True)
+            chunk.index = rowsWritten + pd.Series(range(0,len(chunk)))
+            
             # write the data
-            try: 
-                store.append('points', chunk, data_columns=True)
-            except ValueError: 
-                store = pd.HDFStore(outfile)
-                print 'Structure of HDF5 file is: '
-                print store.points.dtypes
-                store.close()
-                
-                print 'Structure of current dataframe is: '
-                print chunk.dtypes
-                
-                raise  
-            except TypeError: 
-                print 'Structure of current dataframe is: '
-                types = chunk.dtypes
-                for type in types:
-                    print type
-                
-                raise
+            store.append('points', chunk, data_columns=True)
 
             rowsWritten += len(chunk)
             print 'Read %i rows and kept %i rows.' % (rowsRead, rowsWritten)
@@ -93,6 +97,150 @@ class SFTaxiDataHelper():
         # close the writer
         store.close()
     
-    
+                    
+    def extractGPSTrips(self, storefile):
+        """
+        Reads the GPS points and creates a sequence of points for each
+        taxi trip.  
+        
+        storefile - HDF datastore with GPS points in it. 
+        """
+
+        # open the data store
+        store = pd.HDFStore(storefile)    
+        
+        # get the list of dates and cab_ids to process
+        dates = store.select_column('points', 'date').unique()
+        dates.sort()
+
+        print 'Retrieved a total of %i days to process' % len(dates)
+        
+        # loop through the dates 
+        for date in dates: 
+            print 'Processing ', date
+            
+            # get the data and sort
+            df = store.select('points', where='date==Timestamp(date)')                          
+            df.sort(['cab_id','time'], inplace=True)
+                                
+            # initialize the columns    
+            df['feet']  = 0
+            df['seconds'] = 0
+            df['speed']   = 0
+            df['forward_stationary_time'] = 0
+            df['backward_stationary_time'] = 0
+                            
+            # sort out whether the vehicle is moving, and how to group trips
+            print '  ', datetime.datetime.now(), ' Forward pass...'
+            first_row = True
+            last_row = 'none'
+            for i, row in df.iterrows():
+
+                # reset for each new vehicle
+                if (first_row 
+                    or row['cab_id'] != last_row['cab_id']):
+                    stationary_time = 0
+                    first_row = False
+                    
+                # for these, calculate measures and increment trip_ids
+                else:
+                    feet = 3.2808399 * utils.haversine(last_row['longitude'], \
+                            last_row['latitude'],row['longitude'], row['latitude'])
+                    seconds = (row['time'] - last_row['time']).total_seconds()
+                    speed = (feet / seconds) * 0.681818
+                        
+                    # keep track of how long the vehicle is stationary for
+                    if (speed < self.SPEED_THRESHOLD):
+                        stationary_time += seconds
+                    else: 
+                        stationary_time = 0    
+                                            
+                    df.loc[i,'feet']    = feet
+                    df.loc[i,'seconds'] = seconds
+                    df.loc[i,'speed']= speed
+                    df.loc[i,'forward_stationary_time'] = stationary_time   
+
+                last_row = row
+                  
+            # make a backwards pass to clean up the first and last
+            # GPS point of the trip, which can be stationary       
+            print '  ', datetime.datetime.now(), ' Backward pass...'
+            df.sort(['cab_id','time'], ascending=[1,0], inplace=True) 
+            first_row = True
+            last_row = 'none'
+            for i, row in df.iterrows():
+                      
+                # reset for each new vehicle
+                if (first_row 
+                    or row['cab_id'] != last_row['cab_id']):
+                    stationary_time = 0
+                    first_row = False
+                    
+                # for these, calculate measures and increment trip_ids
+                else:
+                    seconds = (last_row['time'] - row['time']).total_seconds()
+                        
+                    # keep track of how long the vehicle is stationary for
+                    if (last_row['speed'] < self.SPEED_THRESHOLD):
+                        stationary_time += seconds
+                    else: 
+                        stationary_time = 0    
+                                            
+                    df.loc[i,'backward_stationary_time'] = stationary_time   
+
+                last_row = row
+            
+            # now make another forward pass to group into trips     
+            print '  ', datetime.datetime.now(), ' Forward pass...'                  
+            df.sort(['cab_id','time'], inplace=True) 
+            first_row = True
+            last_row = 'none'
+            df['trip_id'] = -1
+            
+            for i, row in df.iterrows():
+                                    
+                # reset for each new vehicle
+                if (first_row 
+                    or row['cab_id'] != last_row['cab_id']):
+                    trip_id = 1
+                    first_row = False           
+
+                # reset if you change between empty and metered
+                elif (row['status'] != last_row['status']):
+                    trip_id += 1
+                    
+                # reset if there is a stop
+                elif (row['forward_stationary_time'] > self.TIME_THRESHOLD):
+                    trip_id += 1
+                    
+                # reset if it is the last point before a stop    
+                elif (row['backward_stationary_time'] > self.TIME_THRESHOLD 
+                    and row['forward_stationary_time'] > 0):
+                    trip_id += 1
+                    
+                # otherwise it is a continuation
+
+                # assign value
+                df.loc[i, 'trip_id'] = trip_id
+                last_row = row  
+            
+            print '  ', datetime.datetime.now(), ' Group by...'  
+            if (len(df)>0):
+                
+                # determine the points per trip, and distance travelled
+                grouped = df.groupby(['cab_id', 'trip_id'])
+                df = grouped.apply(setNumPointsAndLength)
+                            
+                # filter out the records that don't make valid trips
+                df_filtered = df[(df['num_points']>1.0) & 
+                    (df['trip_length'] > self.TRIP_DIST_THRESHOLD)]
+                                                                                    
+                # write the data
+                print '  ', datetime.datetime.now(), ' Write...'  
+                store.append('trip_points', df_filtered, data_columns=True)
+
+        # all done
+        store.close()
+
     
         
