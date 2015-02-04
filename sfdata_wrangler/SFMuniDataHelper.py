@@ -39,7 +39,7 @@ def calculateWeight(df):
     
     totalValues = 0.0
     for i, row in df.iterrows():    
-        if ((df['OBSTRIPS'][i] + df['IMPTRIPS'][i])>0): 
+        if ((row['OBSTRIPS'] + row['IMPTRIPS'])>0): 
             totalValues += 1.0
     
     numRecords = float(len(df))
@@ -50,8 +50,8 @@ def calculateWeight(df):
         
     df['WEIGHT'] = 0.0
     for i, row in df.iterrows():    
-        if ((df['OBSTRIPS'][i] + df['IMPTRIPS'][i])>0): 
-            df['WEIGHT'][i] = weight
+        if ((row['OBSTRIPS'] + row['IMPTRIPS'])>0): 
+            df.loc[i,'WEIGHT'] = weight
 
     return df                                                
                 
@@ -74,7 +74,11 @@ class SFMuniDataHelper():
     HEADERROWS = 2
     
     # number of rows to read at a time
-    CHUNKSIZE = 100000
+    #   This affects runtime.  Tests show:
+    #      CHUNKSIZE = 100000: runs for 35 min and still doesn't read 100,000 rows
+    #      CHUNKSIZE =  10000: reads 100,000 rows in 10 minutes
+    #      CHUNKSIZE =   1000: reads 100,000 rows in 10 minutes
+    CHUNKSIZE = 10000
 
     # by default, read the first 62 columns, through PULLOUT_INT
     COLUMNS_TO_READ = [i for i in range(62)]
@@ -90,10 +94,10 @@ class SFMuniDataHelper():
 	['ON',             ( 55,  58),   'int64',   0],    # on 
 	['OFF',            ( 59,  62),   'int64',   0],    # off
 	['LOAD_DEP',       ( 63,  66),   'int64',   0],    # departing load
-	['LOADCODE',       ( 67,  67),   'int64',   0],    # ADJ=*, BAL=B
+	['LOADCODE',       ( 67,  67),   'object',  1],    # ADJ=*, BAL=B
 	['DATE_INT',       ( 68,  74),   'int64',   0],    # date
 	['ROUTE_AVL',      ( 75,  79),   'int64',   0],   
-	['PATTERN',        ( 80,  86),   'int64',   0],    # schedule pattern
+	['PATTERN',        ( 80,  86),   'object',  6],    # schedule pattern
 	['BLOCK',          ( 87,  93),   'int64',   0],    
 	['LAT',            ( 94, 102),   'float64', 0],    # latitude
 	['LON',            (103, 112),   'float64', 0],    # longitude 
@@ -117,12 +121,12 @@ class SFMuniDataHelper():
 	['GODOM',          (199, 204),   'float64', 0],    # distance (GPS)
 	['ARRIVAL_TIME_DEV',   (205, 211),   'float64', 0],    # schedule deviation
 	['DWELL',          (212, 217),   'float64', 0],    # dwell time interval (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME)
-	['MSFILE',         (218, 226),   'int64',   0],    # sign up YYMM
+	['MSFILE',         (218, 226),   'object',  8],    # sign up YYMM
 	['QC101',          (227, 230),   'int64',   0],    # not used
 	['QC104',          (231, 234),   'int64',   0],    # GPS QC
 	['QC201',          (235, 238),   'int64',   0],    # count QC
 	['AQC',            (239, 242),   'int64',   0],    # assignment QC
-	['RECORD',         (243, 244),   'int64',   0],    # record type
+	['RECORD',         (243, 244),   'object',  2],    # record type
 	['WHEELCHAIR',     (245, 246),   'int64',   0],    # wheelchair
 	['BIKERACK',       (247, 248),   'int64',   0],    # bike rack
 	['SP2',            (249, 250),   'int64',   0],    # not used
@@ -141,7 +145,7 @@ class SFMuniDataHelper():
 	['PATTCODE',       (305, 315),   'object', 10],    # pattern code
 	['DWDI',           (316, 320),   'float64', 0],    # distance traveled durign dwell
 	['RUN',            (321, 328),   'int64',   0],    # run
-	['SCHOOL',         (329, 335),   'int64',   0],    # school trip
+	['SCHOOL',         (329, 335),   'object',  6],    # school trip
 	['TRIPID_2',       (336, 344),   'int64',   0],    # long trip ID
 	['PULLOUT_INT',    (345, 351),   'int64',   0],    # movement time
 	['DEPARTURE_TIME_S_INT',(352, 356),   'int64',   0],    # scheduled departure time
@@ -231,7 +235,7 @@ class SFMuniDataHelper():
 		'DEPARTURE_TIME' ,   # (264, 270) - departure time	
 		'DWELL'     ,   # (212, 217) - dwell time (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME), zero at first and last stop
 		'PULLOUT'   ,   # (345, 351) - movement time
-		'PULLDWELL' ,   #            - pullout dwell (time interval between door close and movement), excluding end-of-line
+		'PULLDWELL'     #            - pullout dwell (time interval between door close and movement), excluding end-of-line
 		
 		]         
 		    
@@ -271,7 +275,8 @@ class SFMuniDataHelper():
             colnames.append(col[0])
             colspecs.append(col[1])
             coltypes.append(col[2])
-            if (col[2]=='object' and col[3]>0): 
+            if (col[2]=='object' and col[3]>0 and 
+                (col[0] in self.REORDERED_COLUMNS)): 
                 stringLengths[col[0]] = col[3]
         stringLengths['AGENCY_ID']        = 10
         stringLengths['ROUTE_SHORT_NAME'] = 10
@@ -306,8 +311,12 @@ class SFMuniDataHelper():
             # because of misalinged row, it sometimes auto-detects inconsistent
             # data types, so force them as specified.  Must be in same order 
             # as above
-            for i in range(0, len(chunk.columns.names)):
-                chunk[colnames[i]] = chunk[colnames[i]].astype(coltypes[i])
+            for i in range(0, len(colnames)):
+                if (colnames[i] in chunk):
+                    if (coltypes[i]=='object'):
+                        chunk[colnames[i]] = chunk[colnames[i]].astype('str')
+                    else: 
+                        chunk[colnames[i]] = chunk[colnames[i]].astype(coltypes[i])
             
             # only include revenue service
             # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
@@ -337,22 +346,22 @@ class SFMuniDataHelper():
             for i, row in chunk.iterrows():
                 
                 # identify scheduled time points
-                if (chunk['ARRIVAL_TIME_S_INT'][i] < 9999): 
-                    chunk['TIMEPOINT'][i] = 1
+                if (row['ARRIVAL_TIME_S_INT'] < 9999): 
+                    chunk.loc[i,'TIMEPOINT'] = 1
                 
                 # identify end-of-line stops
-                chunk['EOL'][i] = str(chunk['STOPNAME_AVL'][i]).count("- EOL")            
+                chunk.loc[i,'EOL'] = str(row['STOPNAME_AVL']).count("- EOL")            
                 
                 # exclude beginning and end of line from DWELL time
-                if ((chunk['EOL'][i] == 1) or (chunk['SEQ'][i] == 1)): 
-                    chunk['DWELL'][i] = 0
+                if ((row['EOL'] == 1) or (row['SEQ'] == 1)): 
+                    chunk.loc[i,'DWELL'] = 0
                                         
                 # match to GTFS indices using route equivalency
-                r = chunk['ROUTE_AVL'][i]
+                r = row['ROUTE_AVL']
                 try: 
-                    chunk['AGENCY_ID'][i]        = str(self.routeEquiv.loc[r, 'AGENCY_ID'])
-                    chunk['ROUTE_SHORT_NAME'][i] = str(self.routeEquiv.loc[r, 'ROUTE_SHORT_NAME'])
-                    chunk['ROUTE_LONG_NAME'][i]  = str(self.routeEquiv.loc[r, 'ROUTE_LONG_NAME'])
+                    chunk.loc[i,'AGENCY_ID']        = str(self.routeEquiv.loc[r, 'AGENCY_ID'])
+                    chunk.loc[i,'ROUTE_SHORT_NAME'] = str(self.routeEquiv.loc[r, 'ROUTE_SHORT_NAME'])
+                    chunk.loc[i,'ROUTE_LONG_NAME']  = str(self.routeEquiv.loc[r, 'ROUTE_LONG_NAME'])
                 except KeyError: 
                     missingRouteIds.add(r)
             
@@ -366,49 +375,54 @@ class SFMuniDataHelper():
             chunk['PULLDWELL']   = 0.0
     
             # convert to string formats
+            # use .loc instead of chained assignment.
+            #        see: http://pandas.pydata.org/pandas-docs/stable/indexing.html#indexing-view-versus-copy
             for i, row in chunk.iterrows():        
-                chunk['DATE'][i] = "{0:0>6}".format(chunk['DATE_INT'][i])   
+                chunk.loc[i,'DATE'] = "{0:0>6}".format(row['DATE_INT'])   
                 
-                if (chunk['ARRIVAL_TIME_INT'][i] >= 240000): 
-                    chunk['ARRIVAL_TIME_INT'][i] = chunk['ARRIVAL_TIME_INT'][i] - 240000
-                chunk['ARRIVAL_TIME'][i] = (chunk['DATE'][i] + 
-                    "{0:0>6}".format(chunk['ARRIVAL_TIME_INT'][i]))         
+                if (row['ARRIVAL_TIME_INT'] >= 240000): 
+                    chunk.loc[i,'ARRIVAL_TIME_INT'] = row['ARRIVAL_TIME_INT'] - 240000
+                chunk.loc[i,'ARRIVAL_TIME'] = (chunk.loc[i,'DATE'] + 
+                    "{0:0>6}".format(chunk.loc[i,'ARRIVAL_TIME_INT']))         
     
-                if (chunk['DEPARTURE_TIME_INT'][i] >= 240000): 
-                    chunk['DEPARTURE_TIME_INT'][i] = chunk['DEPARTURE_TIME_INT'][i] - 240000
-                chunk['DEPARTURE_TIME'][i] = (chunk['DATE'][i] + 
-                    "{0:0>6}".format(chunk['DEPARTURE_TIME_INT'][i]))
+                if (row['DEPARTURE_TIME_INT'] >= 240000): 
+                    chunk.loc[i,'DEPARTURE_TIME_INT'] = row['DEPARTURE_TIME_INT'] - 240000
+                chunk.loc[i,'DEPARTURE_TIME'] = (chunk.loc[i,'DATE'] + 
+                    "{0:0>6}".format(chunk.loc[i,'DEPARTURE_TIME_INT']))
     
-                if (chunk['PULLOUT_INT'][i] >= 240000): 
-                    chunk['PULLOUT_INT'][i] = chunk['PULLOUT_INT'][i] - 240000
-                chunk['PULLOUT'][i] = (chunk['DATE'][i] + 
-                    "{0:0>6}".format(chunk['PULLOUT_INT'][i]))               
+                if (row['PULLOUT_INT'] >= 240000): 
+                    chunk.loc[i,'PULLOUT_INT'] = row['PULLOUT_INT'] - 240000
+                chunk.loc[i,'PULLOUT'] = (chunk.loc[i,'DATE'] + 
+                    "{0:0>6}".format(chunk.loc[i,'PULLOUT_INT']))               
                 
             # convert to timedate formats
-            chunk['DATE']   = pd.to_datetime(chunk['DATE'], format="%m%d%y")            
-            chunk['ARRIVAL_TIME']    = pd.to_datetime(chunk['ARRIVAL_TIME'],    format="%m%d%y%H%M%S")        
-            chunk['DEPARTURE_TIME']   = pd.to_datetime(chunk['DEPARTURE_TIME'],   format="%m%d%y%H%M%S")    
-            chunk['PULLOUT']     = pd.to_datetime(chunk['PULLOUT'],     format="%m%d%y%H%M%S")
+            chunk['DATE']           = pd.to_datetime(chunk['DATE'],          format="%m%d%y")    
+            chunk['ARRIVAL_TIME']   = pd.to_datetime(chunk['ARRIVAL_TIME'],  format="%m%d%y%H%M%S")
+            chunk['DEPARTURE_TIME'] = pd.to_datetime(chunk['DEPARTURE_TIME'],format="%m%d%y%H%M%S")    
+            chunk['PULLOUT']        = pd.to_datetime(chunk['PULLOUT'],       format="%m%d%y%H%M%S")
     
             # deal with offsets for midnight to 3 am
             for i, row in chunk.iterrows():       
-                if (chunk['ARRIVAL_TIME'][i].hour < 3): 
-                    chunk['ARRIVAL_TIME'][i] = chunk['ARRIVAL_TIME'][i] + pd.DateOffset(days=1)
+                if (row['ARRIVAL_TIME'].hour < 3): 
+                    chunk.loc[i,'ARRIVAL_TIME'] = row['ARRIVAL_TIME'] + pd.DateOffset(days=1)
     
-                if (chunk['DEPARTURE_TIME'][i].hour < 3): 
-                    chunk['DEPARTURE_TIME'][i] = chunk['DEPARTURE_TIME'][i] + pd.DateOffset(days=1)
+                if (row['DEPARTURE_TIME'].hour < 3): 
+                    chunk.loc[i,'DEPARTURE_TIME'] = row['DEPARTURE_TIME'] + pd.DateOffset(days=1)
     
-                if (chunk['PULLOUT'][i].hour < 3): 
-                    chunk['PULLOUT'][i]   = chunk['PULLOUT'][i] + pd.DateOffset(days=1)
+                if (row['PULLOUT'].hour < 3): 
+                    chunk.loc[i,'PULLOUT'] = row['PULLOUT'] + pd.DateOffset(days=1)
                                             
                 # PULLDWELL = pullout dwell (time interval between door close and movement)
-                if (chunk['EOL'][i]==0):
-                    pulldwell = chunk['PULLOUT'][i] - chunk['DEPARTURE_TIME'][i]
-                    chunk['PULLDWELL'][i] = round(pulldwell.seconds / 60.0, 2)
+                if (row['EOL']==0):
+                    pulldwell = row['PULLOUT'] - row['DEPARTURE_TIME']
+                    chunk.loc[i,'PULLDWELL'] = round(pulldwell.seconds / 60.0, 2)
                     
             # drop duplicates (not sure why these occur) and sort
             chunk.drop_duplicates(cols=self.INDEX_COLUMNS, inplace=True) 
             chunk.sort(self.INDEX_COLUMNS, inplace=True)
+            
+            # set a unique index
+            chunk.index = rowsWritten + pd.Series(range(0,len(chunk)))
                             
             # re-order the columns
             df = chunk[self.REORDERED_COLUMNS]
@@ -422,21 +436,18 @@ class SFMuniDataHelper():
                 print 'Structure of HDF5 file is: '
                 print store.sample.dtypes
                 store.close()
-                
                 print 'Structure of current dataframe is: '
                 print df.dtypes
-                
                 raise  
             except TypeError: 
                 print 'Structure of current dataframe is: '
                 types = df.dtypes
                 for type in types:
                     print type
-                
                 raise
 
             rowsWritten += len(df)
-            print 'Read %i rows and kept %i rows.' % (rowsRead, rowsWritten)
+            print datetime.datetime.now(), ' Read %i rows and kept %i rows.' % (rowsRead, rowsWritten)
 
         if len(missingRouteIds) > 0: 
             print 'The following AVL route IDs are missing from the routeEquiv file:'
@@ -776,21 +787,21 @@ class SFMuniDataHelper():
         for i, row in joined.iterrows():
             totalRecords += 1
                  
-            if (joined['OBSTRIPS'][i]==0 and joined['IMPUTED'][i]==0):
+            if (row['OBSTRIPS']==0 and row['IMPUTED']==0):
                 missingRecords += 1
                 
-                if (joined['OBSTRIPS_SOURCE'][i]>0):
+                if (row['OBSTRIPS_SOURCE']>0):
                     successfulMatches += 1
                     
-                    joined['IMPUTED'][i] = imputedIdentifier
-                    joined['IMPTRIPS'][i] = joined['OBSTRIPS_SOURCE'][i]
+                    joined.loc[i,'IMPUTED'] = imputedIdentifier
+                    joined.loc[i,'IMPTRIPS'] = row['OBSTRIPS_SOURCE']
                     for col in imputedFields:
                         if (dataTypes[col]=='datetime64'): 
-                            oldTime = pd.Timestamp(joined[col + '_SOURCE'][i])
+                            oldTime = pd.Timestamp(row[col + '_SOURCE'])
                             newTime = oldTime + pd.DateOffset(months=-imputedIdentifier)
-                            joined[col][i] = newTime
+                            joined.loc[i,col] = newTime
                         else: 
-                            joined[col][i] = joined[col + '_SOURCE'][i]
+                            joined.loc[i,col] = row[col + '_SOURCE']
             
         # keep only the relevant columns               
         result = joined[colnames]     
@@ -1470,22 +1481,22 @@ class SFMuniDataHelper():
 
         for i, row in df.iterrows():    
             # FOR DEBUGGING ONLY
-            if (df['RUNTIME'][i]>(10 * df['RUNTIME_S'][i])): 
-                df['RUNTIME'][i] = df['RUNTIME_S'][i]
+            if (row['RUNTIME']>(10 * row['RUNTIME_S'])): 
+                df.loc[i,'RUNTIME'] = row['RUNTIME_S']
             
             # REGULAR CODE
-            if (df['RUNTIME_S'][i]>0): 
-                if 'SERVMILES_S' in df: 
-                    df['RUNSPEED_S'][i] = round(df['SERVMILES_S'][i] / (df['RUNTIME_S'][i]/60.0), 2)
+            if (row['RUNTIME_S']>0): 
+                if 'SERVMILES_S' in row: 
+                    df.loc[i,'RUNSPEED_S'] = round(row['SERVMILES_S'] / (row['RUNTIME_S']/60.0), 2)
                 else: 
-                    df['RUNSPEED_S'][i] = round(df['SERVMILES'][i] / (df['RUNTIME_S'][i]/60.0), 2)
+                    df.loc[i,'RUNSPEED_S'] = round(row['SERVMILES'] / (row['RUNTIME_S']/60.0), 2)
             else: 
-                df['RUNSPEED_S'][i] = 0
+                df.loc[i,'RUNSPEED_S'] = 0
 
-            if (df['RUNTIME'][i]>0): 
-                df['RUNSPEED'][i] = round(df['SERVMILES'][i] / (df['RUNTIME'][i]/60.0), 2)
+            if (row['RUNTIME']>0): 
+                df.loc[i,'RUNSPEED'] = round(row['SERVMILES'] / (row['RUNTIME']/60.0), 2)
             else: 
-                df['RUNSPEED'][i] = 0
+                df.loc[i,'RUNSPEED'] = 0
 
         return df
         
