@@ -18,32 +18,14 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import dta
-         
-class NetworkHelper():
-    """ 
-    Methods used to read and process highway network. 
+from path_inference.projector import PointProjector
+
+class SFPointProjector(PointProjector):
+  """ Extends PointProjector class to implement method used to 
+      that defines how a point is projected on the road network.
+  """
+  
+  def project(self, gps_pos):
+    """ (abstract) : takes a GPS position and returns a collection of states.
     """
-
-    def __init__(self):
-        """
-        Constructor.             
-        """   
-
-    def readDTANetwork(self, inputDir, filePrefix):
-        
-        # The SanFrancisco network will use feet for vehicle lengths and coordinates, and miles for link lengths
-        dta.VehicleType.LENGTH_UNITS= "feet"
-        dta.Node.COORDINATE_UNITS   = "feet"
-        dta.RoadLink.LENGTH_UNITS   = "miles"
-
-        dta.setupLogging("c:/temp/dta.INFO.log", "c:/temp/visualizeDTAResults.DEBUG.log", logToConsole=False)
-
-        scenario = dta.DynameqScenario()
-        scenario.read(inputDir, filePrefix) 
-        net = dta.DynameqNetwork(scenario)
-
-        net.read(inputDir, filePrefix)
-        
-        return net
-        
+    raise NotImplementedError()

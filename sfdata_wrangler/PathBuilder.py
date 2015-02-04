@@ -18,32 +18,19 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import dta
-         
-class NetworkHelper():
-    """ 
-    Methods used to read and process highway network. 
+from path_inference.path_builder import PathBuilder
+
+class SFPathBuilder(PathBuilder):
+  """ Creates candidate paths between states.
+  
+  Extends PathBuilder to actually create the paths.  
+  """
+  
+  def getPaths(self, s1, s2):
+    """ Returns a set of candidate paths between state s1 and state s3.
+    Arguments:
+    - s1 : a State object
+    - s2 : a State object
     """
-
-    def __init__(self):
-        """
-        Constructor.             
-        """   
-
-    def readDTANetwork(self, inputDir, filePrefix):
-        
-        # The SanFrancisco network will use feet for vehicle lengths and coordinates, and miles for link lengths
-        dta.VehicleType.LENGTH_UNITS= "feet"
-        dta.Node.COORDINATE_UNITS   = "feet"
-        dta.RoadLink.LENGTH_UNITS   = "miles"
-
-        dta.setupLogging("c:/temp/dta.INFO.log", "c:/temp/visualizeDTAResults.DEBUG.log", logToConsole=False)
-
-        scenario = dta.DynameqScenario()
-        scenario.read(inputDir, filePrefix) 
-        net = dta.DynameqNetwork(scenario)
-
-        net.read(inputDir, filePrefix)
-        
-        return net
-        
+    print 'In Gregs Method'
+    raise NotImplementedError()

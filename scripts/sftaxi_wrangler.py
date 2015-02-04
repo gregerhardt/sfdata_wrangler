@@ -19,13 +19,11 @@ __license__     = """
 
 import sys
 import datetime
-import pandas as pd
 
 sys.path.append('C:/CASA/Workspace/dta')
 sys.path.append('C:/CASA/Workspace/Path-Inference-Filter/mm')
 sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 
-import dta
 from SFTaxiDataHelper import SFTaxiDataHelper
 from NetworkHelper import NetworkHelper
 

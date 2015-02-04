@@ -21,7 +21,7 @@ __license__     = """
 import pandas as pd
 import datetime
 from path_inference import utils
-import Trajectory
+from .Trajectory import Trajectory
 
 # used to calculate number of points in each trip
 def setNumPointsAndLength(df):
@@ -36,7 +36,7 @@ class SFTaxiDataHelper():
     """
 
     # number of rows to read at a time
-    CHUNKSIZE = 100000
+    CHUNKSIZE = 10000
     
     # speed threshold under which vehicles are considered stationary
     #   1 mph = 88 ft/min, or about 3.5 vehicle lengths between recordings
