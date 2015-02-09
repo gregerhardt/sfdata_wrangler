@@ -20,8 +20,9 @@ __license__     = """
 
 import pandas as pd
 import datetime
-from path_inference import utils
-from .Trajectory import Trajectory
+import HwyNetwork
+from Trajectory import Trajectory
+from mm.path_inference.structures import Position
 
 # used to calculate number of points in each trip
 def setNumPointsAndLength(df):
@@ -29,7 +30,8 @@ def setNumPointsAndLength(df):
     df['trip_length'] = df['feet'].sum()
     return df                    
                                     
-class SFTaxiDataHelper():
+
+class TaxiDataHelper():
     """ 
     Methods used to read taxi GPS points and use them to calculate 
     link speeds. 
@@ -81,6 +83,10 @@ class SFTaxiDataHelper():
 
             rowsRead    += len(chunk)
         
+            # convert to x y coordinates
+            chunk['x'] = chunk['longitude'].apply(HwyNetwork.convertLongitudeToX)
+            chunk['y'] = chunk['latitude'].apply(HwyNetwork.convertLatitudeToY)
+        
             # convert to timedate formats
             chunk['date'] = pd.to_datetime(chunk['time'],format="%Y-%m-%d",exact=False)  
             chunk['time'] = pd.to_datetime(chunk['time'],format="%Y-%m-%d %H:%M:%S")  
@@ -98,7 +104,7 @@ class SFTaxiDataHelper():
         # close the writer
         store.close()
     
-                    
+    
     def identifyGPSTrips(self, storefile, inkey, outkey):
         """
         Reads the GPS points and creates a sequence of points for each
@@ -115,6 +121,9 @@ class SFTaxiDataHelper():
         dates.sort()
         cab_ids = store.select_column(inkey, 'cab_id').unique()
         cab_ids.sort()
+        
+        # for testing only
+        #cab_ids = cab_ids[:5]
 
         print 'Retrieved a total of %i days to process' % len(dates)
         
@@ -122,6 +131,7 @@ class SFTaxiDataHelper():
         for date in dates: 
             print 'Processing ', date            
             for cab_id in cab_ids:
+                print 'Processing cab_id ', cab_id
                     
                 # get the data and sort
                 query = 'date==Timestamp(date) & cab_id==' + str(cab_id)
@@ -130,7 +140,7 @@ class SFTaxiDataHelper():
                                     
                 if (len(df)>0):
                         
-                    # initialize the columns    
+                    # initialize the columns  
                     df['feet']  = 0
                     df['seconds'] = 0
                     df['speed']   = 0
@@ -139,7 +149,7 @@ class SFTaxiDataHelper():
                                     
                     # sort out whether the vehicle is moving, and how to group trips
                     first_row = True
-                    last_row = 'none'
+                    last_row = None
                     for i, row in df.iterrows():
         
                         # reset for each new vehicle
@@ -149,8 +159,10 @@ class SFTaxiDataHelper():
                             
                         # for these, calculate measures and increment trip_ids
                         else:
-                            feet = 3.2808399 * utils.haversine(last_row['longitude'], \
-                                    last_row['latitude'],row['longitude'], row['latitude'])
+                            pos1 = Position(last_row['x'],last_row['y'])
+                            pos2 = Position(row['x'], row['y'])
+                            feet = HwyNetwork.distanceInFeet(pos1, pos2)
+
                             seconds = (row['time'] - last_row['time']).total_seconds()
                             speed = (feet / seconds) * 0.681818
                                 
@@ -159,12 +171,12 @@ class SFTaxiDataHelper():
                                 stationary_time += seconds
                             else: 
                                 stationary_time = 0    
-                                                    
-                            df.loc[i,'feet']    = feet
-                            df.loc[i,'seconds'] = seconds
-                            df.loc[i,'speed']= speed
-                            df.loc[i,'forward_stationary_time'] = stationary_time   
-        
+                                                   
+                            df.at[i,'feet']    = feet
+                            df.at[i,'seconds'] = seconds
+                            df.at[i,'speed']   = speed
+                            df.at[i,'forward_stationary_time'] = stationary_time  
+                        
                         last_row = row
                         
                     # make a backwards pass to clean up the first and last
@@ -188,9 +200,9 @@ class SFTaxiDataHelper():
                                 stationary_time += seconds
                             else: 
                                 stationary_time = 0    
-                                                    
-                            df.loc[i,'backward_stationary_time'] = stationary_time   
-        
+                            
+                            df.at[i,'backward_stationary_time'] = stationary_time           
+                            
                         last_row = row
                     
                     # now make another forward pass to group into trips                  
@@ -222,13 +234,14 @@ class SFTaxiDataHelper():
                         # otherwise it is a continuation
         
                         # assign value
-                        df.loc[i, 'trip_id'] = trip_id
-                        last_row = row  
+                        df.at[i,'trip_id'] = trip_id
+                        
+                        last_row = row
                                         
                     # determine the points per trip, and distance travelled
                     grouped = df.groupby(['trip_id'])
                     df = grouped.apply(setNumPointsAndLength)
-                                    
+                                                                                                                
                     # filter out the records that don't make valid trips
                     df_filtered = df[(df['num_points']>1.0) & 
                         (df['trip_length'] > self.TRIP_DIST_THRESHOLD)]
@@ -239,8 +252,8 @@ class SFTaxiDataHelper():
         # all done
         store.close()
 
-    
-    def createTrajectories(self, storefile, inkey):
+
+    def createTrajectories(self, hwynet, storefile, inkey, outkey):
         """
         Takes the sequence of points, and converts each into a
         trajectory object. 
@@ -262,15 +275,102 @@ class SFTaxiDataHelper():
             print 'Processing ', date
             
             # get the data and sort
-            df = store.select('points', where='date==Timestamp(date)')  
+            gps_df = store.select(inkey, where='date==Timestamp(date)')  
             
             # loop through each trip
-            groups = df.groupby(['cab_id','trip_id'])     
+            groups = gps_df.groupby(['cab_id','trip_id'])     
             for group in groups:
+                print 'Processing group ', group[0]
                 
                 # group[0] is the index, group[1] is the records
-                traj = Trajectory(group[1])
-                         
+                traj = Trajectory(hwynet, group[1])
+                traj.calculateMostLikely()
+                
+                # allocate trajectory travel times to links
+                (link_ids, startTimes, travelTimes) = \
+                    self.allocateTrajectoryTravelTimeToLinks(hwynet, traj)
+ 
+                # create a dataframe                 
+                data = {'cab_id': group[1].cab_id, 
+                        'trip_id': group[1].trip_id, 
+                        'status': group[1].status, 
+                        'link_id': link_ids, 
+                        'start_time': startTimes, 
+                        'travel_time': travelTimes}
+                link_df = pd.DataFrame(data)
+                
+                # write the data
+                store.append(outkey, link_df, data_columns=True)
         
         # all done
         store.close()
+
+        
+    def allocateTrajectoryTravelTimeToLinks(self, hwynet, traj):
+        """
+        Takes a trajectory, with the most likely already calculated, 
+        and allocates the travel time to the links traversed.
+        
+        Returns three lists for: 
+            (link_ids, startTimes, travelTimes)
+            There is one record for each link in the trajectory. 
+        """
+        
+        # the output containers
+        link_ids    = []
+        startTimes  = []
+        travelTimes = []
+        
+        
+        # now go through each path
+        paths = traj.getMostLikelyPaths()
+        path_times = traj.getPathStartEndTimes()
+        
+        numLinks = 0
+        currentTime = None
+        for i in range(0, len(paths)):
+            (pathStartTime, pathEndTime) = path_times[i]
+            pathLinkIds = paths[i].links
+            
+            # for the first and last link, these are only for the portion
+            # of the link that is actually traversed
+            pathLinkTravelTimes = hwynet.allocatePathTravelTimeToLinks(
+                paths[i], pathStartTime, pathEndTime)
+                
+            # if it is the very first link, account for the link 
+            # start time being a bit earlier than the path start time
+            if i==0:
+                link_ids.append(pathLinkIds[0])
+                                
+                # TODO: extra time should be a datetime object or some such thing!
+                offsetRatio = hwynet.getLinkOffsetRatio(paths[i].start)
+                extraTime = pathLinkTravelTimes[0] * offsetRatio
+                linkStartTime = pathStartTime - extraTime
+                startTimes.append(linkStartTime)
+                
+                travelTimes.append(pathLinkTravelTimes[0])
+                
+                numLinks += 1
+                currentTime = linkStartTime + datetime.timedelta(seconds=pathLinkTravelTimes[0])
+                
+            # if it is the first link in the path, but not the first in 
+            # the trajectory, there will be overlap with the previous link
+            else:
+                travelTime1 = travelTimes[numLinks-1]
+                travelTime2 = pathLinkTravelTimes[0]
+                offsetRatio = hwynet.getLinkOffsetRatio(paths[i].start)
+                travelTime = (travelTime1 * offsetRatio) + (travelTime2 * (1-offsetRatio))
+                travelTimes[numLinks-1] = travelTime
+                
+                currentTime = startTimes[numLinks-1] + datetime.timedelta(seconds=travelTime)
+                
+            # for subsequent links, it is a bit more straight-forward
+            for j in range(1, pathLinkIds):
+                link_ids.append(pathLinkIds[j])
+                startTimes.append(currentTime)
+                travelTimes.append(pathLinkTravelTimes[j])
+                
+                numLinks += 1
+                currentTime = linkStartTime + datetime.timedelta(seconds=pathLinkTravelTimes[j])
+                
+            return (link_ids, startTimes, travelTimes)

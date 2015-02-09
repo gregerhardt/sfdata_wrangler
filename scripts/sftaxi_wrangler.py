@@ -21,11 +21,11 @@ import sys
 import datetime
 
 sys.path.append('C:/CASA/Workspace/dta')
-sys.path.append('C:/CASA/Workspace/Path-Inference-Filter/mm')
+sys.path.append('C:/CASA/Workspace/Path-Inference-Filter')
 sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 
-from SFTaxiDataHelper import SFTaxiDataHelper
-from NetworkHelper import NetworkHelper
+from TaxiDataHelper import TaxiDataHelper
+from HwyNetwork import HwyNetwork
 
 USAGE = r"""
 
@@ -42,11 +42,9 @@ USAGE = r"""
 
     
 # VALID STEPS-- list of allowable steps to run
-VALID_STEPS = [ 'readNetwork',                 
-                'convertPoints', 
+VALID_STEPS = [ 'convertPoints', 
                 'identifyTrips', 
                 'createTraj', 
-                'timeAlloc', 
                 'timeAgg'
                 ]    
                 
@@ -80,35 +78,28 @@ if __name__ == "__main__":
             sys.exit(2)
     
     # create the helper
-    sftaxiHelper = SFTaxiDataHelper()
+    taxiHelper = TaxiDataHelper()
     
-    # reads the SF network, using from the Dynameq structure. 
-    if 'readNetwork' in STEPS_TO_RUN: 
-        startTime = datetime.datetime.now()   
-        netHelper = NetworkHelper()
-        net = netHelper.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
-        print 'Finished reading highway network in ', (datetime.datetime.now() - startTime)
-
     # convert the taxi data
     if 'convertPoints' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         for infile in RAW_TAXI_FILES: 
-            sftaxiHelper.processRawData(infile, TAXI_OUTFILE, 'points')
+            taxiHelper.processRawData(infile, TAXI_OUTFILE, 'points')
         print 'Finished converting taxi GPS data in ', (datetime.datetime.now() - startTime)
 
     # extract trips
     if 'identifyTrips' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sftaxiHelper.identifyGPSTrips(TAXI_OUTFILE, 'points', 'trip_points')            
+        taxiHelper.identifyGPSTrips(TAXI_OUTFILE, 'points', 'trip_points')            
         print 'Finished identifying taxi trips in ', (datetime.datetime.now() - startTime)
 
     # create trajectories
     if 'createTraj' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sftaxiHelper.createTrajectories(TAXI_OUTFILE, 'trip_points')            
+        hwynet = HwyNetwork()
+        hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
+        taxiHelper.createTrajectories(hwynet, TAXI_OUTFILE, 'trip_points', 'trajectories') 
         print 'Finished creating taxi trajectories in ', (datetime.datetime.now() - startTime)
-
-    
 
             
     print 'Run complete!  Time for a pint!'
