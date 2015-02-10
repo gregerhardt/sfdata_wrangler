@@ -51,6 +51,24 @@ def convertLongitudeLatitudeToXY(lon_lat):
     return (x_meters/FEET_TO_METERS,y_meters/FEET_TO_METERS)
 
 def isInSanFranciscoBox(x_y):    
+<<<<<<< HEAD
+=======
+    """
+    Checks whether the x_y point given is within a rectangular box
+    drawn around the City of San Francisco.
+    """
+    (x, y) = x_y
+    
+    if (x > 5979762.10716
+    and y > 2074908.26203
+    and x < 6027567.22925
+    and y < 2130887.56530):
+        return True
+    else: 
+        return False
+
+def convertLongitudeToX(longitude):        
+>>>>>>> de93ee3a762f5850df4d12c31cab1177d10fe832
     """
     Checks whether the x_y point given is within a rectangular box
     drawn around the City of San Francisco.
@@ -159,7 +177,11 @@ class HwyNetwork():
                 self.net, link1, link2, runSP=True)       
                 
         if (links==None):
+<<<<<<< HEAD
             #print 'No valid path between links ', s1.link_id, ' and ', s2.link_id
+=======
+            print 'No valid path between links ', s1.link_id, ' and ', s2.link_id
+>>>>>>> de93ee3a762f5850df4d12c31cab1177d10fe832
             return [None]
             
         link_ids = []             

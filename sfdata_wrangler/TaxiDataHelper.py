@@ -280,7 +280,11 @@ class TaxiDataHelper():
             print 'Processing ', date
             
             # get the data and sort
+<<<<<<< HEAD
             gps_df = store.select(inkey, where='date==Timestamp(date) & cab_id==5 & trip_id<20')  
+=======
+            gps_df = store.select(inkey, where='date==Timestamp(date) & cab_id==5 & trip_id>4')  
+>>>>>>> de93ee3a762f5850df4d12c31cab1177d10fe832
             
             # loop through each trip
             groups = gps_df.groupby(['cab_id','trip_id','status'])     
@@ -390,8 +394,13 @@ class TaxiDataHelper():
                 travelTimes.append(pathLinkTravelTimes[j])
                 
                 numLinks += 1
+<<<<<<< HEAD
                 currentTime = startTimes[numLinks-1] + \
                     datetime.timedelta(seconds=pathLinkTravelTimes[j])
             
+=======
+                currentTime = linkStartTime + datetime.timedelta(seconds=pathLinkTravelTimes[j])
+        
+>>>>>>> de93ee3a762f5850df4d12c31cab1177d10fe832
                         
         return (link_ids, startTimes, travelTimes)
