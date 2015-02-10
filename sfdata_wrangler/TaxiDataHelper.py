@@ -84,8 +84,13 @@ class TaxiDataHelper():
             rowsRead    += len(chunk)
         
             # convert to x y coordinates
-            chunk['x'] = chunk['longitude'].apply(HwyNetwork.convertLongitudeToX)
-            chunk['y'] = chunk['latitude'].apply(HwyNetwork.convertLatitudeToY)
+            lon_lat = pd.Series(zip(chunk['longitude'], chunk['latitude']))
+            x_y = lon_lat.apply(HwyNetwork.convertLongitudeLatitudeToXY)
+            chunk['x'], chunk['y'] = zip(*x_y)
+            
+            # keep only the points within the city bounds
+            chunk['in_sf'] = x_y.apply(HwyNetwork.isInSanFranciscoBox)
+            chunk = chunk[chunk['in_sf']==True]
         
             # convert to timedate formats
             chunk['date'] = pd.to_datetime(chunk['time'],format="%Y-%m-%d",exact=False)  
@@ -275,15 +280,21 @@ class TaxiDataHelper():
             print 'Processing ', date
             
             # get the data and sort
-            gps_df = store.select(inkey, where='date==Timestamp(date)')  
+            gps_df = store.select(inkey, where='date==Timestamp(date) & cab_id==5 & trip_id<20')  
             
             # loop through each trip
-            groups = gps_df.groupby(['cab_id','trip_id'])     
-            for group in groups:
-                print 'Processing group ', group[0]
+            groups = gps_df.groupby(['cab_id','trip_id','status'])     
+            for group in groups:                
+                print '    Processing group: ', group[0]
                 
                 # group[0] is the index, group[1] is the records
                 traj = Trajectory(hwynet, group[1])
+                
+                # check for empty set
+                if (len(traj.candidatePoints)==0):
+                    continue                
+                
+                # determine most likely paths and points
                 traj.calculateMostLikely()
                 
                 # allocate trajectory travel times to links
@@ -291,13 +302,16 @@ class TaxiDataHelper():
                     self.allocateTrajectoryTravelTimeToLinks(hwynet, traj)
  
                 # create a dataframe                 
-                data = {'cab_id': group[1].cab_id, 
-                        'trip_id': group[1].trip_id, 
-                        'status': group[1].status, 
-                        'link_id': link_ids, 
+                data = {'link_id': link_ids, 
                         'start_time': startTimes, 
                         'travel_time': travelTimes}
                 link_df = pd.DataFrame(data)
+                
+                (cab_id, trip_id, status) = group[0]
+                link_df['date'] = date
+                link_df['cab_id']  = cab_id
+                link_df['trip_id'] = trip_id
+                link_df['status']  = status
                 
                 # write the data
                 store.append(outkey, link_df, data_columns=True)
@@ -329,23 +343,27 @@ class TaxiDataHelper():
         numLinks = 0
         currentTime = None
         for i in range(0, len(paths)):
+        
+            if (paths[i]==None or len(paths[i].links)==0):
+                continue                
+            
             (pathStartTime, pathEndTime) = path_times[i]
             pathLinkIds = paths[i].links
-            
+                    
             # for the first and last link, these are only for the portion
             # of the link that is actually traversed
-            pathLinkTravelTimes = hwynet.allocatePathTravelTimeToLinks(
+            pathLinkTravelTimes = hwynet.allocatePathTravelTimeToFullLinks(
                 paths[i], pathStartTime, pathEndTime)
                 
             # if it is the very first link, account for the link 
             # start time being a bit earlier than the path start time
-            if i==0:
+            if numLinks==0:
                 link_ids.append(pathLinkIds[0])
                                 
                 # TODO: extra time should be a datetime object or some such thing!
                 offsetRatio = hwynet.getLinkOffsetRatio(paths[i].start)
                 extraTime = pathLinkTravelTimes[0] * offsetRatio
-                linkStartTime = pathStartTime - extraTime
+                linkStartTime = pathStartTime - datetime.timedelta(seconds=extraTime)
                 startTimes.append(linkStartTime)
                 
                 travelTimes.append(pathLinkTravelTimes[0])
@@ -362,15 +380,18 @@ class TaxiDataHelper():
                 travelTime = (travelTime1 * offsetRatio) + (travelTime2 * (1-offsetRatio))
                 travelTimes[numLinks-1] = travelTime
                 
-                currentTime = startTimes[numLinks-1] + datetime.timedelta(seconds=travelTime)
-                
+                currentTime = startTimes[numLinks-1] + \
+                    datetime.timedelta(seconds=travelTime)
+                    
             # for subsequent links, it is a bit more straight-forward
-            for j in range(1, pathLinkIds):
+            for j in range(1, len(pathLinkIds)):
                 link_ids.append(pathLinkIds[j])
                 startTimes.append(currentTime)
                 travelTimes.append(pathLinkTravelTimes[j])
                 
                 numLinks += 1
-                currentTime = linkStartTime + datetime.timedelta(seconds=pathLinkTravelTimes[j])
-                
-            return (link_ids, startTimes, travelTimes)
+                currentTime = startTimes[numLinks-1] + \
+                    datetime.timedelta(seconds=pathLinkTravelTimes[j])
+            
+                        
+        return (link_ids, startTimes, travelTimes)

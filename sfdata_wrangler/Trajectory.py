@@ -18,11 +18,64 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import sys
 import HwyNetwork
 import numpy as np
 from mm.path_inference.structures import StateCollection, Position
 from mm.path_inference.learning_traj import LearningTrajectory
 from mm.path_inference.learning_traj_viterbi import TrajectoryViterbi1
+    
+
+
+def point_feature_vector(sc):
+    """ The feature vector of a point.
+
+    This is used as a scoring function, where each possible state is given
+    a score based on the distance from that state to the recorded GPS
+    position.  It is a maximization problem, so the score must be negative. 
+         
+    It returns an array with two elements, the first element being the
+    pathscore and the second being the pointscore.  Since this is for points, 
+    the pathscore is always zero.  There is one element for each state 
+    in the state collection
+                
+    The pointscore is based on the distance from the candidate state to the 
+    recorded GPS position. 
+
+    """
+    point_features = []
+    for s in sc.states:
+        score = [0, -s.distFromGPS]
+        point_features.append(score)
+    return point_features
+    
+    
+
+def path_feature_vector(hwynet, path, tt):
+    """ The feature vector of a path.
+
+    This is used as a scoring function, where the path is given a score
+    based on the square of the difference in travel time calculated from 
+    the links versus between the GPS recordings. It is a maximization problem, 
+    so the score must be negative. 
+         
+    It returns an array with two elements, the first element being the
+    pathscore and the second being the pointscore.  Since this is for paths, 
+    the pointscore is always zero.  
+         
+    Here, the scoring is based on the sum of the absolute difference in 
+    travel time, and the travel time in excess of what is observed.  In this
+    way, we double-penalize paths that look too long, getting shorter paths. 
+
+    """  
+    
+    if (path==None):
+        return [-sys.maxint, 0]
+        
+    else: 
+        path_tt = hwynet.getPathFreeFlowTTInSeconds(path)
+        score = -1.0 * (abs(path_tt - tt) + max(path_tt - tt, 0))        
+        return [score, 0]
     
 
 class Trajectory():
@@ -75,15 +128,20 @@ class Trajectory():
            
         # The indexes of the most likely elements of the trajectory
         # Point indexes and path indexes are interleaved.
-        self.most_likely_indexes = None
+        self.most_likely_indices = None
 
 
         # STEP 1: Create the points
         firstRow = True
         for i, row in df.iterrows():
-            (x,y) = hwynet.convertLongitudeLatitudeToXY(row['longitude'], row['latitude'])
-            position = Position(x, y)         
+            position = Position(row['x'], row['y'])         
             states = hwynet.project(position)
+            
+            # if point is not near any links, get out of here.
+            # don't just keep going because that could cause a discontinutity
+            if (len(states)==0):
+                break
+            
             sc = StateCollection(row['cab_id'], states, position, row['time'])
             self.candidatePoints.append(sc)
             
@@ -91,10 +149,14 @@ class Trajectory():
             if (not firstRow): 
                 self.traveltimes.append(row['seconds'])
             firstRow = False
-        
-        # STEP 2: Create the candidate paths between each point
+            
+        # STEP 2: Check that we're not dealing with an emtpy set
+        if (len(self.candidatePoints)==0):
+            return
+                
+        # STEP 3: Create the candidate paths between each point
         #         and fill up the features while we're at it
-        point_scores = self.point_feature_vector(hwynet, self.candidatePoints[0]) 
+        point_scores = point_feature_vector(self.candidatePoints[0]) 
         self.features.append(point_scores)
         
         for i in range(1, len(self.candidatePoints)):
@@ -109,13 +171,13 @@ class Trajectory():
             # features are used for scoring
             paths_features = []
             for path_ in ps:
-                path_scores = self.path_feature_vector(hwynet, path_, self.traveltimes[i])
+                path_scores = path_feature_vector(hwynet, path_, self.traveltimes[i-1])
                 paths_features.append(path_scores)
             self.features.append(paths_features)
             
-            point_scores = self.point_feature_vector(hwynet, self.candidatePoints[i])
+            point_scores = point_feature_vector(self.candidatePoints[i])
             self.features.append(point_scores)
-            
+        
 
     def calculateMostLikely(self):
         """ Calculates the indices of the most likely trajectory.
@@ -135,11 +197,19 @@ class Trajectory():
         # and candidate paths (although those must be stored externally.  
         # There is one index for each feature. 
         viterbi = TrajectoryViterbi1(traj, self.THETA)
-        viterbi.computeAssignments()
+        try: 
+            viterbi.computeAssignments()
+        except (ValueError):
+            for f in self.features:
+                print f
+            for t in self.transitions:
+                print t
+            print self.THETA
+            raise 
 
         # The indexes of the most likely elements of the trajectory
         # Point indexes and path indexes are interleaved.
-        self.most_likely_indexes = viterbi.assignments
+        self.most_likely_indices = viterbi.assignments
     
 
     def getMostLikelyPaths(self):
@@ -147,16 +217,16 @@ class Trajectory():
                 
         """
         
-        if self.most_likely_indexes == None:
+        if self.most_likely_indices == None:
             raise RuntimeError('Need to calculate most likely indices!')         
         
         elements = []
-        for i in range(0, len(self.most_likely_indexes)):
+        for i in range(0, len(self.most_likely_indices)):
             
             # it is only a path if i is odd, otherwise its a state collection
             if ((i%2) == 1): 
                 j = (i-1) / 2
-                path = self.candidatePaths[j][self.most_likely_index[i]]
+                path = self.candidatePaths[j][self.most_likely_indices[i]]
                 elements.append(path)
         
         return elements
@@ -176,51 +246,4 @@ class Trajectory():
         return times
 
 
-    def point_feature_vector(sc):
-        """ The feature vector of a point.
-
-        This is used as a scoring function, where each possible state is given
-        a score based on the distance from that state to the recorded GPS
-        position.  It is a maximization problem, so the score must be negative. 
-         
-        It returns an array with two elements, the first element being the
-        pathscore and the second being the pointscore.  Since this is for points, 
-        the pathscore is always zero.  There is one element for each state 
-        in the state collection
-                
-        The pointscore is based on the distance from the candidate state to the 
-        recorded GPS position. 
-
-        """
-        point_features = []
-        for s in sc.states:
-            dist = HwyNetwork.distanceInFeet(sc.gps_pos, s.gps_pos)
-            score = [0, -dist]
-            point_features.append(score)
-        return point_features
-    
-    
-
-    def path_feature_vector(hwynet, path, tt):
-        """ The feature vector of a path.
-
-        This is used as a scoring function, where the path is given a score
-        based on the square of the difference in travel time calculated from 
-        the links versus between the GPS recordings. It is a maximization problem, 
-        so the score must be negative. 
-         
-        It returns an array with two elements, the first element being the
-        pathscore and the second being the pointscore.  Since this is for paths, 
-        the pointscore is always zero.  
-         
-        Here, the scoring is based on the sum of the absolute difference in 
-        travel time, and the travel time in excess of what is observed.  In this
-        way, we double-penalize paths that look too long, getting shorter paths. 
-
-        """  
-        path_tt = hwynet.getPathFreeFlowTTInSeconds(path)
-        score = -1.0 * (abs(path_tt - tt) + max(path_tt - tt, 0))
-        
-        return [score, 0]
-    
         

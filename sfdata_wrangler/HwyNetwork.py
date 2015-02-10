@@ -25,7 +25,7 @@ from mm.path_inference.structures import State
 from mm.path_inference.structures import Path 
 
 
-def convertLongitudeLatitudeToXY(longitude,latitude):        
+def convertLongitudeLatitudeToXY(lon_lat):        
     """
     Converts longitude and latitude to an x,y coordinate pair in
     NAD83 Datum (most of our GIS and CUBE files)
@@ -33,6 +33,8 @@ def convertLongitudeLatitudeToXY(longitude,latitude):
     Returns (x,y) in feet.
     """
     FEET_TO_METERS = 0.3048006096012192
+    
+    (longitude,latitude) = lon_lat
 
     p = Proj(proj  = 'lcc',
             datum = "NAD83",
@@ -48,29 +50,20 @@ def convertLongitudeLatitudeToXY(longitude,latitude):
 
     return (x_meters/FEET_TO_METERS,y_meters/FEET_TO_METERS)
 
-def convertLongitudeToX(longitude):        
+def isInSanFranciscoBox(x_y):    
     """
-    Converts longitude to an x coordinate in
-    NAD83 Datum (most of our GIS and CUBE files)
-    
-    Returns x in feet.
+    Checks whether the x_y point given is within a rectangular box
+    drawn around the City of San Francisco.
     """
-    LATITUDE_OF_SF = 37.7749300	
-    (x,y) = convertLongitudeLatitudeToXY(longitude, LATITUDE_OF_SF)
+    (x, y) = x_y
     
-    return x
-
-def convertLatitudeToY(latitude):        
-    """
-    Converts latitude to an y coordinate in
-    NAD83 Datum (most of our GIS and CUBE files)
-    
-    Returns y in feet.
-    """
-    LONGITUDE_OF_SF = -122.4194200	
-    (x,y) = convertLongitudeLatitudeToXY(LONGITUDE_OF_SF, latitude)
-    
-    return y
+    if (x > 5979762.10716
+    and y > 2074908.26203
+    and x < 6027567.22925
+    and y < 2130887.56530):
+        return True
+    else: 
+        return False
 
 def distanceInFeet(position1, position2): 
     """
@@ -122,6 +115,10 @@ class HwyNetwork():
 
         net.read(inputDir, filePrefix)
         
+        # initialize costs
+        dta.Algorithms.ShortestPaths.initiaxblizeEdgeCostsWithFFTT(net)
+        dta.Algorithms.ShortestPaths.initialiseMovementCostsWithFFTT(net)        
+        
         self.net = net
         
         
@@ -141,7 +138,7 @@ class HwyNetwork():
         for rt in return_tuple: 
             (roadlink, distance, t) = rt
             offset = t * roadlink.getLengthInCoordinateUnits()
-            state = State(roadlink.getId(), offset)
+            state = State(roadlink.getId(), offset, distFromGPS=distance)
             states.append(state)
                     
         return states
@@ -154,11 +151,22 @@ class HwyNetwork():
         - s1 : a State object
         - s2 : a State object
         """        
+        
         link1 = self.net.getLinkForId(s1.link_id)
         link2 = self.net.getLinkForId(s2.link_id)    
-        links = dta.Algorithms.ShortestPath.getShortestPathBetweenLinks(
-            self.net, link1, link2, runSP=True)
-        path = Path(s1, links, s2)        
+        
+        links = dta.Algorithms.ShortestPaths.getShortestPathBetweenLinks(
+                self.net, link1, link2, runSP=True)       
+                
+        if (links==None):
+            #print 'No valid path between links ', s1.link_id, ' and ', s2.link_id
+            return [None]
+            
+        link_ids = []             
+        for link in links:
+            link_ids.append(link.getId())        
+        
+        path = Path(s1, link_ids, s2)        
         return [path]
 
 
@@ -178,11 +186,11 @@ class HwyNetwork():
         for i1 in range(n1):
             for i2 in range(n2):
                 ps = self.getPaths(sc1.states[i1], sc2.states[i2])
-            for path in ps:
-                trans1.append((i1, num_paths))
-                trans2.append((num_paths, i2))
-                paths.append(path)
-                num_paths += 1
+                for path in ps:
+                    trans1.append((i1, num_paths))
+                    trans2.append((num_paths, i2))
+                    paths.append(path)
+                    num_paths += 1
         return (trans1, paths, trans2)
 
 
