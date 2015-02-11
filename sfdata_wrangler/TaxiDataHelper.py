@@ -280,11 +280,8 @@ class TaxiDataHelper():
             print 'Processing ', date
             
             # get the data and sort
-<<<<<<< HEAD
-            gps_df = store.select(inkey, where='date==Timestamp(date) & cab_id==5 & trip_id<20')  
-=======
-            gps_df = store.select(inkey, where='date==Timestamp(date) & cab_id==5 & trip_id>4')  
->>>>>>> de93ee3a762f5850df4d12c31cab1177d10fe832
+            gps_df = store.select(inkey, where='date==Timestamp(date)')  
+            #gps_df = store.select(inkey, where='date==Timestamp(date) & cab_id==5 & trip_id<5')  
             
             # loop through each trip
             groups = gps_df.groupby(['cab_id','trip_id','status'])     
@@ -323,7 +320,7 @@ class TaxiDataHelper():
         # all done
         store.close()
 
-        
+    
     def allocateTrajectoryTravelTimeToLinks(self, hwynet, traj):
         """
         Takes a trajectory, with the most likely already calculated, 
@@ -384,8 +381,7 @@ class TaxiDataHelper():
                 travelTime = (travelTime1 * offsetRatio) + (travelTime2 * (1-offsetRatio))
                 travelTimes[numLinks-1] = travelTime
                 
-                currentTime = startTimes[numLinks-1] + \
-                    datetime.timedelta(seconds=travelTime)
+                currentTime += datetime.timedelta(seconds=travelTime)
                     
             # for subsequent links, it is a bit more straight-forward
             for j in range(1, len(pathLinkIds)):
@@ -394,13 +390,7 @@ class TaxiDataHelper():
                 travelTimes.append(pathLinkTravelTimes[j])
                 
                 numLinks += 1
-<<<<<<< HEAD
-                currentTime = startTimes[numLinks-1] + \
-                    datetime.timedelta(seconds=pathLinkTravelTimes[j])
-            
-=======
-                currentTime = linkStartTime + datetime.timedelta(seconds=pathLinkTravelTimes[j])
-        
->>>>>>> de93ee3a762f5850df4d12c31cab1177d10fe832
-                        
+                
+                currentTime += datetime.timedelta(seconds=pathLinkTravelTimes[j])
+                    
         return (link_ids, startTimes, travelTimes)

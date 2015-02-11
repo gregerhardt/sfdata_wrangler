@@ -89,7 +89,6 @@ class Trajectory():
     # These weights can be tuned to achieve good results. 
     THETA = np.array([1.0, 1.0])
     
-
     def __init__(self, hwynet, df):
         """
         Constructor. 
