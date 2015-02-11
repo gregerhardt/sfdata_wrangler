@@ -20,6 +20,9 @@ __license__     = """
 
 import dta
 import math
+import numpy as np
+import scipy as sp
+from scipy.sparse import csr_matrix
 from pyproj import Proj
 from mm.path_inference.structures import State
 from mm.path_inference.structures import Path 
@@ -100,8 +103,28 @@ class HwyNetwork():
         # it will be set below in the read statement. 
         self.net = None
         
+        
+        # a dictionary lookup between the node IDs and
+        # the graph index for skim and pred
+        self.n2i = None
+        self.i2n = None
+        
+        # The N x N matrix of costs between graph nodes. skim[i,j] gives 
+        # the shortest cost from point i to point j along the graph.
+        self.skim = None
+        
+        # The N x N matrix of predecessors, which can be used to reconstruct 
+        # the shortest paths. Row i of the predecessor matrix contains information 
+        # on the shortest paths from point i: each entry predecessors[i, j] 
+        # gives the index of the previous node in the path from point i to point j. 
+        # If no path exists between point i and j, then predecessors[i, j] = -9999
+        self.pred = None
+        
 
     def readDTANetwork(self, inputDir, filePrefix):
+        """
+        Reads the dynameq files to create a network representation. 
+        """
         
         # The SanFrancisco network will use feet for vehicle lengths and coordinates, and miles for link lengths
         dta.VehicleType.LENGTH_UNITS= "feet"
@@ -122,7 +145,57 @@ class HwyNetwork():
         
         self.net = net
         
+
+    
+    def initializeShortestPaths(self):
+        """
+        Calculates the shortest paths between all node pairs and populates
+        self.skim and self.pred
+        """
         
+        # STEP 1: create a dictionary lookup between the node IDs and
+        # the graph index
+        self.n2i = {}
+        self.i2n = {}
+        
+        i = 0
+        for node in self.net.iterNodes():   
+            node_id = node.getId()
+            self.n2i[node_id] = i
+            self.i2n[i] = node_id
+            i += 1
+        num_nodes = i+1
+        
+        # STEP 2: create a compressed sparse matrix representation of the network, 
+        # for use with scipy shortest path algorithms
+        anodes = []
+        bnodes = []
+        costs = []
+        for link in self.net.iterRoadLinks():
+            a = self.n2i[link.getStartNodeId()]
+            b = self.n2i[link.getEndNodeId()]
+            cost = 60.0 * link.getFreeFlowTTInMin()
+            
+            anodes.append(a)
+            bnodes.append(b)
+            costs.append(cost)
+            
+        num_links = len(costs)
+        
+        anodes2 = np.array(anodes)
+        bnodes2 = np.array(bnodes)
+        costs2  = np.array(costs)
+        
+        print 'Creating network graph with %i nodes and %i links ' %(num_nodes, num_links)        
+        graph = csr_matrix((costs2, (anodes2, bnodes2)), shape=(num_nodes, num_nodes)) 
+        
+        
+        # STEP 3: run the scipy algorithm
+        (self.skim, self.pred) = sp.sparse.csgraph.shortest_path(graph, 
+                        method='auto', directed=True, return_predecessors=True)
+        
+        
+
     def project(self, gps_pos):
         """ (abstract) : takes a GPS position and returns a list of states.
         """
@@ -144,13 +217,86 @@ class HwyNetwork():
                     
         return states
         
+        
+    def getPaths(self, s1, s2):
+        """ Returns a set of candidate paths between state s1 and state s3.
+        Always includes the first and last link. 
+        
+        Arguments:
+        - s1 : a State object
+        - s2 : a State object
+        """
+        
+        # if the same link, it's easy
+        if (s1.link_id == s2.link_id):
+            path = Path(s1, [s1.link_id], s2)    
+            return [path]
+        
+        startNode = self.net.getLinkForId(s1.link_id).getEndNodeId()
+        endNode   = self.net.getLinkForId(s2.link_id).getStartNodeId()
+        
+        # if there is no valid path
+        cost = self.skim[self.n2i[startNode], self.n2i[endNode]]
+        if np.isinf(cost):
+            return [None]
+        
+        # sequence of node IDs
+        nodeSeq = self.getShortestPathNodeSequence(startNode, endNode)
+        
+        # convert to a sequence of link IDs
+        linkSeq = [s1.link_id]
+        for i in range(1,len(nodeSeq)):
+            a = nodeSeq[i-1]
+            b = nodeSeq[i]        
+            link_id = self.net.getLinkForNodeIdPair(a, b).getId()
+            linkSeq.append(link_id)
+        linkSeq.append(s2.link_id)
+        
+        # return the path set
+        path = Path(s1, linkSeq, s2)        
+        return [path]
+
+
+    def getShortestPathNodeSequence(self, startNode, endNode):
+        """
+        returns the sequence of node IDs that define the shortest
+        path from the startNode to the endNode. 
+        
+        - startNode: the start node ID (not index)
+        - endNode: the end node ID (not index)
+        """
+        
+        # use indices
+        start = self.n2i[startNode]
+        end = self.n2i[endNode]
+        
+        # if there is no valid path
+        cost = self.skim[start, end]
+        if np.isinf(cost):
+            return [None]
+        
+        # trace the path
+        path = []
+        j = end
+        while (j != start):
+            path.append(self.i2n[j])
+            j = self.pred[start, j]
+        path.append(self.i2n[start])
+        
+        # reverse the list, because we started from the end
+        path.reverse()
+            
+        return path
+        
 
     # TODO - update to get multiple paths
-    def getPaths(self, s1, s2):
+    def getPathsUsingDtaAnywayImplementation(self, s1, s2):
         """ Returns a set of candidate paths between state s1 and state s3.
         Arguments:
         - s1 : a State object
         - s2 : a State object
+        
+        NOTE: this is slow, so not recommended!
         """        
         
         link1 = self.net.getLinkForId(s1.link_id)
@@ -169,6 +315,7 @@ class HwyNetwork():
         
         path = Path(s1, link_ids, s2)        
         return [path]
+        
 
     def getPathsBetweenCollections(self, sc1, sc2):
         """ Returns a set of candidate paths between all pairs of states
@@ -250,7 +397,10 @@ class HwyNetwork():
         # to the free flow time
         tot_tt = (end_time - start_time).total_seconds()
         tot_ff_time = self.getPathFreeFlowTTInSeconds(path)
-        ratio = tot_tt / tot_ff_time
+        if (tot_ff_time==0):
+            ratio = 1.0
+        else:            
+            ratio = tot_tt / tot_ff_time
 
         # apply that adjustment factor to each link
         link_tt = []

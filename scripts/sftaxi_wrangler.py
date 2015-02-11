@@ -98,6 +98,10 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         hwynet = HwyNetwork()
         hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
+        hwynet.initializeShortestPaths()
+        print 'Finished preparing highway network in ', (datetime.datetime.now() - startTime)
+        
+        startTime = datetime.datetime.now()   
         taxiHelper.createTrajectories(hwynet, TAXI_OUTFILE, 'trip_points', 'trajectories') 
         print 'Finished creating taxi trajectories in ', (datetime.datetime.now() - startTime)
 

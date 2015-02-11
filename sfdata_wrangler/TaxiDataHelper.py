@@ -257,7 +257,7 @@ class TaxiDataHelper():
         # all done
         store.close()
 
-
+    
     def createTrajectories(self, hwynet, storefile, inkey, outkey):
         """
         Takes the sequence of points, and converts each into a
@@ -281,12 +281,14 @@ class TaxiDataHelper():
             
             # get the data and sort
             gps_df = store.select(inkey, where='date==Timestamp(date)')  
-            #gps_df = store.select(inkey, where='date==Timestamp(date) & cab_id==5 & trip_id<5')  
             
             # loop through each trip
+            last_cab_id = 0
             groups = gps_df.groupby(['cab_id','trip_id','status'])     
             for group in groups:                
-                print '    Processing group: ', group[0]
+                (cab_id, trip_id, status) = group[0]
+                if (cab_id != last_cab_id):
+                    print '    Processing cab_id: ', cab_id
                 
                 # group[0] is the index, group[1] is the records
                 traj = Trajectory(hwynet, group[1])
@@ -308,11 +310,11 @@ class TaxiDataHelper():
                         'travel_time': travelTimes}
                 link_df = pd.DataFrame(data)
                 
-                (cab_id, trip_id, status) = group[0]
                 link_df['date'] = date
                 link_df['cab_id']  = cab_id
                 link_df['trip_id'] = trip_id
                 link_df['status']  = status
+                last_cab_id = cab_id
                 
                 # write the data
                 store.append(outkey, link_df, data_columns=True)
@@ -345,7 +347,9 @@ class TaxiDataHelper():
         currentTime = None
         for i in range(0, len(paths)):
         
-            if (paths[i]==None or len(paths[i].links)==0):
+            if (paths[i]==None 
+                or len(paths[i].links)==0
+                or paths[i].start==paths[i].end):
                 continue                
             
             (pathStartTime, pathEndTime) = path_times[i]
