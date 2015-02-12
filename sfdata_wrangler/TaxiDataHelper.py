@@ -301,11 +301,12 @@ class TaxiDataHelper():
                 traj.calculateMostLikely()
                 
                 # allocate trajectory travel times to links
-                (link_ids, startTimes, travelTimes) = \
-                    self.allocateTrajectoryTravelTimeToLinks(hwynet, traj)
+                (link_ids, traversalRatios, startTimes, travelTimes) = \
+                        self.allocateTrajectoryTravelTimeToLinks(hwynet, traj)
  
                 # create a dataframe                 
                 data = {'link_id': link_ids, 
+                        'traversal_ratio': traversalRatios, 
                         'start_time': startTimes, 
                         'travel_time': travelTimes}
                 link_df = pd.DataFrame(data)
@@ -329,72 +330,78 @@ class TaxiDataHelper():
         and allocates the travel time to the links traversed.
         
         Returns three lists for: 
-            (link_ids, startTimes, travelTimes)
+            (link_ids, traversalRatios, startTimes, travelTimes)
             There is one record for each link in the trajectory. 
         """
         
-        # the output containers
-        link_ids    = []
-        startTimes  = []
-        travelTimes = []
-        
-        
-        # now go through each path
         paths = traj.getMostLikelyPaths()
         path_times = traj.getPathStartEndTimes()
+                
+        # STEP 1: get every link, allowing for duplicates
+        link_ids1        = []
+        traversalRatios1 = []
+        travelTimes1     = []
+
+        for (path, path_time) in zip(paths, path_times):
         
-        numLinks = 0
-        currentTime = None
-        for i in range(0, len(paths)):
-        
-            if (paths[i]==None 
-                or len(paths[i].links)==0
-                or paths[i].start==paths[i].end):
+            if (path==None 
+                or len(path.links)==0
+                or path.start==path.end):
                 continue                
             
-            (pathStartTime, pathEndTime) = path_times[i]
-            pathLinkIds = paths[i].links
+            (pathStartTime, pathEndTime) = path_time
                     
-            # for the first and last link, these are only for the portion
-            # of the link that is actually traversed
-            pathLinkTravelTimes = hwynet.allocatePathTravelTimeToFullLinks(
-                paths[i], pathStartTime, pathEndTime)
+            (link_id, traversalRatio, travelTime) = \
+                hwynet.allocatePathTravelTimeToLinks(
+                path, pathStartTime, pathEndTime)
+            
+            link_ids1 += link_id 
+            traversalRatios1 += traversalRatio
+            travelTimes1 += travelTime
                 
-            # if it is the very first link, account for the link 
-            # start time being a bit earlier than the path start time
-            if numLinks==0:
-                link_ids.append(pathLinkIds[0])
-                                
-                # TODO: extra time should be a datetime object or some such thing!
-                offsetRatio = hwynet.getLinkOffsetRatio(paths[i].start)
-                extraTime = pathLinkTravelTimes[0] * offsetRatio
-                linkStartTime = pathStartTime - datetime.timedelta(seconds=extraTime)
-                startTimes.append(linkStartTime)
-                
-                travelTimes.append(pathLinkTravelTimes[0])
+        # STEP 2: now merge the duplicates
+        link_ids2        = []
+        traversalRatios2 = []
+        travelTimes2     = []
+        
+        numLinks = 0
+        prev_link_id = -999
+        totalTraversalRatio = 0
+        totalTravelTime = 0
+        
+        for (link_id, traversalRatio, travelTime) in \
+            zip(link_ids1, traversalRatios1, travelTimes1): 
+                        
+            # if we've moved to a new link, append the previous value
+            # and reset the buckets
+            if (link_id!=prev_link_id):                 
+                if (numLinks>0): 
+                    link_ids2.append(prev_link_id)
+                    traversalRatios2.append(totalTraversalRatio)
+                    travelTimes2.append(totalTravelTime)
                 
                 numLinks += 1
-                currentTime = linkStartTime + datetime.timedelta(seconds=pathLinkTravelTimes[0])
+                totalTraversalRatio = 0
+                totalTravelTime = 0
                 
-            # if it is the first link in the path, but not the first in 
-            # the trajectory, there will be overlap with the previous link
-            else:
-                travelTime1 = travelTimes[numLinks-1]
-                travelTime2 = pathLinkTravelTimes[0]
-                offsetRatio = hwynet.getLinkOffsetRatio(paths[i].start)
-                travelTime = (travelTime1 * offsetRatio) + (travelTime2 * (1-offsetRatio))
-                travelTimes[numLinks-1] = travelTime
-                
-                currentTime += datetime.timedelta(seconds=travelTime)
-                    
-            # for subsequent links, it is a bit more straight-forward
-            for j in range(1, len(pathLinkIds)):
-                link_ids.append(pathLinkIds[j])
-                startTimes.append(currentTime)
-                travelTimes.append(pathLinkTravelTimes[j])
-                
-                numLinks += 1
-                
-                currentTime += datetime.timedelta(seconds=pathLinkTravelTimes[j])
-                    
-        return (link_ids, startTimes, travelTimes)
+            # in all cases, we sum up the current values
+            totalTraversalRatio += traversalRatio
+            totalTravelTime += travelTime
+            prev_link_id = link_id
+            
+        # don't forget to append the very last value
+        link_ids2.append(prev_link_id)
+        traversalRatios2.append(totalTraversalRatio)
+        travelTimes2.append(totalTravelTime)
+        
+
+        # STEP 3: determine the start times
+        startTimes = []
+        (firstPathStartTime, firstPathEndTime) = path_times[0]
+        currentTime = firstPathStartTime
+
+        for tt in travelTimes2: 
+            startTimes.append(currentTime)
+            currentTime = currentTime + datetime.timedelta(seconds=tt)
+        
+        return (link_ids2, traversalRatios2, startTimes, travelTimes2)

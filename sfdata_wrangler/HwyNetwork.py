@@ -347,26 +347,18 @@ class HwyNetwork():
         Arguments: a path_inference.structures.Path object
         """
         
+        # get the traversal ratios
+        traversalRatios = self.getPathTraversalRatios(path)
+        
         # frist get the total time across all links
         tot_tt = 0.0
-        for link_id in path.links:
-            link = self.net.getLinkForId(link_id)
-            tot_tt += 60.0 * link.getFreeFlowTTInMin()
-        
-        # then adjust for the position along the first link
-        first_link = self.net.getLinkForId(path.start.link_id)
-        first_tt = 60.0 * first_link.getFreeFlowTTInMin()
-        firstOffsetRatio = self.getLinkOffsetRatio(path.start)
-        tot_tt -= first_tt * firstOffsetRatio
-        
-        # then adjust for the position along the last link                
-        last_link = self.net.getLinkForId(path.end.link_id)
-        last_tt = 60.0 * last_link.getFreeFlowTTInMin()
-        lastOffsetRatio = self.getLinkOffsetRatio(path.end)
-        tot_tt -= last_tt * (1 - lastOffsetRatio)
-        
+        for i in range(0,len(path.links)):
+            link = self.net.getLinkForId(path.links[i])
+            tot_tt += 60.0 * link.getFreeFlowTTInMin() * traversalRatios[i]
+                
         return tot_tt
     
+
     def getLinkOffsetRatio(self, state):
         """ Returns the offset ratio         
         offset ratio is in [0,1] and indicates how far along from the 
@@ -376,40 +368,72 @@ class HwyNetwork():
         dist = link.getLengthInCoordinateUnits()
         ratio = state.offset / dist
         return ratio
+    
+    
+    def getPathTraversalRatios(self, path):
+        """ Returns an array of traversal ratios, corresponding to each
+        link in the path.  
+                
+        offset ratio is in [0,1] and indicates the fraction of the link
+        that is actually traveled. 
+        """
+                
+        # start with an array of 1s
+        ratios = [1.0] * len(path.links)
+        
+        # adjust the first element        
+        firstOffsetRatio = self.getLinkOffsetRatio(path.start)
+        ratios[0] = ratios[0] - firstOffsetRatio
+        
+        # adjust the last element
+        lastOffsetRatio = self.getLinkOffsetRatio(path.end)
+        ratios[len(path.links)-1] = ratios[len(path.links)-1] - (1.0-lastOffsetRatio)
+        
+        return ratios        
         
 
-    def allocatePathTravelTimeToFullLinks(self, path, start_time, end_time):
-        """ Returns an array of link travel times corresponding to the 
-        links in the path.  
-        
-        For the first and last link, the travel time is what would be 
-        required to traverse the whole link, not just the portion that is
-        actually travelled in the trajectory.  Thus, the sum of the link 
-        times will be higher than the end_time - start_time.  It is up to 
-        the caller of this fuction to account for first and last link issues.           
+    def allocatePathTravelTimeToLinks(self, path, start_time, end_time):
+        """ Returns three lists for: 
+            
+            (link_id, traversalRatio, travelTime)
+            
+            where traversalRatio is the fraction of the link actually traversed
+            and travelTime is in seconds and the travel time to go across
+            that fraction of the link.
+            
+            Note that for the first and last links, only a portion of
+            the link may be traversed.  
         
         Arguments: a path_inference.structures.Path object
                    a datetime object for the start time
                    a datetime object for the end time
         """
         
-        # The adjustment is the ratio of the observed travel time
-        # to the free flow time
+        # get the traversal ratios
+        traversalRatios = self.getPathTraversalRatios(path)
+        
+        # get the totals
         tot_tt = (end_time - start_time).total_seconds()
         tot_ff_time = self.getPathFreeFlowTTInSeconds(path)
-        if (tot_ff_time==0):
-            ratio = 1.0
-        else:            
-            ratio = tot_tt / tot_ff_time
-
-        # apply that adjustment factor to each link
-        link_tt = []
-        for link_id in path.links:
-            link = self.net.getLinkForId(link_id)
-            tt = ratio * 60.0 * link.getFreeFlowTTInMin()
-            link_tt.append(tt)
         
-        return link_tt
+        # allocate the travel time
+        link_tt = []
+        for i in range(0,len(path.links)):
+            
+            # if the vehicle is stopped, or effectively stopped
+            # then allocate the travel time equally across all links
+            if (tot_ff_time < 0.1): 
+                tt = tot_tt * (1.0/len(path.links))
+
+            # othwerwise make it proportional to the free-flow times
+            else: 
+                link = self.net.getLinkForId(path.links[i])
+                ff_time = 60.0 * link.getFreeFlowTTInMin() * traversalRatios[i]
+                tt = tot_tt * (ff_time / tot_ff_time)
+                
+            link_tt.append(tt)        
+        
+        return (path.links, traversalRatios, link_tt)
         
         
         
