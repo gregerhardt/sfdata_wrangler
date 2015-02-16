@@ -276,6 +276,7 @@ class TaxiDataHelper():
         print 'Retrieved a total of %i days to process' % len(dates)
         
         # loop through the dates 
+        rowsWritten = 0
         for date in dates: 
             print 'Processing ', date
             
@@ -315,7 +316,12 @@ class TaxiDataHelper():
                 link_df['cab_id']  = cab_id
                 link_df['trip_id'] = trip_id
                 link_df['status']  = status
+                
                 last_cab_id = cab_id
+                
+                # set the index
+                link_df.index = rowsWritten + pd.Series(range(0,len(link_df)))
+                rowsWritten += len(link_df)
                 
                 # write the data
                 store.append(outkey, link_df, data_columns=True)
@@ -336,7 +342,10 @@ class TaxiDataHelper():
         
         paths = traj.getMostLikelyPaths()
         path_times = traj.getPathStartEndTimes()
-                
+        
+        if (len(paths)==0 or paths==[None]):
+            return ([],[],[],[])
+                        
         # STEP 1: get every link, allowing for duplicates
         link_ids1        = []
         traversalRatios1 = []
@@ -358,7 +367,7 @@ class TaxiDataHelper():
             link_ids1 += link_id 
             traversalRatios1 += traversalRatio
             travelTimes1 += travelTime
-                
+                        
         # STEP 2: now merge the duplicates
         link_ids2        = []
         traversalRatios2 = []
