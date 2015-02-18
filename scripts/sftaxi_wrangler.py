@@ -26,6 +26,7 @@ sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 
 from TaxiDataHelper import TaxiDataHelper
 from HwyNetwork import HwyNetwork
+from Vizualizer import Vizualizer
 
 USAGE = r"""
 
@@ -45,7 +46,8 @@ USAGE = r"""
 VALID_STEPS = [ 'convertPoints', 
                 'identifyTrips', 
                 'createTraj', 
-                'timeAgg'
+                'timeAgg', 
+                'viz'
                 ]    
                 
 
@@ -58,8 +60,8 @@ RAW_TAXI_FILES =["C:/CASA/Data/taxi/2009-02-13.txt"
     
 
 # OUTPUT FILES--change as needed
-TAXI_OUTFILE   = "C:/CASA/DataExploration/taxi.h5"    
-HWYNET_OUTFILE = "C:/CASA/DataExploration/hwynet.h5"    
+TAXI_OUTFILE = "C:/CASA/DataExploration/taxi.h5"     
+VIZ_OUTFILE  = "C:/CASA/DataExploration/sftaxi.html"    
 
 
 # main function call
@@ -105,7 +107,22 @@ if __name__ == "__main__":
         taxiHelper.createTrajectories(hwynet, TAXI_OUTFILE, 'trip_points', 'trajectories') 
         print 'Finished creating taxi trajectories in ', (datetime.datetime.now() - startTime)
 
-            
+    # calculate means and such
+    if 'timeAgg' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()   
+        taxiHelper.aggregateLinkTravelTimes(TAXI_OUTFILE, 'trajectories', 'link_tt')            
+        print 'Finished aggregating link travel times in ', (datetime.datetime.now() - startTime)
+
+    # create network vizualizations
+    if 'viz' in STEPS_TO_RUN:
+        startTime = datetime.datetime.now()   
+        hwynet = HwyNetwork()
+        hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
+        vizualizer = Vizualizer(hwynet, TAXI_OUTFILE)
+        vizualizer.createNetworkPlots(VIZ_OUTFILE, 'link_tt')            
+        print 'Finished vizualizing data in ', (datetime.datetime.now() - startTime)
+        
+    
     print 'Run complete!  Time for a pint!'
     
     

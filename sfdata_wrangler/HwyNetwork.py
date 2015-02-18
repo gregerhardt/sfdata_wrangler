@@ -22,6 +22,7 @@ import dta
 import math
 import numpy as np
 import scipy as sp
+import pandas as pd
 from scipy.sparse import csr_matrix
 from pyproj import Proj
 from mm.path_inference.structures import State
@@ -435,5 +436,43 @@ class HwyNetwork():
         
         return (path.links, traversalRatios, link_tt)
         
+    
+    def getRoadLinkDataFrame(self):
+        """
+        Returns a dataframe with one record for each road link, 
+        containing key link attributes.  
         
+        """
+
+        data = []
+        for link in self.net.iterRoadLinks():
+            
+            row = {}
+            
+            # ID fields
+            row['ID']        = link.getId()
+            row['ANODE']     = link.getStartNode().getId()
+            row['BNODE']     = link.getEndNode().getId()
+            
+            # coordinates (can be more than two)
+            coords = link.getCenterLine(wholeLineShapePoints = True)
+            x, y = zip(*coords)
+            row['X'] = x
+            row['Y'] = y
+
+            # attributes
+            row['TYPE']     = 'RoadLink'
+            row['LABEL']    = link.getLabel()
+            row['FACTYPE']  = link.getFacilityType()
+            row['LANES']    = link.getNumLanes()
+            row['DIR']      = link.getDirection()
+            row['LENGTH']   = link.getLength()
+            row['FFSPEED']  = link.getFreeFlowSpeedInMPH()
+            row['FFTIME']   = 60.0 * link.getFreeFlowTTInMin()
+
+            data.append(row)
+        
+        df = pd.DataFrame(data)
+        
+        return df
         

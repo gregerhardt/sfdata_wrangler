@@ -19,17 +19,35 @@ __license__     = """
 """
 
 import pandas as pd
+import numpy as np
 import datetime
 import HwyNetwork
 from Trajectory import Trajectory
 from mm.path_inference.structures import Position
 
-# used to calculate number of points in each trip
+
 def setNumPointsAndLength(df):
+    """ 
+    calculates number of points in each trip
+    """
     df['num_points'] = len(df)
     df['trip_length'] = df['feet'].sum()
-    return df                    
-                                    
+    return df
+                        
+
+def getHour(time): 
+    """
+    returns the hour given a datetime
+    """
+    return time.hour                                    
+
+
+def percentile95(series): 
+    """
+    returns the 95th percentile of a column
+    """
+    return np.percentile(series, 95)
+
 
 class TaxiDataHelper():
     """ 
@@ -414,3 +432,58 @@ class TaxiDataHelper():
             currentTime = currentTime + datetime.timedelta(seconds=tt)
         
         return (link_ids2, traversalRatios2, startTimes, travelTimes2)
+
+
+
+    def aggregateLinkTravelTimes(self, storefile, inkey, outkey):
+        """
+        Given individual observations, aggregates link travel times
+        to mean values. 
+        
+        storefile - HDF datastore with GPS points in it. 
+        inkey - input key containing trajectories
+        outkey - output key containing average link travel times. 
+        """
+
+        # open the data store
+        store = pd.HDFStore(storefile)    
+        
+        # get the list of dates and cab_ids to process
+        dates = store.select_column(inkey, 'date').unique()
+        dates.sort()
+
+        print 'Retrieved a total of %i days to process' % len(dates)
+        
+        # loop through the dates and cab_ids
+        for date in dates: 
+            print 'Processing ', date            
+                    
+            # get the data and determine the hour
+            df = store.select(inkey, where='date==Timestamp(date)')  
+            df['hour'] = df['start_time'].apply(getHour)
+
+            # group
+            aggMethod = {'travel_time' : 
+                        {'observations':'count', 
+                        'tt_mean':np.mean, 
+                        'tt_std':np.std, 
+                        'tt_95':percentile95}}
+
+            grouped = df.groupby(['link_id', 'hour'])
+            aggregated = grouped.aggregate(aggMethod)
+                
+            # drop multi-level columns
+            levels = aggregated.columns.levels
+            labels = aggregated.columns.labels
+            aggregated.columns = levels[1][labels[1]]
+                                                
+            # clean up structure of dataframe
+            aggregated = aggregated.sort_index()
+            aggregated = aggregated.reset_index()     
+
+            # TODO: switch this to month, dow
+            aggregated['date'] = date
+            
+            # write the data
+            store.append(outkey, aggregated, data_columns=True)
+
