@@ -49,7 +49,10 @@ VALID_STEPS = [ 'convertPoints',
                 'timeAgg', 
                 'viz'
                 ]    
-                
+
+# PARAMETERS
+VIZ_DATE = '2009-02-13'
+VIZ_HOUR = '17'
 
 # INPUT FILES--change as needed
 INPUT_DYNAMEQ_NET_DIR    = "C:/CASA/Data/network/dynameq/validation2010.july19_Sig/Reports/Export"
@@ -58,7 +61,6 @@ INPUT_DYNAMEQ_NET_PREFIX = "pb_july19_830p"
 RAW_TAXI_FILES =["C:/CASA/Data/taxi/2009-02-13.txt"
                 ]
     
-
 # OUTPUT FILES--change as needed
 TAXI_OUTFILE = "C:/CASA/DataExploration/taxi.h5"     
 VIZ_OUTFILE  = "C:/CASA/DataExploration/sftaxi.html"    
@@ -119,7 +121,7 @@ if __name__ == "__main__":
         hwynet = HwyNetwork()
         hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
         vizualizer = Vizualizer(hwynet, TAXI_OUTFILE)
-        vizualizer.createNetworkPlots(VIZ_OUTFILE, 'link_tt')            
+        vizualizer.createNetworkPlot(VIZ_OUTFILE, 'link_tt', date=VIZ_DATE, hour=VIZ_HOUR)            
         print 'Finished vizualizing data in ', (datetime.datetime.now() - startTime)
         
     

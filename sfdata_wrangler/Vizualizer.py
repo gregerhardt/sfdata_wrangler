@@ -18,9 +18,14 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+from collections import OrderedDict
+
 import pandas as pd
 import numpy as np
 import bokeh.plotting as bk
+
+from bokeh.models import HoverTool
+from bokeh.models.sources import ColumnDataSource
 
 
 def calculateSpeed(length_tt_fftt):        
@@ -66,22 +71,20 @@ def getLinkColor(tt_ratio):
     """    
     
     # Specifies the color to use when mapping with a given travel time ratio
-    colorMap = {0.0: 'Green',
-                0.2: 'GreenYellow', 
-                0.4: 'GreenYellow', 
-                0.6: 'GreenYellow', 
-                0.8: 'GreenYellow', 
-                1.0: '#fff7ec',  
-                1.2: '#fee8c8',  
-                1.4: '#fdd49e',  
-                1.6: '#fdbb84',  
-                1.8: '#fc8d59',  
-                2.0: '#ef6548',  
-                2.2: '#d7301f', 
-                2.4: '#b30000', 
-                2.6: '#7f0000'}
+    colorMap = {0.00: 'Green',
+                0.25: 'GreenYellow', 
+                0.50: 'GreenYellow', 
+                0.75: 'GreenYellow',
+                1.00: 'WhiteSmoke',  
+                1.25: '#fdd49e',  
+                1.50: '#fdbb84',  
+                1.75: '#fc8d59',  
+                2.00: '#ef6548',  
+                2.25: '#d7301f', 
+                2.50: '#b30000', 
+                2.75: '#7f0000'}
 
-    tt_ratio_floor = np.floor(tt_ratio*5.0) / 5.0
+    tt_ratio_floor = np.floor(tt_ratio*4.0) / 4.0
     if tt_ratio_floor < min(colorMap.keys()): 
         tt_ratio_floor = min(colorMap.keys())
     if tt_ratio_floor > max(colorMap.keys()): 
@@ -97,7 +100,6 @@ class Vizualizer():
     Class to vizualize the data outputs. 
     """
 
-
     
     def __init__(self, hwynet, hdffile):
         """
@@ -109,15 +111,65 @@ class Vizualizer():
         self.hwynet = hwynet
         self.hdffile = hdffile
         
+
+    def getLinkMidpointData(self, df):
+        """
+        Converts a link dataframe into a dictionary with 
+        one record for the midpoint of each segment (can be 
+        more than one segment per link if there are shape points).
+        
+        This will be used for the hover tool. 
+
+        df - a dataframe with one record for each link. 
+        """   
+        x = []
+        y = []
+        link_id = []
+        label = []
+        ffspeed = []
+        speed = []
+        observations = []
+        color = []
+        width = []
+        
+        # one record for each midpoint
+        for i, row in df.iterrows(): 
+            xvals = row['X']
+            yvals = row['Y']
+            for (x1, x2, y1, y2) \
+                in zip(xvals[:-1], xvals[1:], yvals[:-1], yvals[1:]):
+                
+                x.append((x1 + x2) / 2.0)
+                y.append((y1 + y2) / 2.0)
+                link_id.append(row['ID'])
+                label.append(row['LABEL'])
+                ffspeed.append(row['FFSPEED'])
+                speed.append(row['speed'])
+                observations.append(row['observations'])
+                color.append(row['color'])
+                width.append(row['LANES'] * 0.9)
+        
+        data=dict(x=x, 
+                  y=y, 
+                  link_id=link_id, 
+                  label=label, 
+                  ffspeed=ffspeed, 
+                  speed=speed,
+                  observations=observations, 
+                  color=color, 
+                  width=width)
+        
+        return data
         
 
-    def createNetworkPlots(self, html_outfile, inkey):
+    def createNetworkPlot(self, html_outfile, inkey, date='2013-02-13', hour='17'):
         """ 
         Creates network plots showing the link speeds. 
         
         html_outfile - the file to write to. 
         inkey - the key in the store to find the dataframe of interest
-         
+        date - string for the date's data to display
+        hour - string for the hour to query, from 0 to 23 
         """
         
         # start with the network links as a dataframe
@@ -126,14 +178,14 @@ class Vizualizer():
         # now get the link speeds for the first date
         # and for 5-6 pm
         store = pd.HDFStore(self.hdffile)
-        dates = store.select_column(inkey, 'date').unique()
-        dates.sort()
-        date = dates[0]
-        obs_df = store.select(inkey, where='date==Timestamp(date) and hour=17') 
+        query = "date==Timestamp('" + date + "') and hour==" + hour
+        obs_df = store.select(inkey, where=query) 
         store.close()
         
         # merge, keeping all links
         df = pd.merge(net_df, obs_df, how='left', left_on=['ID'], right_on=['link_id'])
+        
+        """ Calculations start here """ 
         
         # there are zero observations if its not in the right database
         df['observations'].replace(to_replace=np.nan, value=0, inplace=True)
@@ -148,8 +200,15 @@ class Vizualizer():
         # map the link colors based on the travel time ratio
         df['color'] = df['tt_ratio'].apply(getLinkColor)
         
+        # TODO - fix/remove this when bokeh makes hover tool work for lines
+        # see: https://github.com/bokeh/bokeh/issues/984
+        pointData = self.getLinkMidpointData(df)
+
+        
+        """ Plotting starts here """ 
+        
         # specify the output file
-        bk.output_file(html_outfile, title="Taxi Speed Analysis")
+        bk.output_file(html_outfile, title="San Francisco Vizualization")
         
         # set up the plot
         # TODO - add box_zoom tool back in when bokeh makes it work
@@ -159,13 +218,31 @@ class Vizualizer():
                       x_axis_type=None, 
                       y_axis_type=None,
                       tools="pan,wheel_zoom,reset,hover,save", 
-                      title="San Francisco street network")      
-        
+                      title="SF Taxi Speeds: " + date + ', hr=' + hour)      
+                  
+        # TODO - fix/remove this when bokeh makes hover tool work for lines
+        # see: https://github.com/bokeh/bokeh/issues/984        
+        p.circle(pointData['x'], 
+                 pointData['y'], 
+                 source=ColumnDataSource(pointData),
+                 size=pointData['width'],  
+                 line_color=pointData['color'],
+                 fill_color=pointData['color'])
+
+        hover =p.select(dict(type=HoverTool))
+        hover.tooltips = OrderedDict([
+            ("ID", "@link_id"),
+            ("LABEL", "@label"),
+            ("FFSPEED", "@ffspeed"),
+            ("SPEED", "@speed"),
+            ("OBSERVATIONS", "@observations"),
+        ])
+
         # plot the links
         p.multi_line(xs=df['X'], 
                      ys=df['Y'], 
                      line_width=df['LANES'],  
-                     line_color=df['color'])
-
+                     line_color=df['color'])      
+                     
         # write to file and show
         bk.show(p)
