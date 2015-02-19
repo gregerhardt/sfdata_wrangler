@@ -50,9 +50,19 @@ VALID_STEPS = [ 'convertPoints',
                 'viz'
                 ]    
 
-# PARAMETERS
-VIZ_DATE = '2009-02-13'
+# Vizualization outputs
+
+# date and hour for speed maps
+VIZ_DATE = '2009-02-13'  
 VIZ_HOUR = '17'
+
+# (date, cab_id, trip_id) for any trajectories to validate
+TRAJ_VIZ_SPECS = [('2009-02-13',  '649',  '97'), 
+                  ('2009-02-13',  '501', '309'),
+                  ('2009-02-13', '1349',  '11'),
+                  ('2009-02-13', '2813', '537'),
+                  ('2009-02-13',    '3',  '53')
+                  ]
 
 # INPUT FILES--change as needed
 INPUT_DYNAMEQ_NET_DIR    = "C:/CASA/Data/network/dynameq/validation2010.july19_Sig/Reports/Export"
@@ -64,6 +74,7 @@ RAW_TAXI_FILES =["C:/CASA/Data/taxi/2009-02-13.txt"
 # OUTPUT FILES--change as needed
 TAXI_OUTFILE = "C:/CASA/DataExploration/taxi.h5"     
 VIZ_OUTFILE  = "C:/CASA/DataExploration/sftaxi.html"    
+TRAJ_VIZ_OUTFILE = "C:/CASA/DataExploration/sample_trajectories.html"    
 
 
 # main function call
@@ -121,7 +132,13 @@ if __name__ == "__main__":
         hwynet = HwyNetwork()
         hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
         vizualizer = Vizualizer(hwynet, TAXI_OUTFILE)
-        vizualizer.createNetworkPlot(VIZ_OUTFILE, 'link_tt', date=VIZ_DATE, hour=VIZ_HOUR)            
+        
+        # network speed maps
+        vizualizer.createNetworkPlot(VIZ_OUTFILE, date=VIZ_DATE, hour=VIZ_HOUR)  
+        
+        # individual trajectory plots
+        vizualizer.plotTrajectories(TRAJ_VIZ_OUTFILE, trajSpecs=TRAJ_VIZ_SPECS)  
+          
         print 'Finished vizualizing data in ', (datetime.datetime.now() - startTime)
         
     

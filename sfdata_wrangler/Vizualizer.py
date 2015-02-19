@@ -20,6 +20,7 @@ __license__     = """
 
 from collections import OrderedDict
 
+import math
 import pandas as pd
 import numpy as np
 import bokeh.plotting as bk
@@ -63,7 +64,7 @@ def calculateTravelTimeRatio(tt_fftt):
     
     return ratio
 
-def getLinkColor(tt_ratio):
+def getLinkTTRatioColor(tt_ratio):
     """
     Applies a color ramp to the travel time ratio for display. 
     
@@ -93,7 +94,26 @@ def getLinkColor(tt_ratio):
     color = colorMap[tt_ratio_floor]
     
     return color
-    
+
+
+def getLinkTrajectoryColor(travelTime):
+    """
+    Sets the color to red if there is a valid travel time, and 
+    gray otherwise.  
+    """    
+    if np.isfinite(travelTime):
+        return 'FireBrick'
+    else:
+        return 'Gray'
+
+
+def getTimeString(datetime):
+    """
+    Returns a string representation of the time, given a 
+    datetime object  
+    """    
+    return str(datetime.time())
+
     
 class Vizualizer():
     """ 
@@ -112,7 +132,7 @@ class Vizualizer():
         self.hdffile = hdffile
         
 
-    def getLinkMidpointData(self, df):
+    def getSegmentMidpointData(self, df):
         """
         Converts a link dataframe into a dictionary with 
         one record for the midpoint of each segment (can be 
@@ -160,9 +180,143 @@ class Vizualizer():
                   width=width)
         
         return data
-        
+    
 
-    def createNetworkPlot(self, html_outfile, inkey, date='2013-02-13', hour='17'):
+    def getTrajectoryLinkMidpointDf(self, df):
+        
+        """
+        Converts a link dataframe into a dataframe with one 
+        record at the midpoint of each link in the trajectory. 
+
+        df - a dataframe with one record for each link. 
+        """   
+        
+        df2 = df[np.isfinite(df['travel_time'])]
+        
+        x = []
+        y = []
+        angle = []
+        text = []        
+        for i, row in df2.iterrows(): 
+            xvals = row['X']
+            yvals = row['Y']            
+            xmid = (xvals[0] + xvals[-1]) / 2.0 
+            ymid = (yvals[0] + yvals[-1]) / 2.0 
+            
+            # TODO calculate angle in radians properly
+            deltax = xvals[-1] - xvals[0]
+            deltay = yvals[-1] - yvals[0]
+            a = math.atan2(deltay, deltax) + np.pi
+            
+            x.append(xmid)
+            y.append(ymid)
+            text.append(str(int(round(row['travel_time']))))
+            angle.append(a)
+        
+        df3 = pd.DataFrame({'x':x, 'y':y, 'angle':angle, 'text':text})
+        return df3
+    
+    def plotTrajectories(self, html_outfile, trajSpecs):
+        """
+        Prints validation plots for the trajectories specified. 
+        
+        html_outfile - the file to write to. 
+        trajSpecs - list of tuples in the form: 
+                    (date, cab_id, trip_id)
+                    where all three are strings  
+        """
+
+        # setup
+        bk.output_file(html_outfile, title="Trajectory Validation")
+        store = pd.HDFStore(self.hdffile)
+        net_df = self.hwynet.getRoadLinkDataFrame()
+
+        plots = []
+        for date, cab_id, trip_id in trajSpecs:
+            
+            # get the data for this case
+            query = "date==Timestamp('" + date + "') and cab_id==" + cab_id \
+                    + " and trip_id==" + trip_id
+            point_df = store.select('trip_points', where=query) 
+            traj_df = store.select('trajectories', where=query)
+
+            # join trajectory data to network, and set the color
+            df = pd.merge(net_df, traj_df, how='left', left_on=['ID'], right_on=['link_id'])
+            df['color'] = df['travel_time'].apply(getLinkTrajectoryColor)
+
+            # define the ranges, be sure to keep it square
+            # to avoid distortion
+            x_extent = max(point_df['x']) - min(point_df['x'])
+            y_extent = max(point_df['y']) - min(point_df['y'])
+            extent = 1.3 * max(x_extent, y_extent)
+
+            x_mid = (min(point_df['x']) + max(point_df['x'])) / 2.0
+            y_mid = (min(point_df['y']) + max(point_df['y'])) / 2.0
+            
+            x_range = [x_mid - extent/2.0, x_mid + extent/2.0]
+            y_range = [y_mid - extent/2.0, y_mid + extent/2.0]
+
+            # generate lables
+            point_df['text'] = point_df['time'].apply(getTimeString)
+            traj_mid_df = self.getTrajectoryLinkMidpointDf(df)
+
+            # set up the plot
+            # TODO - add box_zoom tool back in when bokeh makes it work
+            #        without distorting the proportions
+            p = bk.figure(plot_width=800, # in units of px
+                        plot_height=800,              
+                        x_axis_type=None, 
+                        y_axis_type=None,
+                        x_range=x_range,
+                        y_range=y_range,
+                        tools="pan,wheel_zoom,reset,save", 
+                        title="Taxi Trajectory:\n" 
+                              + ' date=' + date 
+                              + ' cab_id=' + cab_id
+                              + ' trip_id=' + trip_id, 
+                        title_text_font_size='14pt'
+                        )    
+            
+            # plot the links
+            p.multi_line(xs=df['X'], 
+                        ys=df['Y'], 
+                        line_width=df['LANES'],  
+                        line_color=df['color']) 
+            
+            p.text(traj_mid_df['x'], 
+                   traj_mid_df['y'], 
+                   traj_mid_df['text'],
+                   angle=traj_mid_df['angle'], 
+                   text_font_size='8pt', 
+                   text_align='center', 
+                   text_baseline='bottom', 
+                   text_color='firebrick')
+            
+            
+            # plot the points     
+            p.circle(point_df['x'], 
+                     point_df['y'], 
+                     fill_color='darkblue', 
+                     line_color='darkblue')
+
+            p.text(point_df['x'], 
+                   point_df['y'], 
+                   point_df['text'], 
+                   text_font_size='8pt', 
+                   text_align='center', 
+                   text_baseline='bottom', 
+                   text_color='darkblue')
+                     
+            plots.append([p])
+            
+        # add them all together in a grid plot
+        gp = bk.gridplot(plots)
+        bk.show(gp)
+                        
+        store.close()
+
+
+    def createNetworkPlot(self, html_outfile, date='2013-02-13', hour='17'):
         """ 
         Creates network plots showing the link speeds. 
         
@@ -179,7 +333,7 @@ class Vizualizer():
         # and for 5-6 pm
         store = pd.HDFStore(self.hdffile)
         query = "date==Timestamp('" + date + "') and hour==" + hour
-        obs_df = store.select(inkey, where=query) 
+        obs_df = store.select('link_tt', where=query) 
         store.close()
         
         # merge, keeping all links
@@ -198,11 +352,11 @@ class Vizualizer():
         df['tt_ratio'] = tt_fftt.apply(calculateTravelTimeRatio)
         
         # map the link colors based on the travel time ratio
-        df['color'] = df['tt_ratio'].apply(getLinkColor)
+        df['color'] = df['tt_ratio'].apply(getLinkTTRatioColor)
         
         # TODO - fix/remove this when bokeh makes hover tool work for lines
         # see: https://github.com/bokeh/bokeh/issues/984
-        pointData = self.getLinkMidpointData(df)
+        pointData = self.getSegmentMidpointData(df)
 
         
         """ Plotting starts here """ 
