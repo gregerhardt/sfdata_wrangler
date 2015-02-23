@@ -18,8 +18,10 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import sys
 import dta
 import math
+import operator
 import numpy as np
 import scipy as sp
 import pandas as pd
@@ -27,6 +29,21 @@ from scipy.sparse import csr_matrix
 from pyproj import Proj
 from mm.path_inference.structures import State
 from mm.path_inference.structures import Path 
+
+try: 
+    import rtree 
+except(WindowsError):
+    print "Be sure libspatialindex is installed on your system. \
+             1. Download it from: http://download.osgeo.org/libspatialindex/ \
+             2. Put the DLLs in your system PATH \
+             3. Make sure the 32/64 bit DLL is consistent with running \
+                32/64 bit python.  \
+             4. rtree will look for spatialindex1_c.dll, so rename if needed \
+                from something like: spatialindex_c-64.dll. \
+             5. But keep something like spatialindex-64.dll with its original \
+                name because the first DLL will look for this one. " 
+           
+    raise
 
 
 def convertLongitudeLatitudeToXY(lon_lat):        
@@ -120,6 +137,11 @@ class HwyNetwork():
         # gives the index of the previous node in the path from point i to point j. 
         # If no path exists between point i and j, then predecessors[i, j] = -9999
         self.pred = None
+
+
+        # This is an rtree index with one entry for each road link
+        # It is used for fast nearest neighbour queries
+        self.linkSpatialIndex = None
         
 
     def readDTANetwork(self, inputDir, filePrefix):
@@ -196,19 +218,14 @@ class HwyNetwork():
                         method='auto', directed=True, return_predecessors=True)
         
         
-
+    
     def project(self, gps_pos):
         """ (abstract) : takes a GPS position and returns a list of states.
         """
         
-        #The *roadlink* is the closest :py:class:`RoadLink` instance to (*x*, *y*),
-        #the *distance* is the distance between (*x*, *y*) and the *roadlink*, and 
-        #*t* is in [0,1] and indicates how far along from the start point and end point
-        #of the *roadlink* lies the closest point to (*x*, *y*).
-        
-        return_tuple = self.net.findNRoadLinksNearestCoords(gps_pos.x, gps_pos.y, 
-            n=self.PROJECT_NUM_LINKS, quick_dist=self.PROJECT_DIST_THRESHOLD)
-        
+        return_tuple = self.findNRoadLinksNearestCoords(gps_pos.x, gps_pos.y, 
+            n=self.PROJECT_NUM_LINKS, dist_limit=self.PROJECT_DIST_THRESHOLD)
+            
         states = []
         for rt in return_tuple: 
             (roadlink, distance, t) = rt
@@ -217,7 +234,80 @@ class HwyNetwork():
             states.append(state)
                     
         return states
+
+    
+    def findNRoadLinksNearestCoords(self, x, y, n=1, dist_limit = sys.float_info.max):
+        """
+        Returns the *n* closest road links to the given (*x*, *y*) coordinates.
         
+        If *n* = 1, returns a 3-tuple (*roadlink*, *distance*, *t*).  
+        The *roadlink* is the closest :py:class:`RoadLink` instance to (*x*, *y*),
+        the *distance* is the distance between (*x*, *y*) and the *roadlink*, and 
+        *t* is in [0,1] and indicates how far along from the start point and end point
+        of the *roadlink* lies the closest point to (*x*, *y*).
+        
+        If *n* > 1: returns a list of 3-tuples as described above, sorted by the *distance*
+        values.
+        
+        Uses *dist_limit* (if passed) to return only those links within a 
+        the specified distance. 
+        
+        Returns (None, None, None) if none found and *n* = 1, or an empty list for *n* > 1
+                
+        *x*,*y* and *dist_limit* are  in :py:attr:`Node.COORDINATE_UNITS`
+        
+        Implementation differs from that used in the dta.Network class in 
+        that this one uses rtree for fast spatial indexing.  rtree uses
+        a bounding box method, so it may occasionally miss one of the top N
+        points, but as long as we have a few in the list, it shoudl be close
+        enough. 
+        """
+
+        if (self.linkSpatialIndex==None):
+            self.initializeSpatialIndex()
+
+        return_tuples       = []
+                        
+        link_ids = self.linkSpatialIndex.nearest((x, x, y, y), n)
+
+        for link_id in link_ids:
+            link = self.net.getLinkForId(link_id)
+
+            (dist, t) = link.getDistanceFromPoint(x,y)
+            if dist < dist_limit:
+                return_tuples.append( (link, dist, t))
+
+        # sort
+        return_tuples = sorted(return_tuples, key=operator.itemgetter(1))
+        
+        if n==1:
+            if len(return_tuples) == 0: 
+                return (None, None, None)
+            return return_tuples[0]
+
+        return return_tuples
+        
+
+    def initializeSpatialIndex(self):
+        """
+        Creates a spatial index for all links using rtree.  This must be called
+        prior to calling findNRoadLinksNearestCoords().
+        
+        """
+
+        #  The coordinate ordering for all functions are sensitive the the 
+        # index’s interleaved data member. If interleaved is False, the 
+        # coordinates must be in the form [xmin, xmax, ymin, ymax].
+        self.linkSpatialIndex = rtree.index.Index(interleaved=False)
+
+        for link in self.net.iterRoadLinks():
+            left   = min(link.getStartNode().getX(), link.getEndNode().getX())
+            right  = max(link.getStartNode().getX(), link.getEndNode().getX())
+            bottom = min(link.getStartNode().getY(), link.getEndNode().getY())
+            top    = max(link.getStartNode().getY(), link.getEndNode().getY())
+
+            self.linkSpatialIndex.insert(link.getId(), (left, right, bottom, top))
+                        
         
     def getPaths(self, s1, s2):
         """ Returns a set of candidate paths between state s1 and state s3.

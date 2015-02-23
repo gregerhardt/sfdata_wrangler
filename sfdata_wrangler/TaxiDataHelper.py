@@ -393,8 +393,8 @@ class TaxiDataHelper():
         
         numLinks = 0
         prev_link_id = -999
-        totalTraversalRatio = 0
-        totalTravelTime = 0
+        totalTraversalRatio = 0.0
+        totalTravelTime = 0.0
         
         for (link_id, traversalRatio, travelTime) in \
             zip(link_ids1, traversalRatios1, travelTimes1): 

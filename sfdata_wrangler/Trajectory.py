@@ -19,7 +19,6 @@ __license__     = """
 """
 
 import sys
-import HwyNetwork
 import numpy as np
 from mm.path_inference.structures import StateCollection, Position
 from mm.path_inference.learning_traj import LearningTrajectory

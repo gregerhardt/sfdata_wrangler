@@ -34,7 +34,7 @@ USAGE = r"""
    
  e.g.
 
- python readNetwork convertPoints identifyTrips createTraj timeAlloc TimeAgg
+ python readNetwork convertPoints identifyTrips createTraj TimeAgg viz
  
  Notes: - steps should choose from list of valid steps
         - file names should be edited directly in this script. 
@@ -113,6 +113,7 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         hwynet = HwyNetwork()
         hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
+        hwynet.initializeSpatialIndex()
         hwynet.initializeShortestPaths()
         print 'Finished preparing highway network in ', (datetime.datetime.now() - startTime)
         
