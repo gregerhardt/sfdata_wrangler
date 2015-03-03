@@ -108,8 +108,12 @@ class HwyNetwork():
     # consider up to this many links when projecting
     PROJECT_NUM_LINKS = 5               
     
-    # all links within this threshold will be considered when projecting
-    PROJECT_DIST_THRESHOLD = 100.0    # feet
+    # links within this threshold will be considered when projecting
+    # city blocks in the financial district are about 250 ft
+    # use half that distance as a threshold for selecting links. 
+    # also, the GPS error seems to be about 60 ft, so it should be at 
+    # least that much
+    PROJECT_DIST_THRESHOLD = 125.0    # feet
 
 
     def __init__(self):
@@ -280,6 +284,10 @@ class HwyNetwork():
         # sort
         return_tuples = sorted(return_tuples, key=operator.itemgetter(1))
         
+        # kick out extras
+        while len(return_tuples) > n:
+            return_tuples.pop()
+                    
         if n==1:
             if len(return_tuples) == 0: 
                 return (None, None, None)
@@ -301,12 +309,12 @@ class HwyNetwork():
         self.linkSpatialIndex = rtree.index.Index(interleaved=False)
 
         for link in self.net.iterRoadLinks():
-            left   = min(link.getStartNode().getX(), link.getEndNode().getX())
-            right  = max(link.getStartNode().getX(), link.getEndNode().getX())
-            bottom = min(link.getStartNode().getY(), link.getEndNode().getY())
-            top    = max(link.getStartNode().getY(), link.getEndNode().getY())
-
-            self.linkSpatialIndex.insert(link.getId(), (left, right, bottom, top))
+                        
+            # draw a box around all shape points when doing this
+            coords = link.getCenterLine(wholeLineShapePoints = True)
+            x, y = zip(*coords)
+            
+            self.linkSpatialIndex.insert(link.getId(), (min(x), max(x), min(y), max(y)))
                         
         
     def getPaths(self, s1, s2):

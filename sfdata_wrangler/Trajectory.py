@@ -20,9 +20,12 @@ __license__     = """
 
 import sys
 import numpy as np
+import datetime
 from mm.path_inference.structures import StateCollection, Position
 from mm.path_inference.learning_traj import LearningTrajectory
 from mm.path_inference.learning_traj_viterbi import TrajectoryViterbi1
+from mm.path_inference.learning_traj_smoother import TrajectorySmoother1
+
     
 
 
@@ -73,7 +76,7 @@ def path_feature_vector(hwynet, path, tt):
         
     else: 
         path_tt = hwynet.getPathFreeFlowTTInSeconds(path)
-        score = -1.0 * (abs(path_tt - tt) + max(path_tt - tt, 0))        
+        score = -1.0 * (path_tt + max(path_tt - tt, 0))        
         return [score, 0]
     
 
@@ -86,7 +89,7 @@ class Trajectory():
     # path score versus the point score when selecting the most
     # likely trajectory.  Its format is n.parray([pathweight, pointweight])
     # These weights can be tuned to achieve good results. 
-    THETA = np.array([1.0, 1.0])
+    THETA = np.array([1.0, 0.5])
     
     
     def __init__(self, hwynet, df):
@@ -211,6 +214,23 @@ class Trajectory():
         self.most_likely_indices = viterbi.assignments
     
 
+    def calculateProbabilities(self):
+        """ Calculates the probabilities for all possible options.
+        
+        The result alternates between point indices and path indices
+        and correspond to the candidate points and candidate paths. 
+        
+        Returns the probabilities. 
+        """
+        
+        # The smoother is a different algorithm that gives probabilities instead
+        # of the most likley.  
+        traj = LearningTrajectory(self.features, self.transitions)
+        smoother = TrajectorySmoother1(traj, self.THETA)
+        smoother.computeProbabilities()
+        return smoother.probabilities
+
+
     def getMostLikelyPaths(self):
         """ Returns an array of the most likely paths to be traversed.  
                 
@@ -245,4 +265,69 @@ class Trajectory():
         return times
 
 
+    def printDebugInfo(self, outfile, ids=None):
+        """
+        Prints details about the trajectory to the outfile.
+        """
         
+        # calculate the probabilities for this trajectory
+        probabilities = self.calculateProbabilities()
+        
+        # start to print stuff
+        fw = open(outfile, 'a')
+        
+        fw.write('**************************************************************\n')
+        fw.write('Printing trajectory at ' + str(datetime.datetime.now()) + '.\n')
+                
+        # ids, if provited
+        if (not (ids==None)): 
+            (cab_id, trip_id) = ids
+            fw.write('cab_id =  ' + str(cab_id) + '\n')
+            fw.write('trip_id = ' + str(trip_id) + '\n')
+        
+        fw.write('THETA = ' + str(self.THETA) + '\n\n')        
+
+        
+        i=0
+        for (feature, most_likely, prob) in zip(
+                self.features, self.most_likely_indices, probabilities):
+                        
+            # it is a state if i is even, and a path if i is odd
+            if ((i%2) == 0): 
+                elementType = 'state'
+                j = i/2
+                candidates = self.candidatePoints[j].states 
+                attribute = self.candidatePoints[j].time 
+            if ((i%2) == 1): 
+                elementType = 'path'
+                j = (i-1) / 2
+                candidates = self.candidatePaths[j]
+                attribute = self.traveltimes[j]
+
+            # write the basic info
+            fw.write('  --------------------------------------------------------\n')
+            fw.write('  ELEMENT:   ' + str(i) +'\n')
+            fw.write('  Type:      ' + elementType + '\n')
+            if (elementType=='state'):
+                fw.write('  Timestamp: ' + str(attribute) + '\n\n')
+            else:
+                fw.write('  Travel Time: ' + str(attribute) + '\n\n')
+            
+            # write the details of each possible candidate
+            k=0
+            for (c, f, p) in zip(candidates, feature, prob):
+                fw.write('    CANDIDATE:   ' + str(k) + '\n')
+                fw.write('    candidate:   ' + str(c) + '\n')
+                fw.write('    feature:     ' + str(f) + '\n')
+                fw.write('    probability: ' + str(p) + '\n')
+                if (k==most_likely): 
+                    fw.write('    MOST LIKELY!\n')
+                fw.write('\n')
+                k+=1
+            
+            # increment the counter
+            i+=1
+            
+        
+        fw.write('\n\n')
+        fw.close()

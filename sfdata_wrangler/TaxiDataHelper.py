@@ -69,12 +69,29 @@ class TaxiDataHelper():
     # threshold at which an entire trip (secquence of points) is counted
     #   500 ft is about the length of a city block
     TRIP_DIST_THRESHOLD = 500
+    
+    # for debug output
+    debugFile = None
+    debugCabTripIds = None
+    
 
     def __init__(self):
         """
         Constructor.             
         """   
-                    
+    
+    def setDebugFile(self, debugFile):
+        """
+        Sets the file where we write the debug output. 
+        """          
+        self.debugFile = debugFile              
+        
+    def setDebugCabTripIds(self, cabTripIdSet):
+        """
+        Specifies the set of cab_ids to debug
+        """
+        self.debugCabTripIds = cabTripIdSet
+                                                                
     def processRawData(self, infile, outfile, outkey):
         """
         Read taxi data, cleans it, processes it, and writes it to an HDF5 file.
@@ -299,7 +316,7 @@ class TaxiDataHelper():
             print 'Processing ', date
             
             # get the data and sort
-            gps_df = store.select(inkey, where='date==Timestamp(date)')  
+            gps_df = store.select(inkey, where='date==Timestamp(date) and (cab_id=3 or cab_id=501 or cab_id=649 or cab_id=1349 or cab_id=2813)')  
             
             # loop through each trip
             last_cab_id = 0
@@ -318,6 +335,10 @@ class TaxiDataHelper():
                 
                 # determine most likely paths and points
                 traj.calculateMostLikely()
+                
+                # for debugging
+                if (cab_id, trip_id) in self.debugCabTripIds:
+                    traj.printDebugInfo(self.debugFile, ids=(cab_id, trip_id))
                 
                 # allocate trajectory travel times to links
                 (link_ids, traversalRatios, startTimes, travelTimes) = \

@@ -64,6 +64,15 @@ TRAJ_VIZ_SPECS = [('2009-02-13',  '649',  '97'),
                   ('2009-02-13',    '3',  '53')
                   ]
 
+# (cab_id, trip_id) for debugging
+TRAJ_DEBUG_SPECS = {( 649,  97), 
+                    ( 501, 309),
+                    (1349,  11),
+                    (2813, 537),
+                    (   3,  53)
+                    }
+
+
 # INPUT FILES--change as needed
 INPUT_DYNAMEQ_NET_DIR    = "C:/CASA/Data/network/dynameq/validation2010.july19_Sig/Reports/Export"
 INPUT_DYNAMEQ_NET_PREFIX = "pb_july19_830p"
@@ -75,6 +84,7 @@ RAW_TAXI_FILES =["C:/CASA/Data/taxi/2009-02-13.txt"
 TAXI_OUTFILE = "C:/CASA/DataExploration/taxi.h5"     
 VIZ_OUTFILE  = "C:/CASA/DataExploration/sftaxi.html"    
 TRAJ_VIZ_OUTFILE = "C:/CASA/DataExploration/sample_trajectories.html"    
+DEBUG_OUTFILE = "C:/CASA/DataExploration/taxi_debug.txt"   
 
 
 # main function call
@@ -118,6 +128,8 @@ if __name__ == "__main__":
         print 'Finished preparing highway network in ', (datetime.datetime.now() - startTime)
         
         startTime = datetime.datetime.now()   
+        taxiHelper.setDebugFile(DEBUG_OUTFILE)
+        taxiHelper.setDebugCabTripIds(TRAJ_DEBUG_SPECS)
         taxiHelper.createTrajectories(hwynet, TAXI_OUTFILE, 'trip_points', 'trajectories') 
         print 'Finished creating taxi trajectories in ', (datetime.datetime.now() - startTime)
 
@@ -129,9 +141,10 @@ if __name__ == "__main__":
 
     # create network vizualizations
     if 'viz' in STEPS_TO_RUN:
-        startTime = datetime.datetime.now()   
-        hwynet = HwyNetwork()
-        hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
+        startTime = datetime.datetime.now()  
+        if (hwynet==None): 
+            hwynet = HwyNetwork()
+            hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
         vizualizer = Vizualizer(hwynet, TAXI_OUTFILE)
         
         # network speed maps
