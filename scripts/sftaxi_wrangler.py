@@ -57,11 +57,40 @@ VIZ_DATE = '2009-02-13'
 VIZ_HOUR = '17'
 
 # (date, cab_id, trip_id) for any trajectories to validate
-TRAJ_VIZ_SPECS = [('2009-02-13',  '649',  '97'), 
+TRAJ_VIZ_SPECS = [('2009-02-13',  '649',  '12'), 
+                  ('2009-02-13',  '649',  '34'),
+                  ('2009-02-13',  '649',  '49'),
+                  ('2009-02-13',  '649',  '87'),
+                  ('2009-02-13',  '649',  '97'),
+                  ('2009-02-13',  '649', '110'),
+                  
+                  ('2009-02-13',  '501',   '1'),
+                  ('2009-02-13',  '501',  '41'),
+                  ('2009-02-13',  '501', '187'),
+                  ('2009-02-13',  '501', '201'),
+                  ('2009-02-13',  '501', '226'),
                   ('2009-02-13',  '501', '309'),
+
+                  ('2009-02-13', '1349',   '1'),
                   ('2009-02-13', '1349',  '11'),
+                  ('2009-02-13', '1349',  '15'),
+                  ('2009-02-13', '1349',  '69'),
+                  ('2009-02-13', '1349', '135'),
+                  ('2009-02-13', '1349', '197'),
+
+                  ('2009-02-13', '2813',   '1'),
                   ('2009-02-13', '2813', '537'),
-                  ('2009-02-13',    '3',  '53')
+                  ('2009-02-13', '2813', '539'),
+                  ('2009-02-13', '2813', '555'),
+                  ('2009-02-13', '2813', '572'),
+                  ('2009-02-13', '2813', '591'),
+
+                  ('2009-02-13',    '3',   '2'),
+                  ('2009-02-13',    '3',  '33'),
+                  ('2009-02-13',    '3',  '44'),
+                  ('2009-02-13',    '3',  '53'),
+                  ('2009-02-13',    '3',  '82'),
+                  ('2009-02-13',    '3',  '89')
                   ]
 
 # (cab_id, trip_id) for debugging
@@ -81,6 +110,7 @@ RAW_TAXI_FILES =["C:/CASA/Data/taxi/2009-02-13.txt"
                 ]
     
 # OUTPUT FILES--change as needed
+LOGGING_DIR = "C:/CASA/DataExploration"
 TAXI_OUTFILE = "C:/CASA/DataExploration/taxi.h5"     
 VIZ_OUTFILE  = "C:/CASA/DataExploration/sftaxi.html"    
 TRAJ_VIZ_OUTFILE = "C:/CASA/DataExploration/sample_trajectories.html"    
@@ -104,6 +134,7 @@ if __name__ == "__main__":
     
     # create the helper
     taxiHelper = TaxiDataHelper()
+    hwynet = None
     
     # convert the taxi data
     if 'convertPoints' in STEPS_TO_RUN: 
@@ -122,9 +153,9 @@ if __name__ == "__main__":
     if 'createTraj' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         hwynet = HwyNetwork()
-        hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
+        hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX, logging_dir=LOGGING_DIR) 
         hwynet.initializeSpatialIndex()
-        hwynet.initializeShortestPaths()
+        hwynet.initializeShortestPathsBetweenLinks()
         print 'Finished preparing highway network in ', (datetime.datetime.now() - startTime)
         
         startTime = datetime.datetime.now()   
@@ -144,7 +175,7 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()  
         if (hwynet==None): 
             hwynet = HwyNetwork()
-            hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX) 
+            hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX, logging_dir=LOGGING_DIR) 
         vizualizer = Vizualizer(hwynet, TAXI_OUTFILE)
         
         # network speed maps

@@ -106,6 +106,9 @@ class HwyNetwork():
     """
 
     # consider up to this many links when projecting
+    # in case you are in a 'corner' between an EW and a NS street, you 
+    # want this to be at least 4 so you get both streets in both directions.
+    # here I choose one more for good measure. 
     PROJECT_NUM_LINKS = 5               
     
     # links within this threshold will be considered when projecting
@@ -114,6 +117,13 @@ class HwyNetwork():
     # also, the GPS error seems to be about 60 ft, so it should be at 
     # least that much
     PROJECT_DIST_THRESHOLD = 125.0    # feet
+
+    # turn penalties are used when calculating shortest paths on links
+    # (but not on nodes), and discourage zig-zag paths through the grid
+    # network
+    LEFT_TURN_PENALTY = 30.0    # seconds
+    RIGHT_TURN_PENALTY = 10.0
+    U_TURN_PENALTY = 60.0
 
 
     def __init__(self):
@@ -125,7 +135,16 @@ class HwyNetwork():
         # it will be set below in the read statement. 
         self.net = None
         
+        # This is an rtree index with one entry for each road link
+        # It is used for fast nearest neighbour queries
+        self.linkSpatialIndex = None
         
+        """
+        These options are for building shortest paths between nodes.  The 
+        paths between nodes do not consider turn restrictions or penalties. 
+        
+        They are not currently used. 
+        """
         # a dictionary lookup between the node IDs and
         # the graph index for skim and pred
         self.n2i = None
@@ -133,22 +152,39 @@ class HwyNetwork():
         
         # The N x N matrix of costs between graph nodes. skim[i,j] gives 
         # the shortest cost from point i to point j along the graph.
-        self.skim = None
+        self.nodeSkim = None
         
         # The N x N matrix of predecessors, which can be used to reconstruct 
         # the shortest paths. Row i of the predecessor matrix contains information 
         # on the shortest paths from point i: each entry predecessors[i, j] 
         # gives the index of the previous node in the path from point i to point j. 
         # If no path exists between point i and j, then predecessors[i, j] = -9999
-        self.pred = None
-
-
-        # This is an rtree index with one entry for each road link
-        # It is used for fast nearest neighbour queries
-        self.linkSpatialIndex = None
+        self.nodePred = None
         
+        """
+        These options are for building shortest paths between links.  The 
+        paths between links consider turn restrictions or penalties based on
+        the movements in the network. 
+        """
+        # a dictionary lookup between the link IDs and
+        # the graph index for skim and pred
+        self.l2i = None
+        self.i2l = None
+        
+        # The N x N matrix of costs between graph links. skim[i,j] gives 
+        # the shortest cost from link i to link j along the graph.
+        # currently, this is not used for memory efficiency
+        #self.linkSkim = None
+        
+        # The N x N matrix of predecessors, which can be used to reconstruct 
+        # the shortest paths. Row i of the predecessor matrix contains information 
+        # on the shortest paths from point i: each entry predecessors[i, j] 
+        # gives the index of the previous link in the path from point i to point j. 
+        # If no path exists between point i and j, then predecessors[i, j] = -9999
+        self.linkPred = None
 
-    def readDTANetwork(self, inputDir, filePrefix):
+
+    def readDTANetwork(self, inputDir, filePrefix, logging_dir='C:/temp'):
         """
         Reads the dynameq files to create a network representation. 
         """
@@ -158,7 +194,7 @@ class HwyNetwork():
         dta.Node.COORDINATE_UNITS   = "feet"
         dta.RoadLink.LENGTH_UNITS   = "miles"
 
-        dta.setupLogging("c:/temp/dta.INFO.log", "c:/temp/visualizeDTAResults.DEBUG.log", logToConsole=False)
+        dta.setupLogging(logging_dir + "/dta.INFO.log", logging_dir+"/dta.DEBUG.log", logToConsole=True)
 
         scenario = dta.DynameqScenario()
         scenario.read(inputDir, filePrefix) 
@@ -174,10 +210,13 @@ class HwyNetwork():
         
 
     
-    def initializeShortestPaths(self):
+    def initializeShortestPathsBetweenNodes(self):
         """
         Calculates the shortest paths between all node pairs and populates
-        self.skim and self.pred
+        self.nodeSkim and self.nodePred
+
+        The shortest paths between nodes do not consider turn restrictions
+        or turn penalties. 
         """
         
         # STEP 1: create a dictionary lookup between the node IDs and
@@ -218,9 +257,78 @@ class HwyNetwork():
         
         
         # STEP 3: run the scipy algorithm
-        (self.skim, self.pred) = sp.sparse.csgraph.shortest_path(graph, 
+        (self.nodeSkim, self.nodePred) = sp.sparse.csgraph.shortest_path(graph, 
                         method='auto', directed=True, return_predecessors=True)
         
+        
+    def initializeShortestPathsBetweenLinks(self):
+        """
+        Calculates the shortest paths between all link pairs and populates
+        (self.linkSkim) and self.linkPred
+
+        The paths between links consider turn restrictions or penalties based 
+        on the movements in the network. 
+        """
+        
+        # STEP 1: create a dictionary lookup between the node IDs and
+        # the graph index
+        self.l2i = {}
+        self.i2l = {}
+        
+        i = 0
+        for link in self.net.iterRoadLinks():   
+            link_id = link.getId()
+            self.l2i[link_id] = i
+            self.i2l[i] = link_id
+            i += 1
+        num_links = i+1
+        
+        # STEP 2: create a compressed sparse matrix representation of the network, 
+        # for use with scipy shortest path algorithms
+        alinks = []
+        blinks = []
+        costs = []
+        for movement in self.net.iterMovements():
+            
+            incomingLink = movement.getIncomingLink()
+            outgoingLink = movement.getOutgoingLink()
+                        
+            # only keep if they are both road links
+            if (incomingLink.isRoadLink() and outgoingLink.isRoadLink()):
+            
+                a = self.l2i[incomingLink.getId()]
+                b = self.l2i[outgoingLink.getId()]
+
+                # the cost is the travel time on the incoming link
+                cost = 60.0 * movement.getFreeFlowTTInMin()
+            
+                # now we figure out if it is a right or left turn, 
+                # and apply a penalty if it is
+                if movement.isLeftTurn():
+                    cost += self.LEFT_TURN_PENALTY
+                elif movement.isRightTurn():
+                    cost += self.RIGHT_TURN_PENALTY
+                elif movement.isUTurn():
+                    cost += self.U_TURN_PENALTY
+            
+                # and add to my lists
+                alinks.append(a)
+                blinks.append(b)
+                costs.append(cost)
+        
+        num_movements = len(costs)
+        
+        alinks2 = np.array(alinks)
+        blinks2 = np.array(blinks)
+        costs2  = np.array(costs)
+        
+        print 'Creating network graph with %i links and %i movements ' %(num_links, num_movements)        
+        graph = csr_matrix((costs2, (alinks2, blinks2)), shape=(num_links, num_links)) 
+        
+        
+        # STEP 3: run the scipy algorithm
+        (linkSkim, self.linkPred) = sp.sparse.csgraph.shortest_path(graph, 
+                        method='auto', directed=True, return_predecessors=True)
         
     
     def project(self, gps_pos):
@@ -317,7 +425,7 @@ class HwyNetwork():
             self.linkSpatialIndex.insert(link.getId(), (min(x), max(x), min(y), max(y)))
                         
         
-    def getPaths(self, s1, s2):
+    def getPathsUsingNodes(self, s1, s2):
         """ Returns a set of candidate paths between state s1 and state s3.
         Always includes the first and last link. 
         
@@ -335,7 +443,7 @@ class HwyNetwork():
         endNode   = self.net.getLinkForId(s2.link_id).getStartNodeId()
         
         # if there is no valid path
-        cost = self.skim[self.n2i[startNode], self.n2i[endNode]]
+        cost = self.nodeSkim[self.n2i[startNode], self.n2i[endNode]]
         if np.isinf(cost):
             return [None]
         
@@ -356,10 +464,38 @@ class HwyNetwork():
         return [path]
 
 
+    def getPaths(self, s1, s2):
+        """ Returns a set of candidate paths between state s1 and state s3.
+        Always includes the first and last link. 
+        
+        Arguments:
+        - s1 : a State object
+        - s2 : a State object
+        """
+        
+        # if the same link, it's easy
+        if (s1.link_id == s2.link_id):
+            path = Path(s1, [s1.link_id], s2)    
+            return [path]
+                
+        # if there is no valid path
+        if (self.linkPred[self.l2i[s1.link_id], self.l2i[s2.link_id]] == -9999):
+            return [None]
+        
+        # sequence of link IDs
+        linkSeq = self.getShortestPathLinkSequence(s1.link_id, s2.link_id)
+                
+        # return the path set
+        path = Path(s1, linkSeq, s2)        
+        return [path]
+
+
     def getShortestPathNodeSequence(self, startNode, endNode):
         """
         returns the sequence of node IDs that define the shortest
         path from the startNode to the endNode. 
+        
+        Does not consider movement restrictions or turn penalties. 
         
         - startNode: the start node ID (not index)
         - endNode: the end node ID (not index)
@@ -370,7 +506,7 @@ class HwyNetwork():
         end = self.n2i[endNode]
         
         # if there is no valid path
-        cost = self.skim[start, end]
+        cost = self.nodeSkim[start, end]
         if np.isinf(cost):
             return [None]
         
@@ -379,7 +515,7 @@ class HwyNetwork():
         j = end
         while (j != start):
             path.append(self.i2n[j])
-            j = self.pred[start, j]
+            j = self.nodePred[start, j]
         path.append(self.i2n[start])
         
         # reverse the list, because we started from the end
@@ -388,7 +524,38 @@ class HwyNetwork():
         return path
         
 
-    # TODO - update to get multiple paths
+    def getShortestPathLinkSequence(self, startLink, endLink):
+        """
+        returns the sequence of link IDs that define the shortest
+        path from the startLink to the endLink. 
+        
+        Considers movement restrictions or turn penalties. 
+        
+        - startLink: the start link ID (not index)
+        - endLink: the end link ID (not index)
+        """
+        
+        # use indices
+        start = self.l2i[startLink]
+        end = self.l2i[endLink]
+        
+        # if there is no valid path
+        if (self.linkPred[self.l2i[startLink], self.l2i[startLink]] == -9999):
+            return [None]
+        
+        # trace the path
+        path = []
+        j = end
+        while (j != start):
+            path.append(self.i2l[j])
+            j = self.linkPred[start, j]
+        path.append(self.i2l[start])
+        
+        # reverse the list, because we started from the end
+        path.reverse()
+            
+        return path
+
     def getPathsUsingDtaAnywayImplementation(self, s1, s2):
         """ Returns a set of candidate paths between state s1 and state s3.
         Arguments:
