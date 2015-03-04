@@ -246,15 +246,19 @@ class Vizualizer():
 
             # define the ranges, be sure to keep it square
             # to avoid distortion
-            x_extent = max(point_df['x']) - min(point_df['x'])
-            y_extent = max(point_df['y']) - min(point_df['y'])
-            extent = 1.3 * max(x_extent, y_extent)
-
-            x_mid = (min(point_df['x']) + max(point_df['x'])) / 2.0
-            y_mid = (min(point_df['y']) + max(point_df['y'])) / 2.0
-            
-            x_range = [x_mid - extent/2.0, x_mid + extent/2.0]
-            y_range = [y_mid - extent/2.0, y_mid + extent/2.0]
+            if (len(point_df)>0):
+                x_extent = max(point_df['x']) - min(point_df['x'])
+                y_extent = max(point_df['y']) - min(point_df['y'])
+                extent = 1.3 * max(x_extent, y_extent)
+    
+                x_mid = (min(point_df['x']) + max(point_df['x'])) / 2.0
+                y_mid = (min(point_df['y']) + max(point_df['y'])) / 2.0
+                
+                x_range = [x_mid - extent/2.0, x_mid + extent/2.0]
+                y_range = [y_mid - extent/2.0, y_mid + extent/2.0]
+            else:
+                x_range = None
+                y_range = None
 
             # generate lables
             point_df['text'] = point_df['time'].apply(getTimeString)
