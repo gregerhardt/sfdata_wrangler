@@ -116,7 +116,7 @@ class HwyNetwork():
     # use half that distance as a threshold for selecting links. 
     # also, the GPS error seems to be about 60 ft, so it should be at 
     # least that much
-    PROJECT_DIST_THRESHOLD = 125.0    # feet
+    PROJECT_DIST_THRESHOLD = 150.0    # feet
 
     # turn penalties are used when calculating shortest paths on links
     # (but not on nodes), and discourage zig-zag paths through the grid
@@ -125,6 +125,15 @@ class HwyNetwork():
     RIGHT_TURN_PENALTY = 10.0
     U_TURN_PENALTY = 60.0
 
+    # only consider paths within this ratio of the time between gps points. 
+    # So if there are 60 seconds between GPS points, we will only consider
+    # paths with a free flow time of no more than 120 seconds for a 
+    # TIME_LIMIT_FACTOR of 2.0.  The time is inclusive of turn penalties
+    # and the full travel time on the first and last links, so be a bit 
+    # generous. The minimum ensures that we will still consider paths up
+    # to that limit. 
+    TIME_LIMIT_FACTOR = 2.0
+    TIME_LIMIT_MINIMUM = 60.0
 
     def __init__(self):
         """
@@ -173,8 +182,7 @@ class HwyNetwork():
         
         # The N x N matrix of costs between graph links. skim[i,j] gives 
         # the shortest cost from link i to link j along the graph.
-        # currently, this is not used for memory efficiency
-        #self.linkSkim = None
+        self.linkSkim = None
         
         # The N x N matrix of predecessors, which can be used to reconstruct 
         # the shortest paths. Row i of the predecessor matrix contains information 
@@ -194,7 +202,7 @@ class HwyNetwork():
         dta.Node.COORDINATE_UNITS   = "feet"
         dta.RoadLink.LENGTH_UNITS   = "miles"
 
-        dta.setupLogging(logging_dir + "/dta.INFO.log", logging_dir+"/dta.DEBUG.log", logToConsole=True)
+        dta.setupLogging(logging_dir + "/dta.INFO.log", logging_dir+"/dta.DEBUG.log", logToConsole=False)
 
         scenario = dta.DynameqScenario()
         scenario.read(inputDir, filePrefix) 
@@ -264,7 +272,7 @@ class HwyNetwork():
     def initializeShortestPathsBetweenLinks(self):
         """
         Calculates the shortest paths between all link pairs and populates
-        (self.linkSkim) and self.linkPred
+        self.linkSkim and self.linkPred
 
         The paths between links consider turn restrictions or penalties based 
         on the movements in the network. 
@@ -327,7 +335,7 @@ class HwyNetwork():
         
         
         # STEP 3: run the scipy algorithm
-        (linkSkim, self.linkPred) = sp.sparse.csgraph.shortest_path(graph, 
+        (self.linkSkim, self.linkPred) = sp.sparse.csgraph.shortest_path(graph, 
                         method='auto', directed=True, return_predecessors=True)
         
     
@@ -464,26 +472,24 @@ class HwyNetwork():
         return [path]
 
 
-    def getPaths(self, s1, s2):
+    def getPaths(self, s1, s2, timeLimit=sys.maxint):
         """ Returns a set of candidate paths between state s1 and state s3.
         Always includes the first and last link. 
         
         Arguments:
         - s1 : a State object
         - s2 : a State object
+        - timeLimit: the maximum time allowed for a path, beyond which
+                     none is returned
         """
         
         # if the same link, it's easy
         if (s1.link_id == s2.link_id):
             path = Path(s1, [s1.link_id], s2)    
             return [path]
-                
-        # if there is no valid path
-        if (self.linkPred[self.l2i[s1.link_id], self.l2i[s2.link_id]] == -9999):
-            return [None]
-        
+                        
         # sequence of link IDs
-        linkSeq = self.getShortestPathLinkSequence(s1.link_id, s2.link_id)
+        linkSeq = self.getShortestPathLinkSequence(s1.link_id, s2.link_id, timeLimit=timeLimit)
                 
         # return the path set
         path = Path(s1, linkSeq, s2)        
@@ -524,7 +530,7 @@ class HwyNetwork():
         return path
         
 
-    def getShortestPathLinkSequence(self, startLink, endLink):
+    def getShortestPathLinkSequence(self, startLink, endLink, timeLimit=sys.maxint):
         """
         returns the sequence of link IDs that define the shortest
         path from the startLink to the endLink. 
@@ -533,6 +539,8 @@ class HwyNetwork():
         
         - startLink: the start link ID (not index)
         - endLink: the end link ID (not index)
+        - timeLimit: the maximum time allowed for a path, beyond which
+                     none is returned
         """
         
         # use indices
@@ -540,8 +548,8 @@ class HwyNetwork():
         end = self.l2i[endLink]
         
         # if there is no valid path
-        if (self.linkPred[self.l2i[startLink], self.l2i[startLink]] == -9999):
-            return [None]
+        if (self.linkSkim[start, end] > timeLimit):
+            return []
         
         # trace the path
         path = []
@@ -598,7 +606,14 @@ class HwyNetwork():
         num_paths = 0
         for i1 in range(n1):
             for i2 in range(n2):
-                ps = self.getPaths(sc1.states[i1], sc2.states[i2])
+                
+                # limit possible paths based on a max time diff
+                timeDiff = (sc2.time - sc1.time).total_seconds()
+                timeLimit = self.TIME_LIMIT_FACTOR * timeDiff
+                timeLimit = max(self.TIME_LIMIT_MINIMUM, timeLimit)
+                
+                # get the paths
+                ps = self.getPaths(sc1.states[i1], sc2.states[i2], timeLimit=timeLimit)
                 for path in ps:
                     trans1.append((i1, num_paths))
                     trans2.append((num_paths, i2))
@@ -625,6 +640,35 @@ class HwyNetwork():
         return tot_tt
     
 
+    def getPathFreeFlowTTInSecondsWithTurnPenalties(self, path):
+        """ Returns the free-flow travel time of the path in seconds, 
+        including the cost of turn penalties.
+        
+        Arguments: a path_inference.structures.Path object
+        """
+        
+        # the skim time includes turn penalties, so start from there
+        startLinkId = path.links[0]
+        endLinkId = path.links[-1]        
+        skimTime = self.linkSkim[self.l2i[startLinkId], self.l2i[endLinkId]]
+        
+        # adjust the first element, only for the traversal portion of the travel time
+        firstOffsetRatio = self.getLinkOffsetRatio(path.start)
+        firstLink = self.net.getLinkForId(startLinkId)
+        firstLinkTime = 60.0 * firstLink.getFreeFlowTTInMin()
+        
+        # adjust the last element, only for the traversal portion of the travel time
+        lastOffsetRatio = self.getLinkOffsetRatio(path.end)
+        lastLink = self.net.getLinkForId(endLinkId)
+        lastLinkTime = 60.0 * lastLink.getFreeFlowTTInMin()
+        
+        tt = (skimTime 
+            - (firstOffsetRatio * firstLinkTime) 
+            - ((1.0 - lastOffsetRatio) * lastLinkTime))
+
+        return tt
+
+
     def getLinkOffsetRatio(self, state):
         """ Returns the offset ratio         
         offset ratio is in [0,1] and indicates how far along from the 
@@ -643,6 +687,9 @@ class HwyNetwork():
         offset ratio is in [0,1] and indicates the fraction of the link
         that is actually traveled. 
         """
+        
+        if (len(path.links)==0):
+            return []
                 
         # start with an array of 1s
         ratios = [1.0] * len(path.links)
@@ -674,7 +721,7 @@ class HwyNetwork():
                    a datetime object for the start time
                    a datetime object for the end time
         """
-        
+                
         # get the traversal ratios
         traversalRatios = self.getPathTraversalRatios(path)
         

@@ -65,18 +65,18 @@ def path_feature_vector(hwynet, path, tt):
     pathscore and the second being the pointscore.  Since this is for paths, 
     the pointscore is always zero.  
          
-    Here, the scoring is based on the sum of the absolute difference in 
-    travel time, and the travel time in excess of what is observed.  In this
+    Here, the scoring is based on the free flow travel time and a penalty for 
+    free flow travel time in excess of what is observed.  In this
     way, we double-penalize paths that look too long, getting shorter paths. 
 
     """  
     
-    if (path==None):
+    if (path==None or len(path.links)==0):
         return [-sys.maxint, 0]
         
     else: 
-        path_tt = hwynet.getPathFreeFlowTTInSeconds(path)
-        score = -1.0 * (path_tt + max(path_tt - tt, 0))        
+        path_tt = hwynet.getPathFreeFlowTTInSecondsWithTurnPenalties(path)
+        score = -1.0 * (path_tt + 1.0*max(path_tt - tt, 0))        
         return [score, 0]
     
 
@@ -139,10 +139,9 @@ class Trajectory():
             position = Position(row['x'], row['y'])         
             states = hwynet.project(position)
             
-            # if point is not near any links, get out of here.
-            # don't just keep going because that could cause a discontinutity
+            # if point is not near any links, just skip this point
             if (len(states)==0):
-                break
+                continue
             
             sc = StateCollection(row['cab_id'], states, position, row['time'])
             self.candidatePoints.append(sc)
@@ -265,27 +264,24 @@ class Trajectory():
         return times
 
 
-    def printDebugInfo(self, outfile, ids=None):
+    def printDebugInfo(self, outstream, ids=None):
         """
         Prints details about the trajectory to the outfile.
         """
         
         # calculate the probabilities for this trajectory
         probabilities = self.calculateProbabilities()
-        
-        # start to print stuff
-        fw = open(outfile, 'a')
-        
-        fw.write('**************************************************************\n')
-        fw.write('Printing trajectory at ' + str(datetime.datetime.now()) + '.\n')
+                
+        outstream.write('**************************************************************\n')
+        outstream.write('Printing trajectory at ' + str(datetime.datetime.now()) + '.\n')
                 
         # ids, if provited
         if (not (ids==None)): 
             (cab_id, trip_id) = ids
-            fw.write('cab_id =  ' + str(cab_id) + '\n')
-            fw.write('trip_id = ' + str(trip_id) + '\n')
+            outstream.write('cab_id =  ' + str(cab_id) + '\n')
+            outstream.write('trip_id = ' + str(trip_id) + '\n')
         
-        fw.write('THETA = ' + str(self.THETA) + '\n\n')        
+        outstream.write('THETA = ' + str(self.THETA) + '\n\n')        
 
         
         i=0
@@ -305,29 +301,28 @@ class Trajectory():
                 attribute = self.traveltimes[j]
 
             # write the basic info
-            fw.write('  --------------------------------------------------------\n')
-            fw.write('  ELEMENT:   ' + str(i) +'\n')
-            fw.write('  Type:      ' + elementType + '\n')
+            outstream.write('  --------------------------------------------------------\n')
+            outstream.write('  ELEMENT:   ' + str(i) +'\n')
+            outstream.write('  Type:      ' + elementType + '\n')
             if (elementType=='state'):
-                fw.write('  Timestamp: ' + str(attribute) + '\n\n')
+                outstream.write('  Timestamp: ' + str(attribute) + '\n\n')
             else:
-                fw.write('  Travel Time: ' + str(attribute) + '\n\n')
+                outstream.write('  Travel Time: ' + str(attribute) + '\n\n')
             
             # write the details of each possible candidate
             k=0
             for (c, f, p) in zip(candidates, feature, prob):
-                fw.write('    CANDIDATE:   ' + str(k) + '\n')
-                fw.write('    candidate:   ' + str(c) + '\n')
-                fw.write('    feature:     ' + str(f) + '\n')
-                fw.write('    probability: ' + str(p) + '\n')
+                outstream.write('    CANDIDATE:   ' + str(k) + '\n')
+                outstream.write('    candidate:   ' + str(c) + '\n')
+                outstream.write('    feature:     ' + str(f) + '\n')
+                outstream.write('    probability: ' + str(p) + '\n')
                 if (k==most_likely): 
-                    fw.write('    MOST LIKELY!\n')
-                fw.write('\n')
+                    outstream.write('    MOST LIKELY!\n')
+                outstream.write('\n')
                 k+=1
             
             # increment the counter
             i+=1
             
         
-        fw.write('\n\n')
-        fw.close()
+        outstream.write('\n\n')
