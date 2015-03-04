@@ -64,7 +64,11 @@ class TaxiDataHelper():
     
     # time vehicle must be stationary for the record to be dropped
     #   longer than the cycle length of the signals
-    TIME_THRESHOLD = 120.0   # seconds
+    TIME_THRESHOLD = 180.0   # seconds
+
+    # if no GPS recordsings are made within this time, it means the unit
+    # is not functioning properly, and we should split the trip here
+    TIME_BETWEEN_POINTS_THRESHOLD = 300.0  # seconds
     
     # threshold at which an entire trip (secquence of points) is counted
     #   500 ft is about the length of a city block
@@ -80,11 +84,18 @@ class TaxiDataHelper():
         Constructor.             
         """   
     
-    def setDebugFile(self, debugFile):
+    def openDebugFile(self, debugFile):
         """
         Sets the file where we write the debug output. 
         """          
-        self.debugFile = debugFile              
+        self.debugFile = open(debugFile, 'a')      
+        
+    def closeDebugFile(self):
+        """
+        Closes the debug file. 
+        """          
+        self.debugFile.close()        
+        
         
     def setDebugCabTripIds(self, cabTripIdSet):
         """
@@ -261,7 +272,11 @@ class TaxiDataHelper():
                         # reset if you change between empty and metered
                         elif (row['status'] != last_row['status']):
                             trip_id += 1
-                            
+                        
+                        # reset if the recordings are not frequent enough
+                        elif (row['seconds'] > self.TIME_BETWEEN_POINTS_THRESHOLD):
+                            trip_id += 1                            
+                                    
                         # reset if there is a stop
                         elif (row['forward_stationary_time'] > self.TIME_THRESHOLD):
                             trip_id += 1
