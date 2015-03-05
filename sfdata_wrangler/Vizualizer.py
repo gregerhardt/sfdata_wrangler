@@ -27,6 +27,7 @@ import bokeh.plotting as bk
 
 from bokeh.models import HoverTool
 from bokeh.models.sources import ColumnDataSource
+from dta.RoadLink import RoadLink
 
 
 def calculateSpeed(length_tt_fftt):        
@@ -76,7 +77,7 @@ def getLinkTTRatioColor(tt_ratio):
                 0.25: 'GreenYellow', 
                 0.50: 'GreenYellow', 
                 0.75: 'GreenYellow',
-                1.00: 'WhiteSmoke',  
+                1.00: '#DCDCDC',  
                 1.25: '#fdd49e',  
                 1.50: '#fdbb84',  
                 1.75: '#fc8d59',  
@@ -132,55 +133,63 @@ class Vizualizer():
         self.hdffile = hdffile
         
 
-    def getSegmentMidpointData(self, df):
+    def getSegmentRectangleData(self, df):
         """
         Converts a link dataframe into a dictionary with 
-        one record for the midpoint of each segment (can be 
-        more than one segment per link if there are shape points).
+        one record for each segment (can be more than one 
+        segment per link if there are shape points).
         
         This will be used for the hover tool. 
 
-        df - a dataframe with one record for each link. 
+        df - a dataframe with one record for each link segment.  
         """   
-        x = []
-        y = []
+        xmid = []
+        ymid = []
+        length = []
+        width = []
+        angle = []
+
         link_id = []
         label = []
         ffspeed = []
         speed = []
         observations = []
-        color = []
-        width = []
         
         # one record for each midpoint
         for i, row in df.iterrows(): 
             xvals = row['X']
             yvals = row['Y']
+
             for (x1, x2, y1, y2) \
                 in zip(xvals[:-1], xvals[1:], yvals[:-1], yvals[1:]):
                 
-                x.append((x1 + x2) / 2.0)
-                y.append((y1 + y2) / 2.0)
+                xmid.append((x1+x2)/2.0)
+                ymid.append((y1+y2)/2.0)
+                
+                length.append(math.sqrt(((x1-x2)**2) + ((y1-y2)**2)))
+                width.append(row['LANES'] * RoadLink.DEFAULT_LANE_WIDTH * 1.5)
+                
+                # calculate angle in radians
+                angle.append(math.atan2(y2-y1, x2-x1) + np.pi/2.0)
+
                 link_id.append(row['ID'])
                 label.append(row['LABEL'])
                 ffspeed.append(row['FFSPEED'])
                 speed.append(row['speed'])
                 observations.append(row['observations'])
-                color.append(row['color'])
-                width.append(row['LANES'] * 0.9)
         
-        data=dict(x=x, 
-                  y=y, 
+        data=dict(xmid=xmid,
+                  ymid=ymid, 
+                  length=length, 
+                  width=width,
+                  angle=angle,
                   link_id=link_id, 
                   label=label, 
                   ffspeed=ffspeed, 
                   speed=speed,
-                  observations=observations, 
-                  color=color, 
-                  width=width)
+                  observations=observations)
         
         return data
-    
 
     def getTrajectoryLinkMidpointDf(self, df):
         
@@ -203,7 +212,7 @@ class Vizualizer():
             xmid = (xvals[0] + xvals[-1]) / 2.0 
             ymid = (yvals[0] + yvals[-1]) / 2.0 
             
-            # TODO calculate angle in radians properly
+            # calculate angle in radians
             deltax = xvals[-1] - xvals[0]
             deltay = yvals[-1] - yvals[0]
             a = math.atan2(deltay, deltax) + np.pi
@@ -360,7 +369,7 @@ class Vizualizer():
         
         # TODO - fix/remove this when bokeh makes hover tool work for lines
         # see: https://github.com/bokeh/bokeh/issues/984
-        pointData = self.getSegmentMidpointData(df)
+        segmentData = self.getSegmentRectangleData(df)
 
         
         """ Plotting starts here """ 
@@ -379,13 +388,15 @@ class Vizualizer():
                       title="SF Taxi Speeds: " + date + ', hr=' + hour)      
                   
         # TODO - fix/remove this when bokeh makes hover tool work for lines
-        # see: https://github.com/bokeh/bokeh/issues/984        
-        p.circle(pointData['x'], 
-                 pointData['y'], 
-                 source=ColumnDataSource(pointData),
-                 size=pointData['width'],  
-                 line_color=pointData['color'],
-                 fill_color=pointData['color'])
+        # see: https://github.com/bokeh/bokeh/issues/2031       
+        p.rect(x=segmentData['xmid'], 
+               y=segmentData['ymid'], 
+               height=segmentData['length'], 
+               width=segmentData['width'], 
+               angle=segmentData['angle'], 
+               source=ColumnDataSource(segmentData),
+               line_alpha=0,
+               fill_alpha=0)
 
         hover =p.select(dict(type=HoverTool))
         hover.tooltips = OrderedDict([
@@ -393,7 +404,7 @@ class Vizualizer():
             ("LABEL", "@label"),
             ("FFSPEED", "@ffspeed"),
             ("SPEED", "@speed"),
-            ("OBSERVATIONS", "@observations"),
+            ("OBSERVATIONS", "@observations")
         ])
 
         # plot the links
