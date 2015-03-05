@@ -70,7 +70,11 @@ class TaxiDataHelper():
     # is not functioning properly, and we should split the trip here
     TIME_BETWEEN_POINTS_THRESHOLD = 300.0  # seconds
     
-    # threshold at which an entire trip (secquence of points) is counted
+    # if the distance between GPS points is greater than this, it is 
+    # probably a faulty reading, so move to a new trip. 
+    DIST_BETWEEN_POINTS_THRESHOLD = 7500.0 # feet
+    
+    # threshold at which an entire trip (sequence of points) is counted
     #   500 ft is about the length of a city block
     TRIP_DIST_THRESHOLD = 500
     
@@ -276,6 +280,10 @@ class TaxiDataHelper():
                         # reset if the recordings are not frequent enough
                         elif (row['seconds'] > self.TIME_BETWEEN_POINTS_THRESHOLD):
                             trip_id += 1                            
+                            
+                        # reset if the distance is too great
+                        elif (row['feet'] > self.DIST_BETWEEN_POINTS_THRESHOLD):
+                            trip_id += 1                            
                                     
                         # reset if there is a stop
                         elif (row['forward_stationary_time'] > self.TIME_THRESHOLD):
@@ -331,7 +339,7 @@ class TaxiDataHelper():
             print 'Processing ', date
             
             # get the data and sort
-            gps_df = store.select(inkey, where='date==Timestamp(date) and (cab_id=3 or cab_id=501 or cab_id=649 or cab_id=1349 or cab_id=2813)')  
+            gps_df = store.select(inkey, where='date==Timestamp(date)')  
             
             # loop through each trip
             last_cab_id = 0
