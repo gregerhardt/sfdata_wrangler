@@ -484,7 +484,7 @@ class TaxiDataHelper():
         Given individual observations, aggregates link travel times
         to mean values. 
         
-        storefile - HDF datastore with GPS points in it. 
+        storefile - HDF datastore with trajectories in it. 
         inkey - input key containing trajectories
         outkey - output key containing average link travel times. 
         """
@@ -502,9 +502,12 @@ class TaxiDataHelper():
         for date in dates: 
             print 'Processing ', date            
                     
-            # get the data and determine the hour
-            df = store.select(inkey, where='date==Timestamp(date)')  
+            # get the data--only include cases where we traverse most of the link
+            df = store.select(inkey, where='date==Timestamp(date) and traversal_ratio>0.75')  
+            
+            # some derived fields
             df['hour'] = df['start_time'].apply(getHour)
+            df['travel_time'] = df['travel_time'].div(df['traversal_ratio'])
 
             # group
             aggMethod = {'travel_time' : 
