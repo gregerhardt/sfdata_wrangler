@@ -483,8 +483,11 @@ class HwyNetwork():
                      none is returned
         """
         
-        # if the same link, it's easy
+        # if the same link, be sure that we're not going 
+        # backwards along the link
         if (s1.link_id == s2.link_id):
+            if (s2.offset < s1.offset):
+                s2.offset = s1.offset
             path = Path(s1, [s1.link_id], s2)    
             return [path]
                         
