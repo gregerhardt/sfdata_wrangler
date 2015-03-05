@@ -77,14 +77,26 @@ def getLinkTTRatioColor(tt_ratio):
                 0.25: 'GreenYellow', 
                 0.50: 'GreenYellow', 
                 0.75: 'GreenYellow',
+
                 1.00: '#DCDCDC',  
+
                 1.25: '#fdd49e',  
+
                 1.50: '#fdbb84',  
+
                 1.75: '#fc8d59',  
+                 
                 2.00: '#ef6548',  
-                2.25: '#d7301f', 
-                2.50: '#b30000', 
-                2.75: '#7f0000'}
+                2.25: '#ef6548',  
+
+                2.50: '#d7301f', 
+                2.75: '#d7301f', 
+
+                3.00: '#b30000', 
+                3.25: '#b30000', 
+
+                3.50: '#7f0000',
+                3.75: '#7f0000'}
 
     tt_ratio_floor = np.floor(tt_ratio*4.0) / 4.0
     if tt_ratio_floor < min(colorMap.keys()): 
