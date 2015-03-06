@@ -154,6 +154,7 @@ class HwyNetwork():
         
         They are not currently used. 
         """
+        """
         # a dictionary lookup between the node IDs and
         # the graph index for skim and pred
         self.n2i = None
@@ -169,6 +170,7 @@ class HwyNetwork():
         # gives the index of the previous node in the path from point i to point j. 
         # If no path exists between point i and j, then predecessors[i, j] = -9999
         self.nodePred = None
+        """
         
         """
         These options are for building shortest paths between links.  The 
@@ -215,59 +217,7 @@ class HwyNetwork():
         dta.Algorithms.ShortestPaths.initialiseMovementCostsWithFFTT(net)        
         
         self.net = net
-        
 
-    
-    def initializeShortestPathsBetweenNodes(self):
-        """
-        Calculates the shortest paths between all node pairs and populates
-        self.nodeSkim and self.nodePred
-
-        The shortest paths between nodes do not consider turn restrictions
-        or turn penalties. 
-        """
-        
-        # STEP 1: create a dictionary lookup between the node IDs and
-        # the graph index
-        self.n2i = {}
-        self.i2n = {}
-        
-        i = 0
-        for node in self.net.iterNodes():   
-            node_id = node.getId()
-            self.n2i[node_id] = i
-            self.i2n[i] = node_id
-            i += 1
-        num_nodes = i+1
-        
-        # STEP 2: create a compressed sparse matrix representation of the network, 
-        # for use with scipy shortest path algorithms
-        anodes = []
-        bnodes = []
-        costs = []
-        for link in self.net.iterRoadLinks():
-            a = self.n2i[link.getStartNodeId()]
-            b = self.n2i[link.getEndNodeId()]
-            cost = 60.0 * link.getFreeFlowTTInMin()
-            
-            anodes.append(a)
-            bnodes.append(b)
-            costs.append(cost)
-            
-        num_links = len(costs)
-        
-        anodes2 = np.array(anodes)
-        bnodes2 = np.array(bnodes)
-        costs2  = np.array(costs)
-        
-        print 'Creating network graph with %i nodes and %i links ' %(num_nodes, num_links)        
-        graph = csr_matrix((costs2, (anodes2, bnodes2)), shape=(num_nodes, num_nodes)) 
-        
-        
-        # STEP 3: run the scipy algorithm
-        (self.nodeSkim, self.nodePred) = sp.sparse.csgraph.shortest_path(graph, 
-                        method='auto', directed=True, return_predecessors=True)
-        
         
     def initializeShortestPathsBetweenLinks(self):
         """
@@ -433,44 +383,6 @@ class HwyNetwork():
             self.linkSpatialIndex.insert(link.getId(), (min(x), max(x), min(y), max(y)))
                         
         
-    def getPathsUsingNodes(self, s1, s2):
-        """ Returns a set of candidate paths between state s1 and state s3.
-        Always includes the first and last link. 
-        
-        Arguments:
-        - s1 : a State object
-        - s2 : a State object
-        """
-        
-        # if the same link, it's easy
-        if (s1.link_id == s2.link_id):
-            path = Path(s1, [s1.link_id], s2)    
-            return [path]
-        
-        startNode = self.net.getLinkForId(s1.link_id).getEndNodeId()
-        endNode   = self.net.getLinkForId(s2.link_id).getStartNodeId()
-        
-        # if there is no valid path
-        cost = self.nodeSkim[self.n2i[startNode], self.n2i[endNode]]
-        if np.isinf(cost):
-            return [None]
-        
-        # sequence of node IDs
-        nodeSeq = self.getShortestPathNodeSequence(startNode, endNode)
-        
-        # convert to a sequence of link IDs
-        linkSeq = [s1.link_id]
-        for i in range(1,len(nodeSeq)):
-            a = nodeSeq[i-1]
-            b = nodeSeq[i]        
-            link_id = self.net.getLinkForNodeIdPair(a, b).getId()
-            linkSeq.append(link_id)
-        linkSeq.append(s2.link_id)
-        
-        # return the path set
-        path = Path(s1, linkSeq, s2)        
-        return [path]
-
 
     def getPaths(self, s1, s2, timeLimit=sys.maxint):
         """ Returns a set of candidate paths between state s1 and state s3.
@@ -499,39 +411,6 @@ class HwyNetwork():
         return [path]
 
 
-    def getShortestPathNodeSequence(self, startNode, endNode):
-        """
-        returns the sequence of node IDs that define the shortest
-        path from the startNode to the endNode. 
-        
-        Does not consider movement restrictions or turn penalties. 
-        
-        - startNode: the start node ID (not index)
-        - endNode: the end node ID (not index)
-        """
-        
-        # use indices
-        start = self.n2i[startNode]
-        end = self.n2i[endNode]
-        
-        # if there is no valid path
-        cost = self.nodeSkim[start, end]
-        if np.isinf(cost):
-            return [None]
-        
-        # trace the path
-        path = []
-        j = end
-        while (j != start):
-            path.append(self.i2n[j])
-            j = self.nodePred[start, j]
-        path.append(self.i2n[start])
-        
-        # reverse the list, because we started from the end
-        path.reverse()
-            
-        return path
-        
 
     def getShortestPathLinkSequence(self, startLink, endLink, timeLimit=sys.maxint):
         """
@@ -567,32 +446,6 @@ class HwyNetwork():
             
         return path
 
-    def getPathsUsingDtaAnywayImplementation(self, s1, s2):
-        """ Returns a set of candidate paths between state s1 and state s3.
-        Arguments:
-        - s1 : a State object
-        - s2 : a State object
-        
-        NOTE: this is slow, so not recommended!
-        """        
-        
-        link1 = self.net.getLinkForId(s1.link_id)
-        link2 = self.net.getLinkForId(s2.link_id)    
-        
-        links = dta.Algorithms.ShortestPaths.getShortestPathBetweenLinks(
-                self.net, link1, link2, runSP=True)       
-                
-        if (links==None):
-            #print 'No valid path between links ', s1.link_id, ' and ', s2.link_id
-            return [None]
-            
-        link_ids = []             
-        for link in links:
-            link_ids.append(link.getId())        
-        
-        path = Path(s1, link_ids, s2)        
-        return [path]
-        
 
     def getPathsBetweenCollections(self, sc1, sc2):
         """ Returns a set of candidate paths between all pairs of states
@@ -791,3 +644,138 @@ class HwyNetwork():
         
         return df
         
+
+    """   
+    ----------------------------------------------------------------------------      
+    The methods below are for calculating shortest paths by node sequences.
+    
+    They do not account for turn penalties, and thus are not used.  They are
+    retained because they are more memory efficient, so may be useful for a
+    bigger network. 
+    ----------------------------------------------------------------------------   
+
+  
+    def initializeShortestPathsBetweenNodes(self):
+        '''
+        Calculates the shortest paths between all node pairs and populates
+        self.nodeSkim and self.nodePred
+
+        The shortest paths between nodes do not consider turn restrictions
+        or turn penalties. 
+        '''
+        
+        # STEP 1: create a dictionary lookup between the node IDs and
+        # the graph index
+        self.n2i = {}
+        self.i2n = {}
+        
+        i = 0
+        for node in self.net.iterNodes():   
+            node_id = node.getId()
+            self.n2i[node_id] = i
+            self.i2n[i] = node_id
+            i += 1
+        num_nodes = i+1
+        
+        # STEP 2: create a compressed sparse matrix representation of the network, 
+        # for use with scipy shortest path algorithms
+        anodes = []
+        bnodes = []
+        costs = []
+        for link in self.net.iterRoadLinks():
+            a = self.n2i[link.getStartNodeId()]
+            b = self.n2i[link.getEndNodeId()]
+            cost = 60.0 * link.getFreeFlowTTInMin()
+            
+            anodes.append(a)
+            bnodes.append(b)
+            costs.append(cost)
+            
+        num_links = len(costs)
+        
+        anodes2 = np.array(anodes)
+        bnodes2 = np.array(bnodes)
+        costs2  = np.array(costs)
+        
+        print 'Creating network graph with %i nodes and %i links ' %(num_nodes, num_links)        
+        graph = csr_matrix((costs2, (anodes2, bnodes2)), shape=(num_nodes, num_nodes)) 
+        
+        
+        # STEP 3: run the scipy algorithm
+        (self.nodeSkim, self.nodePred) = sp.sparse.csgraph.shortest_path(graph, 
+                        method='auto', directed=True, return_predecessors=True)
+
+    def getPathsUsingNodes(self, s1, s2):
+        ''' Returns a set of candidate paths between state s1 and state s3.
+        Always includes the first and last link. 
+        
+        Arguments:
+        - s1 : a State object
+        - s2 : a State object
+        '''
+        
+        # if the same link, it's easy
+        if (s1.link_id == s2.link_id):
+            path = Path(s1, [s1.link_id], s2)    
+            return [path]
+        
+        startNode = self.net.getLinkForId(s1.link_id).getEndNodeId()
+        endNode   = self.net.getLinkForId(s2.link_id).getStartNodeId()
+        
+        # if there is no valid path
+        cost = self.nodeSkim[self.n2i[startNode], self.n2i[endNode]]
+        if np.isinf(cost):
+            return [None]
+        
+        # sequence of node IDs
+        nodeSeq = self.getShortestPathNodeSequence(startNode, endNode)
+        
+        # convert to a sequence of link IDs
+        linkSeq = [s1.link_id]
+        for i in range(1,len(nodeSeq)):
+            a = nodeSeq[i-1]
+            b = nodeSeq[i]        
+            link_id = self.net.getLinkForNodeIdPair(a, b).getId()
+            linkSeq.append(link_id)
+        linkSeq.append(s2.link_id)
+        
+        # return the path set
+        path = Path(s1, linkSeq, s2)        
+        return [path]
+
+
+    def getShortestPathNodeSequence(self, startNode, endNode):
+        '''
+        returns the sequence of node IDs that define the shortest
+        path from the startNode to the endNode. 
+        
+        Does not consider movement restrictions or turn penalties. 
+        
+        - startNode: the start node ID (not index)
+        - endNode: the end node ID (not index)
+        '''
+        
+        # use indices
+        start = self.n2i[startNode]
+        end = self.n2i[endNode]
+        
+        # if there is no valid path
+        cost = self.nodeSkim[start, end]
+        if np.isinf(cost):
+            return [None]
+        
+        # trace the path
+        path = []
+        j = end
+        while (j != start):
+            path.append(self.i2n[j])
+            j = self.nodePred[start, j]
+        path.append(self.i2n[start])
+        
+        # reverse the list, because we started from the end
+        path.reverse()
+            
+        return path
+  
+    ------------------------------------------------------------------------------      
+    """    
