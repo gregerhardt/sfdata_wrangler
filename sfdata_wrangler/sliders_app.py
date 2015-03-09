@@ -31,10 +31,13 @@ LOGGING_DIR = "C:/CASA/DataExploration"
 link_df = None
 
 
-def prepareLinkData(hwynet, date='2013-02-13'):
+def prepareLinkData(date='2013-02-13'):
     """ 
-    Returns a column data source with one record for each link, containing 
+    Stores a dataframe (link_df) with one record for each link, containing 
     the data necessary for plotting. 
+    
+    Called once at the beginning to read in all the data. 
+    
     date - string for the date's data to display
     """
     
@@ -81,8 +84,30 @@ def prepareLinkData(hwynet, date='2013-02-13'):
 
     df['color'] = df['color0']
     
-    return df
+    link_df = df
+
+def getData(hour):
+    """
+    Returns a column data source with the data specific to the hour
+    specified.
     
+    hour - 0 to 23 to specify the hour of interest. 
+    """    
+    if (link_df == None):
+        prepareLinkData()
+    
+    h = str(hour)
+    df = link_df['X', 
+                 'Y', 
+                 'LANES', 
+                 'FFSPEED', 
+                 'observations'+h, 
+                 'speed'+h, 
+                 'color'+h
+                 ]
+    source = ColumnDataSource(df)
+    return source       
+            
 
 class NetworkSliderApp(VBox):
     """An example of a browser-based, interactive plot with slider controls."""
@@ -97,7 +122,7 @@ class NetworkSliderApp(VBox):
     source = Instance(ColumnDataSource)
 
     @classmethod
-    def create(cls, source):
+    def create(cls):
         """One-time creation of app's objects.
 
         This function is called once, and is responsible for
@@ -174,19 +199,8 @@ class NetworkSliderApp(VBox):
         sliders. This is stored as two numpy arrays in a dict into the app's
         data source property.
         """
-        
-        # Get the current slider values
-        h = self.hour.value
-        
-        x = [[1,2],[3,4]]
-        y = [[1*h,2*h],[3*h,4*h]]
-        
-        lanes = [1, 1]
-        color = ['blue', 'blue']
 
-        self.source.data = dict(x=x, y=y, lanes=lanes, color=color)
-
-
+        self.source.data = getData(self.hour.value)
     
 
 """
@@ -203,5 +217,5 @@ Now navigate to the following URL in a browser:
 @bokeh_app.route("/bokeh/sf/")
 @object_page("NetworkSlider")
 def make_sliders():
-    app = NetworkSliderApp.create(source)
+    app = NetworkSliderApp.create()
     return app
