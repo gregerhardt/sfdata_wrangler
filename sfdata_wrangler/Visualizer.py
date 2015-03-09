@@ -128,7 +128,7 @@ def getTimeString(datetime):
     return str(datetime.time())
 
     
-class Vizualizer():
+class Visualizer():
     """ 
     Class to vizualize the data outputs. 
     """
@@ -366,7 +366,7 @@ class Vizualizer():
         
         """ Calculations start here """ 
         
-        # there are zero observations if its not in the right database
+        # there are zero observations if its not in the righthand database
         df['observations'].replace(to_replace=np.nan, value=0, inplace=True)
         
         # calculate some extra fields
