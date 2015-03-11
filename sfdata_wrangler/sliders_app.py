@@ -97,7 +97,6 @@ class NetworkSliderApp(VBox):
         obj.children.append(obj.plot)
         obj.children.append(obj.inputs)
         
-        print 'ready to return obj'
         return obj
 
     def setup_events(self):
@@ -108,9 +107,7 @@ class NetworkSliderApp(VBox):
         super(NetworkSliderApp, self).setup_events()
         if not self.hour:
             return
-            
-        print 'setup events'
-        
+
         # Slider event registration
         for w in ["hour"]:
             getattr(self, w).on_change('value', self, 'input_change')
@@ -127,7 +124,6 @@ class NetworkSliderApp(VBox):
             old : old value of attr
             new : new value of attr
         """
-        print 'input change'
         self.update_data()
         
 
@@ -136,39 +132,30 @@ class NetworkSliderApp(VBox):
 
         select the appropriate columns for this hour
         """
-        print 'Updating data'
+        if len(self.allLinkData.data['X']) == 0:
+            self.allLinkData.data = self.prepareLinkData()
+            self.selectedLinkData.data = dict(X=self.allLinkData.data['X'], 
+                                          Y=self.allLinkData.data['Y'], 
+                                          LANES=self.allLinkData.data['LANES'], 
+                                          color=self.allLinkData.data['color'])
 
-        if len(self.selectedLinkData.data['X']) == 0:
-            source = self.prepareLinkData()
-            print source.data.keys()
-            self.allLinkData.data = dict(X=source.data['X'], 
-                                         Y=source.data['Y'], 
-                                         LANES=source.data['LANES'], 
-                                         color=source.data['color'])
-
-        #h = str(self.hour.value)
+        h = str(self.hour.value)
         
         #self.selectedLinkData.data = dict(X=self.allLinkData.data['X'], 
-        #                                    Y=self.allLinkData.data['Y'], 
-        #                                    LANES=self.allLinkData.data['LANES'], 
-        #                                    FFSPEED=self.allLinkData.data['FFSPEED'],
-        #                                    observations=self.allLinkData.data['observations'+h],
-        #                                    speed=self.allLinkData.data['speed'+h],
-        #                                    color=self.allLinkData.data['color'+h])
+        #                                  Y=self.allLinkData.data['Y'], 
+        #                                  LANES=self.allLinkData.data['LANES'], 
+        #                                  color=self.allLinkData.data['color'+h])
         
-        h = self.hour.value
-        x = [[1,2],[3,4]]
-        y = [[1*h,2*h],[3+h,4+h]] 
+        print h
+        self.selectedLinkData.data['color'] = self.allLinkData.data['color'+h]  
         
-        lanes = [1,1]
-        color = ['blue', 'blue']
-        
-        self.selectedLinkData.data = dict(X=x, Y=y, LANES=lanes, color=color)
-        
-        print 'done updating data'
+        df = pd.DataFrame(self.selectedLinkData.data)
+        print df.head()        
+        print 'color count=', len(df[df['color']!='#DCDCDC'])
+        print ''
     
 
-    def prepareLinkData(self, date='2013-02-13'):
+    def prepareLinkData(self, date='2009-02-13'):
         """ 
         Reads and returns a dictionary with one record for each link, containing 
         the data necessary for plotting. 
@@ -216,12 +203,18 @@ class NetworkSliderApp(VBox):
                 
             # map the link colors based on the travel time ratio
             df['color'+h] = df['tt_ratio'+h].apply(Visualizer.getLinkTTRatioColor)
-                    
+                                
         store.close()
     
-        df['color'] = df['color0']    
-                        
-        return ColumnDataSource(df)
+        df['color'] = df['color0']  
+
+        # convert to a dictionary.  
+        # .to_dict() returns in a different structure that doesn't work. 
+        d = {}
+        for c in df.columns: 
+            d[c] = df[c]
+                
+        return d
 
 
 """
@@ -239,6 +232,4 @@ Now navigate to the following URL in a browser:
 @object_page("NetworkSlider")
 def make_sliders():
     app = NetworkSliderApp.create()
-    print 'done creating app, ready to return'
-    print app
     return app
