@@ -26,7 +26,7 @@ sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 
 from TaxiDataHelper import TaxiDataHelper
 from HwyNetwork import HwyNetwork
-from Vizualizer import Vizualizer
+from Visualizer import Visualizer
 
 USAGE = r"""
 
@@ -54,7 +54,7 @@ VALID_STEPS = [ 'convertPoints',
 
 # date and hour for speed maps
 VIZ_DATE = '2009-02-13'  
-VIZ_HOUR = '17'
+VIZ_HOUR = '8'
 
 # (date, cab_id, trip_id) for any trajectories to validate
 TRAJ_VIZ_SPECS = [('2009-02-13',    '3',   '2'),
@@ -209,7 +209,7 @@ if __name__ == "__main__":
         if (hwynet==None): 
             hwynet = HwyNetwork()
             hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX, logging_dir=LOGGING_DIR) 
-        vizualizer = Vizualizer(hwynet, TAXI_OUTFILE)
+        vizualizer = Visualizer(hwynet, TAXI_OUTFILE)
         
         # network speed maps
         vizualizer.createNetworkPlot(VIZ_OUTFILE, date=VIZ_DATE, hour=VIZ_HOUR)  

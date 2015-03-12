@@ -73,9 +73,9 @@ def getLinkTTRatioColor(tt_ratio):
     """    
     
     # Specifies the color to use when mapping with a given travel time ratio
-    colorMap = {0.00: 'Green',
-                0.50: 'Green', 
-                1.00: '#GreenYellow',  
+    colorMap = {0.00: 'green',
+                0.50: 'green', 
+                1.00: 'beige', 
                 1.50: '#fdd49e',  
                 2.00: '#fdbb84',  
                 2.50: '#fc8d59',                   
@@ -135,7 +135,57 @@ class Visualizer():
         """   
         self.hwynet = hwynet
         self.hdffile = hdffile
+
+
+    def getLinkData(self, date='2009-02-13'):
+        """
+        Reads and returns a dataframe with one record for 
+        each link, and with speed and travel time information
+        attached to use for plotting. 
         
+        """   
+        
+        # start with the network links as a dataframe
+        df = self.hwynet.getRoadLinkDataFrame()
+        
+        # now get the link speeds for the date, and for each hour
+        store = pd.HDFStore(self.hdffile)
+    
+        for hour in range(0,24):
+            h = str(hour)
+                
+            # get the data
+            query = "date==Timestamp('" + date + "') and hour==" + h
+            obs_df = store.select('link_tt', where=query) 
+    
+            # append the hour to the end of each column name for this query
+            obs_df.drop('date', axis=1, inplace=True)
+            obs_df.rename(columns=lambda x: x+h, inplace=True)
+    
+            # merge, keeping all links
+            df = pd.merge(df, obs_df, how='left', 
+                        left_on=['ID'], right_on=['link_id'+h])
+                            
+            """ Calculations start here """
+            # there are zero observations if its not in the righthand database
+            df['observations'+h].replace(to_replace=np.nan, value=0, inplace=True)
+            
+            # calculate some extra fields
+            length_tt_fftt = pd.Series(zip(df['LENGTH'], df['tt_mean'+h], df['FFTIME']))
+            df['speed'+h] = length_tt_fftt.apply(calculateSpeed)
+                
+            tt_fftt = pd.Series(zip(df['tt_mean'+h], df['FFTIME']))
+            df['tt_ratio'+h] = tt_fftt.apply(calculateTravelTimeRatio)
+                
+            # map the link colors based on the travel time ratio
+            df['color'+h] = df['tt_ratio'+h].apply(getLinkTTRatioColor)
+                                
+        store.close()
+    
+        df['color'] = df['color0']  
+        
+        return df        
+                        
 
     def getSegmentRectangleData(self, df):
         """
@@ -156,8 +206,13 @@ class Visualizer():
         link_id = []
         label = []
         ffspeed = []
+
+        # these lists have one for each hour
         speed = []
         observations = []
+        for h in range(0,23):
+            speed.append([])
+            observations.append([])
         
         # one record for each midpoint
         for i, row in df.iterrows(): 
@@ -179,8 +234,11 @@ class Visualizer():
                 link_id.append(row['ID'])
                 label.append(row['LABEL'])
                 ffspeed.append(row['FFSPEED'])
-                speed.append(row['speed'])
-                observations.append(row['observations'])
+                
+                # these have one for each hour
+                for h in range(0,23):
+                    speed[h].append(row['speed'+str(h)])
+                    observations[h].append(row['observations'+str(h)])
         
         data=dict(xmid=xmid,
                   ymid=ymid, 
@@ -189,9 +247,11 @@ class Visualizer():
                   angle=angle,
                   link_id=link_id, 
                   label=label, 
-                  ffspeed=ffspeed, 
-                  speed=speed,
-                  observations=observations)
+                  ffspeed=ffspeed)
+        
+        for h in range(0,23):
+            data['speed'+str(h)]        = speed[h]
+            data['observations'+str(h)] = observations[h]
         
         return data
 
@@ -343,38 +403,12 @@ class Visualizer():
         hour - string for the hour to query, from 0 to 23 
         """
         
-        # start with the network links as a dataframe
-        net_df = self.hwynet.getRoadLinkDataFrame()
-        
-        # now get the link speeds for the first date
-        # and for 5-6 pm
-        store = pd.HDFStore(self.hdffile)
-        query = "date==Timestamp('" + date + "') and hour==" + hour
-        obs_df = store.select('link_tt', where=query) 
-        store.close()
-        
-        # merge, keeping all links
-        df = pd.merge(net_df, obs_df, how='left', left_on=['ID'], right_on=['link_id'])
-        
-        """ Calculations start here """ 
-        
-        # there are zero observations if its not in the righthand database
-        df['observations'].replace(to_replace=np.nan, value=0, inplace=True)
-        
-        # calculate some extra fields
-        length_tt_fftt = pd.Series(zip(df['LENGTH'], df['tt_mean'], df['FFTIME']))
-        df['speed'] = length_tt_fftt.apply(calculateSpeed)
-        
-        tt_fftt = pd.Series(zip(df['tt_mean'], df['FFTIME']))
-        df['tt_ratio'] = tt_fftt.apply(calculateTravelTimeRatio)
-        
-        # map the link colors based on the travel time ratio
-        df['color'] = df['tt_ratio'].apply(getLinkTTRatioColor)
+        # get the link data
+        df = self.getLinkData(date=date)
         
         # TODO - fix/remove this when bokeh makes hover tool work for lines
         # see: https://github.com/bokeh/bokeh/issues/984
         segmentData = self.getSegmentRectangleData(df)
-
         
         """ Plotting starts here """ 
         
@@ -389,7 +423,7 @@ class Visualizer():
                       x_axis_type=None, 
                       y_axis_type=None,
                       tools="pan,wheel_zoom,reset,hover,save", 
-                      title="SF Taxi Speeds: " + date + ', hr=' + hour)      
+                      title="SF Taxi Speeds for Hour: " + hour + ":00")   
                   
         # TODO - fix/remove this when bokeh makes hover tool work for lines
         # see: https://github.com/bokeh/bokeh/issues/2031       
@@ -407,15 +441,15 @@ class Visualizer():
             ("ID", "@link_id"),
             ("LABEL", "@label"),
             ("FFSPEED", "@ffspeed"),
-            ("SPEED", "@speed"),
-            ("OBSERVATIONS", "@observations")
+            ("SPEED", "@speed"+hour),
+            ("OBSERVATIONS", "@observations"+hour)
         ])
 
         # plot the links
         p.multi_line(xs=df['X'], 
                      ys=df['Y'], 
                      line_width=df['LANES'],  
-                     line_color=df['color'])      
+                     line_color=df['color'+hour])      
                      
         # write to file and show
         bk.show(p)

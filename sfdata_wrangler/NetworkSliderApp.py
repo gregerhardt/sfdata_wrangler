@@ -18,7 +18,7 @@ from bokeh.server.app import bokeh_app
 from bokeh.server.utils.plugins import object_page
 from bokeh.models.widgets import VBox, Slider, VBoxForm
 
-import Visualizer
+from Visualizer import Visualizer
 from HwyNetwork import HwyNetwork
 
 # global parameters
@@ -165,45 +165,10 @@ class NetworkSliderApp(VBox):
         hwynet = HwyNetwork()
         hwynet.readDTANetwork(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX, logging_dir=LOGGING_DIR) 
     
-        # start with the network links as a dataframe
-        df = hwynet.getRoadLinkDataFrame()
+        # get the data
+        v = Visualizer(hwynet, TAXI_OUTFILE)
+        df = v.getLinkData(date=date)
         
-        # now get the link speeds for the date, and for each hour
-        store = pd.HDFStore(TAXI_OUTFILE)
-    
-        for hour in range(0,24):
-            h = str(hour)
-                
-            # get the data
-            query = "date==Timestamp('" + date + "') and hour==" + h
-            obs_df = store.select('link_tt', where=query) 
-    
-            # append the hour to the end of each column name for this query
-            obs_df.drop('date', axis=1, inplace=True)
-            obs_df.rename(columns=lambda x: x+h, inplace=True)
-    
-            # merge, keeping all links
-            df = pd.merge(df, obs_df, how='left', 
-                        left_on=['ID'], right_on=['link_id'+h])
-                            
-            """ Calculations start here """
-            # there are zero observations if its not in the righthand database
-            df['observations'+h].replace(to_replace=np.nan, value=0, inplace=True)
-            
-            # calculate some extra fields
-            length_tt_fftt = pd.Series(zip(df['LENGTH'], df['tt_mean'+h], df['FFTIME']))
-            df['speed'+h] = length_tt_fftt.apply(Visualizer.calculateSpeed)
-                
-            tt_fftt = pd.Series(zip(df['tt_mean'+h], df['FFTIME']))
-            df['tt_ratio'+h] = tt_fftt.apply(Visualizer.calculateTravelTimeRatio)
-                
-            # map the link colors based on the travel time ratio
-            df['color'+h] = df['tt_ratio'+h].apply(Visualizer.getLinkTTRatioColor)
-                                
-        store.close()
-    
-        df['color'] = df['color0']  
-
         # convert to a dictionary.  
         # .to_dict() returns in a different structure that doesn't work. 
         d = {}
