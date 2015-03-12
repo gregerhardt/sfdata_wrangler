@@ -18,13 +18,13 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from collections import OrderedDict
 
 import math
 import pandas as pd
 import numpy as np
 import bokeh.plotting as bk
 
+from collections import OrderedDict
 from bokeh.models import HoverTool
 from bokeh.models.sources import ColumnDataSource
 from dta.RoadLink import RoadLink

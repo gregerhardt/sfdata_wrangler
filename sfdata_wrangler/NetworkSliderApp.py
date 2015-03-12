@@ -1,6 +1,26 @@
+# -*- coding: utf-8 -*-
+__author__      = "Gregory D. Erhardt"
+__copyright__   = "Copyright 2013 SFCTA"
+__license__     = """
+    This file is part of sfdata_wrangler.
+
+    sfdata_wrangler is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    sfdata_wrangler is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 """
 This file demonstrates a bokeh applet, which can be viewed directly
-on a bokeh-server. See the README.md file in this directory for
+on a bokeh-server. See the end of the file for
 instructions on running.
 """
 
@@ -8,11 +28,10 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG)
 
-import numpy as np
-import pandas as pd
+from collections import OrderedDict
 
 from bokeh.plotting import figure
-from bokeh.models import Plot, ColumnDataSource, MultiLine
+from bokeh.models import Plot, ColumnDataSource, HoverTool
 from bokeh.properties import Instance
 from bokeh.server.app import bokeh_app
 from bokeh.server.utils.plugins import object_page
@@ -41,6 +60,8 @@ class NetworkSliderApp(VBox):
     allLinkData = Instance(ColumnDataSource)
     selectedLinkData = Instance(ColumnDataSource)
 
+    allSegmentData = Instance(ColumnDataSource)
+    selectedSegmentData = Instance(ColumnDataSource)
 
     @classmethod
     def create(cls):
@@ -52,21 +73,37 @@ class NetworkSliderApp(VBox):
         obj = cls()
 
         obj.allLinkData = ColumnDataSource(data=dict(X=[], 
-                                                          Y=[], 
-                                                          LANES=[], 
-                                                          FFSPEED=[],
-                                                          observations=[],
-                                                          speed=[],
-                                                          color=[]))
+                                                     Y=[], 
+                                                     LANES=[], 
+                                                     color=[]))
         
         obj.selectedLinkData = ColumnDataSource(data=dict(X=[], 
                                                           Y=[], 
                                                           LANES=[], 
-                                                          FFSPEED=[],
-                                                          observations=[],
-                                                          speed=[],
                                                           color=[]))
-        
+            
+        obj.allSegmentData = ColumnDataSource(data=dict(xmid=[], 
+                                                        ymid=[],
+                                                        length=[],
+                                                        width=[],
+                                                        angle=[],
+                                                        link_id=[],
+                                                        label=[],
+                                                        ffspeed=[],
+                                                        speed=[],
+                                                        observations=[]))
+
+        obj.selectedSegmentData = ColumnDataSource(data=dict(xmid=[], 
+                                                        ymid=[],
+                                                        length=[],
+                                                        width=[],
+                                                        angle=[],
+                                                        link_id=[],
+                                                        label=[],
+                                                        ffspeed=[],
+                                                        speed=[],
+                                                        observations=[]))
+
         obj.hour = Slider(
             title="Time of Day", name="hour",
             value=0, start=0, end=23, step=1
@@ -82,6 +119,26 @@ class NetworkSliderApp(VBox):
                       tools="pan,wheel_zoom,reset,hover,save", 
                       title="SF Taxi Speeds") 
                     
+        # TODO - fix/remove this when bokeh makes hover tool work for lines
+        # see: https://github.com/bokeh/bokeh/issues/2031       
+        plot.rect(x='xmid', 
+                  y='ymid', 
+                  height='length', 
+                  width='width', 
+                  angle='angle', 
+                  source=obj.allSegmentData,
+                  line_alpha=0,
+                  fill_alpha=0)
+
+        hover =plot.select(dict(type=HoverTool))
+        hover.tooltips = OrderedDict([
+            ("ID", "@link_id"),
+            ("LABEL", "@label"),
+            ("FFSPEED", "@ffspeed"),
+            ("SPEED", "@speed"),
+            ("OBSERVATIONS", "@observations")
+        ])
+
         # plot the links
         plot.multi_line(xs='X', 
                         ys='Y', 
@@ -132,19 +189,31 @@ class NetworkSliderApp(VBox):
 
         select the appropriate columns for this hour
         """
+        
+        # initialize the first time through
         if len(self.allLinkData.data['X']) == 0:
-            self.allLinkData.data = self.prepareLinkData()
-            #self.selectedLinkData.data = dict(X=self.allLinkData.data['X'], 
-            #                              Y=self.allLinkData.data['Y'], 
-            #                              LANES=self.allLinkData.data['LANES'], 
-            #                              color=self.allLinkData.data['color'])
+            (linkData, segmentData) = self.prepareLinkData()
+            self.allLinkData.data = linkData
+            self.allSegmentData.data = segmentData        
         
         h = str(self.hour.value)
+        
         colorString = 'color' + h
         self.selectedLinkData.data = dict(X=self.allLinkData.data['X'], 
                                           Y=self.allLinkData.data['Y'], 
                                           LANES=self.allLinkData.data['LANES'], 
                                           color=self.allLinkData.data[colorString])
+
+        self.selectedSegmentData.data = dict(xmid=self.allSegmentData.data['xmid'], 
+                                             ymid=self.allSegmentData.data['ymid'],
+                                             length=self.allSegmentData.data['length'],
+                                             width=self.allSegmentData.data['width'],
+                                             angle=self.allSegmentData.data['angle'],
+                                             link_id=self.allSegmentData.data['link_id'],
+                                             label=self.allSegmentData.data['label'],
+                                             ffspeed=self.allSegmentData.data['ffspeed'],
+                                             speed=self.allSegmentData.data['speed'+h],
+                                             observations=self.allSegmentData.data['observations'+h])
 
         self.plot.title = "SF Taxi Speeds for Hour: " + h + ":00"
 
@@ -153,8 +222,13 @@ class NetworkSliderApp(VBox):
 
     def prepareLinkData(self, date='2009-02-13'):
         """ 
-        Reads and returns a dictionary with one record for each link, containing 
+        Reads and returns a tuple of (linkData, segmentData). 
+        
+        linkData is a dictionary with one record for each link, containing 
         the data necessary for plotting. 
+        
+        segmentData is a dictionary with one record for each shape segment
+        for use with the HoverTool. 
         
         Called once at the beginning to read in all the data. 
         
@@ -168,14 +242,17 @@ class NetworkSliderApp(VBox):
         # get the data
         v = Visualizer(hwynet, TAXI_OUTFILE)
         df = v.getLinkData(date=date)
-        
+
         # convert to a dictionary.  
         # .to_dict() returns in a different structure that doesn't work. 
-        d = {}
+        linkData = {}
         for c in df.columns: 
-            d[c] = df[c]
+            linkData[c] = df[c]
                 
-        return d
+        # convert to segments
+        segmentData = v.getSegmentRectangleData(df)
+                                
+        return (linkData, segmentData)
 
 
 """
