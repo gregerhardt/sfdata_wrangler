@@ -184,7 +184,7 @@ class Visualizer():
     
         df['color'] = df['color0']  
         
-        return df        
+        return df
                         
 
     def getSegmentRectangleData(self, df):
@@ -210,7 +210,7 @@ class Visualizer():
         # these lists have one for each hour
         speed = []
         observations = []
-        for h in range(0,23):
+        for h in range(0,24):
             speed.append([])
             observations.append([])
         
@@ -249,7 +249,7 @@ class Visualizer():
                   label=label, 
                   ffspeed=ffspeed)
         
-        for h in range(0,23):
+        for h in range(0,24):
             data['speed'+str(h)]        = speed[h]
             data['observations'+str(h)] = observations[h]
         
