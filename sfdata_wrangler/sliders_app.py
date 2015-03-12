@@ -134,18 +134,21 @@ class NetworkSliderApp(VBox):
         """
         if len(self.allLinkData.data['X']) == 0:
             self.allLinkData.data = self.prepareLinkData()
-            self.selectedLinkData.data = dict(X=self.allLinkData.data['X'], 
-                                          Y=self.allLinkData.data['Y'], 
-                                          LANES=self.allLinkData.data['LANES'], 
-                                          color=self.allLinkData.data['color'])
-        else:
-            h = str(self.hour.value)
-            colorString = 'color' + h
-            print colorString
-            self.selectedLinkData.data = dict(X=self.allLinkData.data['X'], 
+            #self.selectedLinkData.data = dict(X=self.allLinkData.data['X'], 
+            #                              Y=self.allLinkData.data['Y'], 
+            #                              LANES=self.allLinkData.data['LANES'], 
+            #                              color=self.allLinkData.data['color'])
+        
+        h = str(self.hour.value)
+        colorString = 'color' + h
+        self.selectedLinkData.data = dict(X=self.allLinkData.data['X'], 
                                           Y=self.allLinkData.data['Y'], 
                                           LANES=self.allLinkData.data['LANES'], 
                                           color=self.allLinkData.data[colorString])
+
+        self.plot.title = "SF Taxi Speeds for Hour: " + h + ":00"
+
+        print 'updating to hour ' + h
             
 
     def prepareLinkData(self, date='2009-02-13'):

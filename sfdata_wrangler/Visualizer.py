@@ -74,39 +74,31 @@ def getLinkTTRatioColor(tt_ratio):
     
     # Specifies the color to use when mapping with a given travel time ratio
     colorMap = {0.00: 'Green',
-                0.25: 'GreenYellow', 
-                0.50: 'GreenYellow', 
-                0.75: 'GreenYellow',
+                0.50: 'Green', 
+                1.00: '#GreenYellow',  
+                1.50: '#fdd49e',  
+                2.00: '#fdbb84',  
+                2.50: '#fc8d59',                   
+                3.00: '#ef6548',  
+                3.50: '#d7301f', 
+                4.00: '#b30000', 
+                4.50: '#7f0000'}
 
-                1.00: '#DCDCDC',  
-
-                1.25: '#fdd49e',  
-
-                1.50: '#fdbb84',  
-
-                1.75: '#fc8d59',  
-                 
-                2.00: '#ef6548',  
-                2.25: '#ef6548',  
-
-                2.50: '#d7301f', 
-                2.75: '#d7301f', 
-
-                3.00: '#b30000', 
-                3.25: '#b30000', 
-
-                3.50: '#7f0000',
-                3.75: '#7f0000'}
-
-    tt_ratio_floor = np.floor(tt_ratio*4.0) / 4.0
-    if tt_ratio_floor < min(colorMap.keys()): 
-        tt_ratio_floor = min(colorMap.keys())
-    if tt_ratio_floor > max(colorMap.keys()): 
-        tt_ratio_floor = max(colorMap.keys())
-
-    color = colorMap[tt_ratio_floor]
+    # if it is exactly 1, there are no observations, and make it gray
+    if tt_ratio==1.0: 
+        return '#DCDCDC'
+        
+    # otherwise, do the grouping
+    else: 
+        tt_ratio_floor = np.floor(tt_ratio*2.0) / 2.0
+        if tt_ratio_floor < min(colorMap.keys()): 
+            tt_ratio_floor = min(colorMap.keys())
+        if tt_ratio_floor > max(colorMap.keys()): 
+            tt_ratio_floor = max(colorMap.keys())
     
-    return color
+        color = colorMap[tt_ratio_floor]
+        
+        return color
 
 
 def getLinkTrajectoryColor(travelTime):
