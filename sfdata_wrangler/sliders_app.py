@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from bokeh.plotting import figure
-from bokeh.models import Plot, ColumnDataSource
+from bokeh.models import Plot, ColumnDataSource, MultiLine
 from bokeh.properties import Instance
 from bokeh.server.app import bokeh_app
 from bokeh.server.utils.plugins import object_page
@@ -81,7 +81,7 @@ class NetworkSliderApp(VBox):
                       y_axis_type=None,
                       tools="pan,wheel_zoom,reset,hover,save", 
                       title="SF Taxi Speeds") 
-                      
+                    
         # plot the links
         plot.multi_line(xs='X', 
                         ys='Y', 
@@ -138,22 +138,15 @@ class NetworkSliderApp(VBox):
                                           Y=self.allLinkData.data['Y'], 
                                           LANES=self.allLinkData.data['LANES'], 
                                           color=self.allLinkData.data['color'])
-
-        h = str(self.hour.value)
-        
-        #self.selectedLinkData.data = dict(X=self.allLinkData.data['X'], 
-        #                                  Y=self.allLinkData.data['Y'], 
-        #                                  LANES=self.allLinkData.data['LANES'], 
-        #                                  color=self.allLinkData.data['color'+h])
-        
-        print h
-        self.selectedLinkData.data['color'] = self.allLinkData.data['color'+h]  
-        
-        df = pd.DataFrame(self.selectedLinkData.data)
-        print df.head()        
-        print 'color count=', len(df[df['color']!='#DCDCDC'])
-        print ''
-    
+        else:
+            h = str(self.hour.value)
+            colorString = 'color' + h
+            print colorString
+            self.selectedLinkData.data = dict(X=self.allLinkData.data['X'], 
+                                          Y=self.allLinkData.data['Y'], 
+                                          LANES=self.allLinkData.data['LANES'], 
+                                          color=self.allLinkData.data[colorString])
+            
 
     def prepareLinkData(self, date='2009-02-13'):
         """ 
