@@ -112,6 +112,17 @@ def getLinkTrajectoryColor(travelTime):
         return 'Gray'
 
 
+def getLinkTrajectoryWidth(travelTime):
+    """
+    Sets the color to red if there is a valid travel time, and 
+    gray otherwise.  
+    """    
+    if np.isfinite(travelTime):
+        return 6
+    else:
+        return 2
+        
+
 def getTimeString(datetime):
     """
     Returns a string representation of the time, given a 
@@ -316,6 +327,7 @@ class Visualizer():
             # join trajectory data to network, and set the color
             df = pd.merge(net_df, traj_df, how='left', left_on=['ID'], right_on=['link_id'])
             df['color'] = df['travel_time'].apply(getLinkTrajectoryColor)
+            df['width'] = df['travel_time'].apply(getLinkTrajectoryWidth)
 
             # define the ranges, be sure to keep it square
             # to avoid distortion
@@ -357,29 +369,30 @@ class Visualizer():
             # plot the links
             p.multi_line(xs=df['X'], 
                         ys=df['Y'], 
-                        line_width=df['LANES'],  
+                        line_width=df['width'],  
                         line_color=df['color']) 
             
-            p.text(traj_mid_df['x'], 
-                   traj_mid_df['y'], 
-                   traj_mid_df['text'],
-                   angle=traj_mid_df['angle'], 
-                   text_font_size='8pt', 
-                   text_align='center', 
-                   text_baseline='bottom', 
-                   text_color='firebrick')
+            #p.text(traj_mid_df['x'], 
+            #       traj_mid_df['y'], 
+            #       traj_mid_df['text'],
+            #       angle=traj_mid_df['angle'], 
+            #       text_font_size='8pt', 
+            #       text_align='center', 
+            #       text_baseline='bottom', 
+            #       text_color='firebrick')
             
             
             # plot the points     
             p.circle(point_df['x'], 
                      point_df['y'], 
+                     size=6,
                      fill_color='darkblue', 
                      line_color='darkblue')
 
             p.text(point_df['x'], 
                    point_df['y'], 
                    point_df['text'], 
-                   text_font_size='8pt', 
+                   text_font_size='16pt', 
                    text_align='center', 
                    text_baseline='bottom', 
                    text_color='darkblue')

@@ -54,7 +54,7 @@ VALID_STEPS = [ 'convertPoints',
 
 # date and hour for speed maps
 VIZ_DATE = '2009-02-13'  
-VIZ_HOUR = '8'
+VIZ_HOUR = '17'
 
 # (date, cab_id, trip_id) for any trajectories to validate
 TRAJ_VIZ_SPECS = [('2009-02-13',    '3',   '2'),
