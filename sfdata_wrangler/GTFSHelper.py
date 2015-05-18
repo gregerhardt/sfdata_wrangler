@@ -165,7 +165,6 @@ class GTFSHelper():
         ]
                 
    
-
     def processRawData(self, gtfs_file, sfmuni_file, outfile):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
@@ -225,21 +224,20 @@ class GTFSHelper():
         dateRange = schedule.GetDateRange()
         startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
         endDate   = pd.to_datetime(dateRange[1], format='%Y%m%d')
-
-        dateRange = schedule.GetDateRange()
-        startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
-
+        
         # create dictionary with one dataframe for each service period
         dataframes = {}
-        servicePeriods = schedule.GetServicePeriodList()
+        servicePeriods = schedule.GetServicePeriodList()         
+                              
         for period in servicePeriods:
-            
+                    
             # create an empty list of dictionaries to store the data
             data = []
         
             # create one record for each trip-stop, specific to the service
             # on this day
-            tripList = schedule.GetTripList()
+            tripList = schedule.GetTripList()            
+            
             for trip in tripList:
                 if trip.service_id == period.service_id:
                         
@@ -437,8 +435,8 @@ class GTFSHelper():
                     
                     # update the dates
                     for i, row in df.iterrows():
-                        df['ARRIVAL_TIME_S'][i] = date + (df['ARRIVAL_TIME_S'][i] - df['DATE'][i])
-                        df['DEPARTURE_TIME_S'][i] = date + (df['DEPARTURE_TIME_S'][i] - df['DATE'][i])
+                        df.at[i,'ARRIVAL_TIME_S'] = date + (row['ARRIVAL_TIME_S'] - row['DATE'])
+                        df.at[i,'DEPARTURE_TIME_S'] = date + (row['DEPARTURE_TIME_S'] - row['DATE'])
                     df['DATE'] = date
                     df['MONTH'] = month
                     
@@ -513,98 +511,98 @@ class GTFSHelper():
         lastTrip = 0
         lastDepartureTime = 0
         for i, row in joined.iterrows():
-            if joined['OBSERVED_AVL'][i] == 1: 
-                joined['OBSERVED'][i] = 1
+            if row['OBSERVED_AVL'] == 1: 
+                joined.at[i,'OBSERVED'] = 1
                 
                 # observed runtime
-                if (joined['ROUTE_AVL'][i]==lastRoute 
-                    and joined['DIR'][i]==lastDir 
-                    and joined['TRIP'][i]==lastTrip): 
+                if (row['ROUTE_AVL']==lastRoute 
+                    and row['DIR']==lastDir 
+                    and row['TRIP']==lastTrip): 
 
-                    diff = joined['ARRIVAL_TIME'][i] - lastDepartureTime
+                    diff = row['ARRIVAL_TIME'] - lastDepartureTime
                     runtime = max(0, round(diff.total_seconds() / 60.0, 2))
                 else: 
                     runtime = 0
                         
-                    lastRoute = joined['ROUTE_AVL'][i]
-                    lastDir = joined['DIR'][i]
-                    lastTrip = joined['TRIP'][i]
+                    lastRoute = row['ROUTE_AVL']
+                    lastDir = row['DIR']
+                    lastTrip = row['TRIP']
                         
-                joined['RUNTIME'][i] = runtime
-                lastDepartureTime = joined['DEPARTURE_TIME'][i]
+                joined.at[i,'RUNTIME'] = runtime
+                lastDepartureTime = row['DEPARTURE_TIME']
 
                 # observed speed
                 if runtime>0: 
-                    joined['RUNSPEED'][i] = round(joined['SERVMILES'][i] / (runtime / 60.0), 2)
+                    joined.at[i,'RUNSPEED'] = round(row['SERVMILES'] / (runtime / 60.0), 2)
                 else: 
-                    joined['RUNSPEED'][i] = 0
+                    joined.at[i,'RUNSPEED'] = 0
                     
             
                 # deviation from scheduled arrival
-                if joined['ARRIVAL_TIME'][i] >= joined['ARRIVAL_TIME_S'][i]: 
-                    diff = joined['ARRIVAL_TIME'][i] - joined['ARRIVAL_TIME_S'][i]
+                if row['ARRIVAL_TIME'] >= row['ARRIVAL_TIME_S']: 
+                    diff = row['ARRIVAL_TIME'] - row['ARRIVAL_TIME_S']
                     arrivalTimeDeviation = round(diff.seconds / 60.0, 2)
                 else: 
-                    diff = joined['ARRIVAL_TIME_S'][i] - joined['ARRIVAL_TIME'][i]
+                    diff = row['ARRIVAL_TIME_S'] - row['ARRIVAL_TIME']
                     arrivalTimeDeviation = - round(diff.seconds / 60.0, 2)                        
-                joined['ARRIVAL_TIME_DEV'][i] = arrivalTimeDeviation
+                joined.at[i,'ARRIVAL_TIME_DEV'] = arrivalTimeDeviation
     
                 # deviation from scheduled departure
-                if joined['DEPARTURE_TIME'][i] >= joined['DEPARTURE_TIME_S'][i]: 
-                    diff = joined['DEPARTURE_TIME'][i] - joined['DEPARTURE_TIME_S'][i]
+                if row['DEPARTURE_TIME'] >= row['DEPARTURE_TIME_S']: 
+                    diff = row['DEPARTURE_TIME'] - row['DEPARTURE_TIME_S']
                     departureTimeDeviation = round(diff.seconds / 60.0, 2)
                 else: 
-                    diff = joined['DEPARTURE_TIME_S'][i] - joined['DEPARTURE_TIME'][i]
+                    diff = row['DEPARTURE_TIME_S'] - row['DEPARTURE_TIME']
                     departureTimeDeviation = - round(diff.seconds / 60.0, 2)                        
-                joined['DEPARTURE_TIME_DEV'][i] = departureTimeDeviation
+                joined.at[i,'DEPARTURE_TIME_DEV'] = departureTimeDeviation
                 
                 # ontime, from -1 to 4 minutes
                 if (arrivalTimeDeviation>-1.0 and arrivalTimeDeviation < 4.0): 
-                    joined['ONTIME4'][i] = 1
+                    joined.at[i,'ONTIME4'] = 1
                 else: 
-                    joined['ONTIME4'][i] = 0
+                    joined.at[i,'ONTIME4'] = 0
                 
                 # ontime, from -1 to 10 minutes
                 if (arrivalTimeDeviation>-1.0 and arrivalTimeDeviation < 10.0): 
-                    joined['ONTIME10'][i] = 1
+                    joined.at[i,'ONTIME10'] = 1
                 else: 
-                    joined['ONTIME10'][i] = 0
+                    joined.at[i,'ONTIME10'] = 0
                 
                 # passenger miles traveled
-                joined['PASSMILES'][i] = joined['LOAD_ARR'][i] * joined['SERVMILES'][i]                
+                joined.at[i,'PASSMILES'] = row['LOAD_ARR'] * row['SERVMILES']
                 
                 # passenger hours -- scheduled time
-                joined['PASSHOURS'][i] = (joined['LOAD_ARR'][i] * joined['RUNTIME_S'][i] 
-                                        + joined['LOAD_DEP'][i] * joined['DWELL_S'][i]) / 60.0
+                joined.at[i,'PASSHOURS'] = (row['LOAD_ARR'] * row['RUNTIME_S']
+                                        + row['LOAD_DEP'] * row['DWELL_S']) / 60.0
                                                                                         
                 # passenger hours of waiting time -- scheduled time
-                joined['WAITHOURS'][i] = (joined['ON'][i] 
-                                    * 0.5 * joined['HEADWAY'][i]) / 60.0
+                joined.at[i,'WAITHOURS'] = (row['ON'] 
+                                    * 0.5 * row['HEADWAY']) / 60.0
                     
                 # passenger hours of delay at departure
                 if departureTimeDeviation > 0: 
-                    joined['PASSDELAY_DEP'][i] = (joined['ON'][i] 
+                    joined.at[i,'PASSDELAY_DEP'] = (row['ON']
                                         * departureTimeDeviation) / 60.0
                 else: 
-                    joined['PASSDELAY_DEP'][i] = 0                    
+                    joined.at[i,'PASSDELAY_DEP'] = 0                    
                 
                 # passenger hours of delay at arrival  
                 if arrivalTimeDeviation > 0: 
-                    joined['PASSDELAY_ARR'][i] = (joined['OFF'][i] 
+                    joined.at[i,'PASSDELAY_ARR'] = (row['OFF'] 
                                         * arrivalTimeDeviation) / 60.0
                 else: 
-                    joined['PASSDELAY_ARR'][i] = 0        
+                    joined.at[i,'PASSDELAY_ARR'] = 0        
                 
                 # volume-capacity ratio
-                joined['VC'][i] = joined['LOAD_ARR'][i] / joined['CAPACITY'][i]    
+                joined.at[i,'VC'] = row['LOAD_ARR'] / row['CAPACITY']
                 
                 # croweded if VC>1
-                if (joined['VC'][i] > 0.85):
-                    joined['CROWDED'][i] = 1.0
+                if (row['VC'] > 0.85):
+                    joined.at[i,'CROWDED'] = 1.0
                 else: 
-                    joined['CROWDED'][i] = 0.0
+                    joined.at[i,'CROWDED'] = 0.0
                     
-                joined['CROWDHOURS'][i] = joined['CROWDED'][i] * joined['PASSHOURS'][i]
+                joined.at[i,'CROWDHOURS'] = row['CROWDED'] * row['PASSHOURS']
                         
                                                 
             # keep only relevant columns, sorted
