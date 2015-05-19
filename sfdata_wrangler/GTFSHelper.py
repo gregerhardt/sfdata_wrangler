@@ -164,7 +164,7 @@ class GTFSHelper():
         ['SCHED_END',         0, 0, 'gtfs']
         ]
                 
-   
+
     def processRawData(self, gtfs_file, sfmuni_file, outfile):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
