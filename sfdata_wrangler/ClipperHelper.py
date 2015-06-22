@@ -35,8 +35,37 @@ def applyLateNightOffset(dateTime):
         return (dateTime + pd.DateOffset(days=1))
     else: 
         return dateTime   
+
     
-                                    
+def clipperWeights(dow):
+    """
+    Calculate a weights for expanding the data to average weekday/saturday/sunday
+    conditions.
+    
+    dow - day of week (1-weekday, 2-saturday, 3-sunday)
+        
+     currently , the weights account for two factors used in creating/obfuscating
+     the data: 
+        c.  For each day, we sample 50 percent of cards.
+            --> this leads to a weight of 2.0 to scale up
+        
+        d.  We assign each Sunday within each month a random number between 
+            1 and 10; we then randomly select three Sundays (retaining the 
+            random, identifying integer) and discard the fourth (and fifth, 
+            if relevant).  We repeat this procedure for each day of the week.
+            --> this leads to a weight of 1/3 for saturdays and sundays, 
+                and 1/15 for weekdays to get to an average condition
+                                        
+    """
+    
+    if dow == 1: 
+        return 2.0 / 15.0
+    elif dow == 2: 
+        return 2.0 / 3.0
+    elif dow == 3: 
+        return 2.0 / 3.0
+        
+
 class ClipperHelper():
     """ 
     Methods used to read Clipper data into a Pandas data frame.  This
@@ -52,7 +81,7 @@ class ClipperHelper():
      Year	         smallint	2013	            Transaction Year	
      Month	         smallint	10	            Transaction Month (1 is January)	
      CircadianDayOfWeek  smallint	4	            Transaction Day of Week Integer	A day is defined as 3 am to 3 am the following day
-     CircadianDayOfWeek_name  char	        Wednesday	    Transaction Day of Week Name	A day is defined as 3 am to 3 am the following day
+     CircadianDayOfWeek_name  char	Wednesday	    Transaction Day of Week Name	A day is defined as 3 am to 3 am the following day
      RandomWeekID        smallint	6	            Random Integer that Identifies a Unique Day	The Year, Month, DayOfWeek, and RandomWeekID fields uniquely identify a day
      ClipperCardID	 varbinary	D88268EA105â€¦	    Anonymized ClipperÂ® card identifierA random number representing a unique ClipperÂ® card that persists for one circadian day (3 am to 3 am)
      TripSequenceID	 bigint	        2	            Circadian Day Trip Sequence	
@@ -115,7 +144,7 @@ class ClipperHelper():
         print datetime.datetime.now(), 'Converting raw data in file: ', infile
         
         # read the input data
-        df = pd.read_csv(infile)
+        df = pd.read_csv(infile, nrows=500000)
                 
         # convert times into pandas datetime formats
         # assume that there is only one year and one month in this file
@@ -189,6 +218,9 @@ class ClipperHelper():
             last_row = row
         
         # calculate weights
+        # these will represent average ridership by DOW (weekday, saturday, sunday)
+        #TODO - update to match external boarding counts...        
+        df['WEIGHT'] = df['DOW'].apply(clipperWeights)
         
         
         # write it to an HDF file
