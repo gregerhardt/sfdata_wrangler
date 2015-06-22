@@ -23,6 +23,19 @@ import numpy as np
 import datetime
 
 
+def applyLateNightOffset(dateTime):        
+    """
+    The transit operating day runs from 3 am to 3 am.  
+    So if the time given is between midnight and 2:59 am, increment the
+    day on that time tag to be one day later.  This way, we can subtract
+    times and get the proper difference. 
+    """
+    
+    if (dateTime.hour < 3): 
+        return (dateTime + pd.DateOffset(days=1))
+    else: 
+        return dateTime   
+    
                                     
 class ClipperHelper():
     """ 
@@ -84,10 +97,6 @@ class ClipperHelper():
     # considered a transfer.  Note that a muni transfer fare lasts for 90 min
     TRANSFER_THRESHOLD_TAGON = 90.0   # minutes
     
-    # if the time from the last tag off is less than this, then it is 
-    # considered a transfer.  
-    TRANSFER_THRESHOLD_TAGOFF = 30.0   # minutes
-    
     
     def __init__(self):
         """
@@ -107,27 +116,32 @@ class ClipperHelper():
         
         # read the input data
         df = pd.read_csv(infile)
-        
-        print df.head()
-        
+                
         # convert times into pandas datetime formats
         # assume that there is only one year and one month in this file
         year  = df.at[0,'Year']
         month = df.at[0,'Month'] 
-        yearMonth = pd.to_datetime(str(100*year + month), format="%Y%m")
-        df['MONTH'] = yearMonth
-        
-        df['TagOnTime_Time']  = pd.to_datetime(df['TagOnTime_Time'], 
-            format="%H:%M:%S", exact=False)
-        df['TagOffTime_Time'] = pd.to_datetime(df['TagOnTime_Time'], 
-            format="%H:%M:%S", exact=False)
+        yearMonth = str(100*year + month) + '-'
+        df['MONTH'] = pd.to_datetime(yearMonth, format="%Y%m-")
+                
+        df['TagOnTime_Time']  = pd.to_datetime(yearMonth + df['TagOnTime_Time'], 
+            format="%Y%m-%H:%M:%S", exact=False)
+        df['TagOffTime_Time'] = pd.to_datetime(yearMonth + df['TagOffTime_Time'], 
+            format="%Y%m-%H:%M:%S", exact=False)
+            
+        # deal with the operating day starting and ending at 3 am
+        df['TagOnTime_Time']  = df['TagOnTime_Time'].apply(applyLateNightOffset)
+        df['TagOffTime_Time'] = df['TagOffTime_Time'].apply(applyLateNightOffset)
                 
         # move to scheduled DOW, and calculate number of days
         # TODO deal with holidays
         df['DOW'] = 1 
         df['DOW'] = np.where(df['CircadianDayOfWeek'] == 7, 2, df['DOW'])   # Saturday
         df['DOW'] = np.where(df['CircadianDayOfWeek'] == 1, 3, df['DOW'])   # Sunday       
-                        
+                
+        # sort 
+        sortColumns = ['ClipperCardID', 'TripSequenceID']
+        df.sort(sortColumns, inplace=True)               
                         
         # identify transfers
         df['TIMEDIFF_TAGON']  = 9999
@@ -135,22 +149,29 @@ class ClipperHelper():
         df['TRANSFER'] = 0
         
         last_row = None 
+        firstRow = True
         for i, row in df.iterrows():
             
-            if row['TripSequenceID'] > 1: 
-                
+            if firstRow: 
+                firstRow = False
+            
+            elif row['ClipperCardID'] == last_row['ClipperCardID']: 
+                                
                 # calculate time from last tag on or off
                 timeDiff_tagOn = ((row['TagOnTime_Time'] - 
                     last_row['TagOnTime_Time']).total_seconds()) / 60.0
                     
-                if not last_row['TagOffTime_Time'] == pd.NaT: 
+                if not pd.isnull(last_row['TagOffTime_Time']): 
                     timeDiff_tagOff = ((row['TagOnTime_Time'] - 
                         last_row['TagOffTime_Time']).total_seconds()) / 60.0
+                    # make sure to avoid illogical results
+                    if timeDiff_tagOff < 0: 
+                        timeDiff_tagOff = 0
+                else: 
+                    timeDiff_tagOff = 9999
                 
                 # its a transfer if it's less than the threshold
-                if timeDiff_tagOff < self.TRANSFER_THRESHOLD_TAGOFF: 
-                    transfer = 1
-                elif timeDiff_tagOn < self.TRANSFER_THRESHOLD_TAGON: 
+                if timeDiff_tagOn < self.TRANSFER_THRESHOLD_TAGON: 
                     transfer = 1
                 else:
                     transfer = 0
