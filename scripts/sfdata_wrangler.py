@@ -53,7 +53,7 @@ VALID_STEPS = [ 'clean',
 ROUTE_EQUIV = "C:/CASA/Data/MUNI/routeEquiv.csv"
 
 RAW_STP_FILES =[#"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp",
+                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp",
                 #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp",
                 #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp",
                 #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1005.stp",
@@ -65,8 +65,8 @@ RAW_STP_FILES =[#"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
                 #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1206.stp",
                 #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1209.stp",
                 #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1212.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp",
+                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp",
+                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp",
                 #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1306.stp",
                 #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1308.stp",
                 #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp"
@@ -74,10 +74,10 @@ RAW_STP_FILES =[#"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
     
 # these should be ordered from old to new, and the software will fill in any gaps
 RAW_GTFS_FILES = [
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310.zip",  # 20090221 to 20090626
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310.zip",  # 20090221 to 20090626
                                                                                            # overlap of 13 days
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310.zip",  # 20090613 to 20091204
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310.zip",  # 20090613 to 20091204
+  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
   #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100812_0223.zip",  # 20100508 to 20100903
   #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100908_0243.zip"  # 20100904 to 20101231
                                                                                            # gap of 2 days
@@ -91,24 +91,24 @@ RAW_GTFS_FILES = [
   #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
   #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130302_0432.zip",  # 20120929 to 20130322
                                                                                            # gap of 8 days
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
+  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
   #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
   #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip"   # 20131026 to 20140131  
   ]
 
 
-RAW_CLIPPER_FILES =["C:/CASA/Data/Clipper/2013_-_3_Anonymous_Clipper.csv",
-                   # "C:/CASA/Data/Clipper/2013_-_5_Anonymous_Clipper.csv",
-                   # "C:/CASA/Data/Clipper/2013_-_6_Anonymous_Clipper.csv",
+RAW_CLIPPER_FILES =[#"C:/CASA/Data/Clipper/2013_-_3_Anonymous_Clipper.csv",
+                    "C:/CASA/Data/Clipper/2013_-_5_Anonymous_Clipper.csv",
+                    "C:/CASA/Data/Clipper/2013_-_6_Anonymous_Clipper.csv",
                    # "C:/CASA/Data/Clipper/2013_-_7_Anonymous_Clipper.csv"
                    ]
 
 # OUTPUT FILES--change as needed
-SFMUNI_OUTFILE  = "C:/CASA/DataExploration/sfmuni.h5"    
-EXPANDED_OUTFILE= "C:/CASA/DataExploration/sfmuni_expanded.h5"    
-SFMUNI_AGGFILE  = "C:/CASA/DataExploration/sfmuni_aggregate.h5"
-IMPUTED_AGGFILE = "C:/CASA/DataExploration/sfmuni_imputed.h5"
-CLIPPER_OUTFILE = "C:/CASA/DataExploration/clipper.h5"
+SFMUNI_OUTFILE  = "D:/Output/sfmuni.h5"    
+EXPANDED_OUTFILE= "D:/Output/sfmuni_expanded.h5"    
+SFMUNI_AGGFILE  = "D:/Output/sfmuni_aggregate.h5"
+IMPUTED_AGGFILE = "D:/Output/sfmuni_imputed.h5"
+CLIPPER_OUTFILE = "D:/Output/clipper.h5"
 
 
 # main function call

@@ -144,7 +144,7 @@ class ClipperHelper():
         print datetime.datetime.now(), 'Converting raw data in file: ', infile
         
         # read the input data
-        df = pd.read_csv(infile, nrows=500000)
+        df = pd.read_csv(infile)
                 
         # convert times into pandas datetime formats
         # assume that there is only one year and one month in this file

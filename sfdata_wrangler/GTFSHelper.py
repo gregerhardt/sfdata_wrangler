@@ -106,7 +106,7 @@ class GTFSHelper():
         ['SEQ',               0, 1, 'join'], 
         ['OBSERVED',          0, 1, 'gtfs'],        # observed in AVL data?
         ['ROUTE_TYPE',        0, 0, 'gtfs'],        # route/trip attributes 
-        ['TRIP_HEADSIGN',    32, 0, 'gtfs'], 
+        ['TRIP_HEADSIGN',    64, 0, 'gtfs'], 
 	['HEADWAY'   ,        0, 0, 'gtfs'], 
         ['FARE',              0, 0, 'gtfs'], 
 	['PATTCODE'  ,       10, 0, 'avl'], 
