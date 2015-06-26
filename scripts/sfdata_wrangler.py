@@ -50,65 +50,65 @@ VALID_STEPS = [ 'clean',
                 
 
 # INPUT FILES--change as needed
-ROUTE_EQUIV = "C:/CASA/Data/MUNI/routeEquiv.csv"
+ROUTE_EQUIV = "D:/Input/routeEquiv_20150626.csv"
 
-RAW_STP_FILES =[#"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1005.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1009.stp"
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1101.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1110.stp",    
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1201.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1203.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1206.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1209.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1212.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp",
-                "C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1306.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1308.stp",
-                #"C:/CASA/Data/MUNI/SFMTA Data/Raw STP Files/1310.stp"
+RAW_STP_FILES =[#"D:/Input/SFMTA Data/Raw STP Files/0803.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/0906.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/0912.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1001.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1005.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1009.stp"
+                #"D:/Input/SFMTA Data/Raw STP Files/1101.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1110.stp",    
+                #"D:/Input/SFMTA Data/Raw STP Files/1201.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1203.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1206.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1209.stp",
+                "D:/Input/SFMTA Data/Raw STP Files/1212.stp",
+                "D:/Input/SFMTA Data/Raw STP Files/1303.stp",
+                "D:/Input/SFMTA Data/Raw STP Files/1304.stp",
+                "D:/Input/SFMTA Data/Raw STP Files/1306.stp",
+                "D:/Input/SFMTA Data/Raw STP Files/1308.stp",
+                "D:/Input/SFMTA Data/Raw STP Files/1310.stp"
                 ]
     
 # these should be ordered from old to new, and the software will fill in any gaps
 RAW_GTFS_FILES = [
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310.zip",  # 20090221 to 20090626
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20090402_0310.zip",  # 20090221 to 20090626
                                                                                            # overlap of 13 days
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310.zip",  # 20090613 to 20091204
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100812_0223.zip",  # 20100508 to 20100903
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100908_0243.zip"  # 20100904 to 20101231
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310.zip",  # 20090613 to 20091204
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223.zip",  # 20100508 to 20100903
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100908_0243.zip"  # 20100904 to 20101231
                                                                                            # gap of 2 days
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110420_0243.zip",  # 20110122 to 20110610
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110420_0243.zip",  # 20110122 to 20110610
                                                                                            # gap of 2 days
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110910_0449.zip",  # 20110613 to 20111014
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20111210_0410.zip",  # 20111015 to 20120120
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120319_0337.zip",  # 20120121 to 20120615
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110910_0449.zip",  # 20110613 to 20111014
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20111210_0410.zip",  # 20111015 to 20120120
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120319_0337.zip",  # 20120121 to 20120615
                                                                                            # overlap of 6 days
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130302_0432.zip",  # 20120929 to 20130322
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130302_0432.zip",  # 20120929 to 20130322
                                                                                            # gap of 8 days
-  "C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
-  #"C:/CASA/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip"   # 20131026 to 20140131  
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip"   # 20131026 to 20140131  
   ]
 
 
-RAW_CLIPPER_FILES =[#"C:/CASA/Data/Clipper/2013_-_3_Anonymous_Clipper.csv",
-                    "C:/CASA/Data/Clipper/2013_-_5_Anonymous_Clipper.csv",
-                    "C:/CASA/Data/Clipper/2013_-_6_Anonymous_Clipper.csv",
-                   # "C:/CASA/Data/Clipper/2013_-_7_Anonymous_Clipper.csv"
+RAW_CLIPPER_FILES =[#"D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
+                    "D:/Input/Clipper/2013_-_5_Anonymous_Clipper.csv",
+                    "D:/Input/Clipper/2013_-_6_Anonymous_Clipper.csv",
+                   # "D:/Input/Clipper/2013_-_7_Anonymous_Clipper.csv"
                    ]
 
 # OUTPUT FILES--change as needed
-SFMUNI_OUTFILE  = "D:/Output/sfmuni.h5"    
-EXPANDED_OUTFILE= "D:/Output/sfmuni_expanded.h5"    
-SFMUNI_AGGFILE  = "D:/Output/sfmuni_aggregate.h5"
-IMPUTED_AGGFILE = "D:/Output/sfmuni_imputed.h5"
-CLIPPER_OUTFILE = "D:/Output/clipper.h5"
+SFMUNI_OUTFILE    = "D:/Output/sfmuni.h5"    
+EXPANDED_OUTFILE  = "D:/Output/sfmuni_expanded.h5"    
+UNWEIGHTED_AGGFILE= "D:/Output/sfmuni_unweighted.h5"
+WEIGHTED_AGGFILE  = "D:/Output/sfmuni_weighted.h5"
+CLIPPER_OUTFILE   = "D:/Output/clipper.h5"
 
 
 # main function call
@@ -148,21 +148,21 @@ if __name__ == "__main__":
     # calculate monthly averages, and aggregate the unweighted data
     if 'aggUnweighted' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sfmuniHelper.calcMonthlyAverages(EXPANDED_OUTFILE, SFMUNI_AGGFILE, 'expanded', 'df')
-        sfmuniHelper.calculateRouteStopTotals(SFMUNI_AGGFILE, 'df',  'route_stops')
-        sfmuniHelper.calculateRouteTotals(SFMUNI_AGGFILE, 'route_stops',  'routes')  
-        sfmuniHelper.calculateStopTotals(SFMUNI_AGGFILE, 'route_stops',  'stops')
-        sfmuniHelper.calculateSystemTotals(SFMUNI_AGGFILE, 'route_stops',  'system')
+        sfmuniHelper.calcMonthlyAverages(EXPANDED_OUTFILE, UNWEIGHTED_AGGFILE, 'expanded', 'df')
+        sfmuniHelper.calculateRouteStopTotals(UNWEIGHTED_AGGFILE, 'df',  'route_stops')
+        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'routes')  
+        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'stops')
+        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'system')
         print 'Finished unweighted aggregations in ', (datetime.datetime.now() - startTime) 
     
     # add weights.  Calculate new aggregations. 
     if 'aggWeighted' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sfmuniHelper.weightValuesByMonth(SFMUNI_AGGFILE, IMPUTED_AGGFILE, 'df', 'df')
-        sfmuniHelper.calculateRouteStopTotals(IMPUTED_AGGFILE, 'df',  'route_stops')
-        sfmuniHelper.calculateRouteTotals(IMPUTED_AGGFILE, 'route_stops',  'routes')  
-        sfmuniHelper.calculateStopTotals(IMPUTED_AGGFILE, 'route_stops',  'stops')
-        sfmuniHelper.calculateSystemTotals(IMPUTED_AGGFILE, 'route_stops',  'system')
+        sfmuniHelper.weightValuesByMonth(UNWEIGHTED_AGGFILE, WEIGHTED_AGGFILE, 'df', 'df')
+        sfmuniHelper.calculateRouteStopTotals(WEIGHTED_AGGFILE, 'df',  'route_stops')
+        sfmuniHelper.calculateRouteTotals(WEIGHTED_AGGFILE, 'route_stops',  'routes')  
+        sfmuniHelper.calculateStopTotals(WEIGHTED_AGGFILE, 'route_stops',  'stops')
+        sfmuniHelper.calculateSystemTotals(WEIGHTED_AGGFILE, 'route_stops',  'system')
         print 'Finished weighted aggregations in ', (datetime.datetime.now() - startTime) 
                 
     # process Clipper data.  

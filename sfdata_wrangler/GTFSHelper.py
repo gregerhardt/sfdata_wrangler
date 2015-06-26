@@ -56,7 +56,7 @@ def getWrapAroundTime(dateString, timeString):
 def calculateHeadways(df):
     """
     Calculates the headways for a group. Assumes data are grouped by: 
-    ['AGENCY_ID','ROUTE_SHORT_NAME','ROUTE_LONG_NAME','DIR','SEQ']
+    ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
     (but not by TRIP).     
     """        
     df.sort(['DEPARTURE_TIME_S'], inplace=True)
@@ -91,6 +91,9 @@ class GTFSHelper():
     
     """
 
+    # code corresponding to busses (drop light rail and cable car)
+    BUS_ROUTE_TYPE = 3
+
     # specifies how to read in each column from raw input files
     #  columnName,       stringLength, index(0/1), source('gtfs', 'avl', 'join' or 'calculated')
     COLUMNS = [
@@ -100,7 +103,7 @@ class GTFSHelper():
         ['TOD',              10, 1, 'gtfs'],
         ['AGENCY_ID',        10, 0, 'join'],        # for matching to AVL data
         ['ROUTE_SHORT_NAME', 32, 1, 'join'], 
-        ['ROUTE_LONG_NAME',  32, 1, 'join'], 
+        ['ROUTE_LONG_NAME',  32, 1, 'gtfs'],        # can have case/spelling differences on long name
         ['DIR',               0, 1, 'join'], 
         ['TRIP',              0, 1, 'join'], 
         ['SEQ',               0, 1, 'join'], 
@@ -132,8 +135,7 @@ class GTFSHelper():
 	['SERVMILES_AVL',     0, 0, 'avl'],         # Distances and speeds
 	['RUNSPEED_S' ,       0, 0, 'gtfs'], 
 	['RUNSPEED'   ,       0, 0, 'calculated'], 
-	['ONTIME4'   ,        0, 0, 'calculated'], 
-	['ONTIME10'  ,        0, 0, 'calculated'], 
+	['ONTIME5'   ,        0, 0, 'calculated'], 
 	['ON'        ,        0, 0, 'avl'], # ridership
 	['OFF'       ,        0, 0, 'avl'], 
 	['LOAD_ARR'  ,        0, 0, 'avl'], 
@@ -239,164 +241,165 @@ class GTFSHelper():
             tripList = schedule.GetTripList()            
             
             for trip in tripList:
-                if trip.service_id == period.service_id:
-                        
-                    # determine route attributes
+                if trip.service_id == period.service_id:          
+                    # determine route attributes, and only keep bus trips
                     route = schedule.GetRoute(trip.route_id)
-                    
-                    # get shape attributes, converted to a line
-                    shape = schedule.GetShape(trip.shape_id)
-                    shapePoints = []
-                    for p in shape.points: 
-                        x, y = toUTM(p[1], p[0])
-                        shapePoints.append((x, y))
-                    shapeLine = LineString(shapePoints)
-                    
-                    
-                    # calculate fare--assume just based on route ID
-                    fare = 0
-                    fareAttributeList = schedule.GetFareAttributeList()
-                    for fareAttribute in fareAttributeList:
-                        fareRuleList = fareAttribute.GetFareRuleList()
-                        for fareRule in fareRuleList:
-                            if fareRule.route_id == trip.route_id: 
-                                fare = fareAttribute.price
+                    if (int(route.route_type) == self.BUS_ROUTE_TYPE):
                         
-                    # one record for each stop time
-                    stopTimeList = trip.GetStopTimes()    
-                    
-                    # initialize for looping
-                    i = 0        
-                    lastDepartureTime = startDate
-                    
-                    for stopTime in stopTimeList:
-                        record = {}
                         
-                        # first stop, last stop and trip based on order
-                        if i==0: 
-                            startOfLine = 1
-                            hr, min, sec = stopTime.departure_time.split(':')
-                            firstDeparture = int(hr + min)
-            
-                            # compute TEP time periods -- need to iterate
-                            if (firstDeparture >= 300  and firstDeparture < 600):  
-                                timeOfDay='0300-0559'
-                            elif (firstDeparture >= 600  and firstDeparture < 900):  
-                                timeOfDay='0600-0859'
-                            elif (firstDeparture >= 900  and firstDeparture < 1400): 
-                                timeOfDay='0900-1359'
-                            elif (firstDeparture >= 1400 and firstDeparture < 1600): 
-                                timeOfDay='1400-1559'
-                            elif (firstDeparture >= 1600 and firstDeparture < 1900): 
-                                timeOfDay='1600-1859'
-                            elif (firstDeparture >= 1900 and firstDeparture < 2200): 
-                                timeOfDay='1900-2159'
-                            elif (firstDeparture >= 2200 and firstDeparture < 9999): 
-                                timeOfDay='2200-0259'
+                        # get shape attributes, converted to a line
+                        shape = schedule.GetShape(trip.shape_id)
+                        shapePoints = []
+                        for p in shape.points: 
+                            x, y = toUTM(p[1], p[0])
+                            shapePoints.append((x, y))
+                        shapeLine = LineString(shapePoints)
+                        
+                        
+                        # calculate fare--assume just based on route ID
+                        fare = 0
+                        fareAttributeList = schedule.GetFareAttributeList()
+                        for fareAttribute in fareAttributeList:
+                            fareRuleList = fareAttribute.GetFareRuleList()
+                            for fareRule in fareRuleList:
+                                if fareRule.route_id == trip.route_id: 
+                                    fare = fareAttribute.price
+                            
+                        # one record for each stop time
+                        stopTimeList = trip.GetStopTimes()    
+                        
+                        # initialize for looping
+                        i = 0        
+                        lastDepartureTime = startDate
+                        
+                        for stopTime in stopTimeList:
+                            record = {}
+                            
+                            # first stop, last stop and trip based on order
+                            if i==0: 
+                                startOfLine = 1
+                                hr, min, sec = stopTime.departure_time.split(':')
+                                firstDeparture = int(hr + min)
+                
+                                # compute TEP time periods -- need to iterate
+                                if (firstDeparture >= 300  and firstDeparture < 600):  
+                                    timeOfDay='0300-0559'
+                                elif (firstDeparture >= 600  and firstDeparture < 900):  
+                                    timeOfDay='0600-0859'
+                                elif (firstDeparture >= 900  and firstDeparture < 1400): 
+                                    timeOfDay='0900-1359'
+                                elif (firstDeparture >= 1400 and firstDeparture < 1600): 
+                                    timeOfDay='1400-1559'
+                                elif (firstDeparture >= 1600 and firstDeparture < 1900): 
+                                    timeOfDay='1600-1859'
+                                elif (firstDeparture >= 1900 and firstDeparture < 2200): 
+                                    timeOfDay='1900-2159'
+                                elif (firstDeparture >= 2200 and firstDeparture < 9999): 
+                                    timeOfDay='2200-0259'
+                                else:
+                                    timeOfDay=''
+                                    
+                                # distance traveled along shape for previous stop
+                                lastDistanceTraveled = 0
                             else:
-                                timeOfDay=''
+                                startOfLine = 0
                                 
-                            # distance traveled along shape for previous stop
-                            lastDistanceTraveled = 0
-                        else:
-                            startOfLine = 0
+                            if i==(len(stopTimeList)-1):
+                                endOfLine = 1
+                            else: 
+                                endOfLine = 0
                             
-                        if i==(len(stopTimeList)-1):
-                            endOfLine = 1
-                        else: 
-                            endOfLine = 0
-                        
-                        # calendar attributes
-                        record['MONTH'] = startDate
-                        record['DATE'] = startDate
-                        record['DOW']  = int(trip.service_id)
-                        record['TOD']  = timeOfDay
-                        record['OBSERVED'] = 0
-        
-                        # For matching to AVL data
-                        record['AGENCY_ID']        = str(route.agency_id)
-                        record['ROUTE_SHORT_NAME'] = str(route.route_short_name)
-                        record['ROUTE_LONG_NAME']  = str(route.route_long_name)
-                        record['DIR']              = int(trip.direction_id)
-                        record['TRIP']             = firstDeparture    # contains HHMM of departure from first stop
-                        record['SEQ']              = int(stopTime.stop_sequence)                            
+                            # calendar attributes
+                            record['MONTH'] = startDate
+                            record['DATE'] = startDate
+                            record['DOW']  = int(trip.service_id)
+                            record['TOD']  = timeOfDay
+                            record['OBSERVED'] = 0
+            
+                            # For matching to AVL data
+                            record['AGENCY_ID']        = str(route.agency_id).strip().upper()
+                            record['ROUTE_SHORT_NAME'] = str(route.route_short_name).strip().upper()
+                            record['ROUTE_LONG_NAME']  = str(route.route_long_name).strip().upper()
+                            record['DIR']              = int(trip.direction_id)
+                            record['TRIP']             = firstDeparture    # contains HHMM of departure from first stop
+                            record['SEQ']              = int(stopTime.stop_sequence)                            
+                                
+                            # route/trip attributes
+                            record['ROUTE_TYPE']       = int(route.route_type)
+                            record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
+                            record['HEADWAY']          = np.NaN             # calculated below
+                            record['FARE']             = float(fare)  
                             
-                        # route/trip attributes
-                        record['ROUTE_TYPE']       = int(route.route_type)
-                        record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
-                        record['HEADWAY']          = np.NaN             # calculated below
-                        record['FARE']             = float(fare)  
-                        
-                        # stop attriutes
-                        record['STOPNAME']         = str(stopTime.stop.stop_name)
-                        record['STOP_LAT']         = float(stopTime.stop.stop_lat)
-                        record['STOP_LON']         = float(stopTime.stop.stop_lon)
-                        record['SOL']              = startOfLine
-                        record['EOL']              = endOfLine
-                        
-                        # stop times        
-                        # deal with wrap-around aspect of time (past midnight >2400)
-                        arrivalTime = getWrapAroundTime(str(startDate.date()), stopTime.arrival_time)
-                        departureTime = getWrapAroundTime(str(startDate.date()), stopTime.departure_time)
-                        if startOfLine or endOfLine: 
-                            dwellTime = 0
-                        else: 
-                            timeDiff = departureTime - arrivalTime
-                            dwellTime = round(timeDiff.seconds / 60.0, 2)
-
-                        record['ARRIVAL_TIME_S']   = arrivalTime
-                        record['DEPARTURE_TIME_S'] = departureTime
-                        record['DWELL_S']          = dwellTime
-                        
-                        # runtimes
-                        if startOfLine: 
-                            runtime = 0
-                        else: 
-                            timeDiff = arrivalTime - lastDepartureTime
-                            runtime = max(0, round(timeDiff.total_seconds() / 60.0, 2))
-                        record['RUNTIME_S'] = runtime
-                        
-                        # location along shape object (SFMTA uses meters)
-                        if stopTime.shape_dist_traveled > 0: 
-                            record['SHAPE_DIST'] = stopTime.shape_dist_traveled
-                        else: 
-                            x, y = toUTM(stopTime.stop.stop_lon, stopTime.stop.stop_lat)
-                            stopPoint = Point(x, y)
-                            projectedDist = shapeLine.project(stopPoint, normalized=True)
-                            distanceTraveled = shape.max_distance * projectedDist
-                            record['SHAPE_DIST'] = distanceTraveled
-
-                        # service miles
-                        if startOfLine: 
-                            serviceMiles = 0
-                        else: 
-                            serviceMiles = round((distanceTraveled - lastDistanceTraveled) / 1609.344, 3)
-                        record['SERVMILES'] = serviceMiles
+                            # stop attriutes
+                            record['STOPNAME']         = str(stopTime.stop.stop_name)
+                            record['STOP_LAT']         = float(stopTime.stop.stop_lat)
+                            record['STOP_LON']         = float(stopTime.stop.stop_lon)
+                            record['SOL']              = startOfLine
+                            record['EOL']              = endOfLine
                             
-                        # speed (mph)
-                        if runtime > 0: 
-                            record['RUNSPEED_S'] = round(serviceMiles / (runtime / 60.0), 2)
-                        else:
-                            record['RUNSPEED_S'] = 0
-                                                  
-
-                        # Additional GTFS IDs.        
-                        record['ROUTE_ID']       = int(trip.route_id)
-                        record['TRIP_ID']        = int(trip.trip_id)
-                        record['STOP_ID']        = int(stopTime.stop.stop_id)
-                        record['BLOCK_ID']       = int(trip.block_id)
-                        record['SHAPE_ID']       = int(trip.shape_id)
-                        
-                        # indicates range this schedule is in operation    
-                        record['SCHED_START']    = startDate            # start date for this schedule
-                        record['SCHED_END']      = endDate              # end date for this schedule    
-                        
-                        # track from previous record
-                        lastDepartureTime = departureTime      
-                        lastDistanceTraveled = distanceTraveled                              
-                                                                                                                                    
-                        data.append(record)                
-                        i += 1
+                            # stop times        
+                            # deal with wrap-around aspect of time (past midnight >2400)
+                            arrivalTime = getWrapAroundTime(str(startDate.date()), stopTime.arrival_time)
+                            departureTime = getWrapAroundTime(str(startDate.date()), stopTime.departure_time)
+                            if startOfLine or endOfLine: 
+                                dwellTime = 0
+                            else: 
+                                timeDiff = departureTime - arrivalTime
+                                dwellTime = round(timeDiff.seconds / 60.0, 2)
+    
+                            record['ARRIVAL_TIME_S']   = arrivalTime
+                            record['DEPARTURE_TIME_S'] = departureTime
+                            record['DWELL_S']          = dwellTime
+                            
+                            # runtimes
+                            if startOfLine: 
+                                runtime = 0
+                            else: 
+                                timeDiff = arrivalTime - lastDepartureTime
+                                runtime = max(0, round(timeDiff.total_seconds() / 60.0, 2))
+                            record['RUNTIME_S'] = runtime
+                            
+                            # location along shape object (SFMTA uses meters)
+                            if stopTime.shape_dist_traveled > 0: 
+                                record['SHAPE_DIST'] = stopTime.shape_dist_traveled
+                            else: 
+                                x, y = toUTM(stopTime.stop.stop_lon, stopTime.stop.stop_lat)
+                                stopPoint = Point(x, y)
+                                projectedDist = shapeLine.project(stopPoint, normalized=True)
+                                distanceTraveled = shape.max_distance * projectedDist
+                                record['SHAPE_DIST'] = distanceTraveled
+    
+                            # service miles
+                            if startOfLine: 
+                                serviceMiles = 0
+                            else: 
+                                serviceMiles = round((distanceTraveled - lastDistanceTraveled) / 1609.344, 3)
+                            record['SERVMILES'] = serviceMiles
+                                
+                            # speed (mph)
+                            if runtime > 0: 
+                                record['RUNSPEED_S'] = round(serviceMiles / (runtime / 60.0), 2)
+                            else:
+                                record['RUNSPEED_S'] = 0
+                                                    
+    
+                            # Additional GTFS IDs.        
+                            record['ROUTE_ID']       = int(trip.route_id)
+                            record['TRIP_ID']        = int(trip.trip_id)
+                            record['STOP_ID']        = int(stopTime.stop.stop_id)
+                            record['BLOCK_ID']       = int(trip.block_id)
+                            record['SHAPE_ID']       = int(trip.shape_id)
+                            
+                            # indicates range this schedule is in operation    
+                            record['SCHED_START']    = startDate            # start date for this schedule
+                            record['SCHED_END']      = endDate              # end date for this schedule    
+                            
+                            # track from previous record
+                            lastDepartureTime = departureTime      
+                            lastDistanceTraveled = distanceTraveled                              
+                                                                                                                                        
+                            data.append(record)                
+                            i += 1
                                     
             # convert to data frame
             print "service_id %s has %i trip-stop records" % (period.service_id, len(data))
@@ -404,9 +407,9 @@ class GTFSHelper():
             
             # calculate the headways, based on difference in previous bus on 
             # this route stopping at the same stop
-            groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','ROUTE_LONG_NAME','DIR','SEQ']
+            groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
             df = df.groupby(groupby).apply(calculateHeadways)
-            df = df.drop(['AGENCY_ID','ROUTE_SHORT_NAME','ROUTE_LONG_NAME','DIR','SEQ'], axis=1)
+            df = df.drop(['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ'], axis=1)
             df = df.reset_index()
             
             # keep only relevant columns, sorted
@@ -494,8 +497,7 @@ class GTFSHelper():
         joined['RUNSPEED'] = np.NaN
         joined['ARRIVAL_TIME_DEV']   = np.NaN
         joined['DEPARTURE_TIME_DEV'] = np.NaN
-        joined['ONTIME4']  = np.NaN
-        joined['ONTIME10'] = np.NaN
+        joined['ONTIME5']  = np.NaN
         joined['PASSMILES']   = np.NaN
         joined['PASSHOURS']   = np.NaN
         joined['WAITHOURS']   = np.NaN
@@ -556,18 +558,13 @@ class GTFSHelper():
                     departureTimeDeviation = - round(diff.seconds / 60.0, 2)                        
                 joined.at[i,'DEPARTURE_TIME_DEV'] = departureTimeDeviation
                 
-                # ontime, from -1 to 4 minutes
-                if (arrivalTimeDeviation>-1.0 and arrivalTimeDeviation < 4.0): 
-                    joined.at[i,'ONTIME4'] = 1
+                # ontime, from -1 to 5 minutes
+                # Consistent with definition in TCRP 165
+                if (arrivalTimeDeviation>-1.0 and arrivalTimeDeviation < 5.0): 
+                    joined.at[i,'ONTIME5'] = 1
                 else: 
-                    joined.at[i,'ONTIME4'] = 0
-                
-                # ontime, from -1 to 10 minutes
-                if (arrivalTimeDeviation>-1.0 and arrivalTimeDeviation < 10.0): 
-                    joined.at[i,'ONTIME10'] = 1
-                else: 
-                    joined.at[i,'ONTIME10'] = 0
-                
+                    joined.at[i,'ONTIME5'] = 0
+                                
                 # passenger miles traveled
                 joined.at[i,'PASSMILES'] = row['LOAD_ARR'] * row['SERVMILES']
                 
@@ -596,7 +593,12 @@ class GTFSHelper():
                 # volume-capacity ratio
                 joined.at[i,'VC'] = row['LOAD_ARR'] / row['CAPACITY']
                 
-                # croweded if VC>1
+                # croweded if VC>0.85
+                # the capacity is the 'crush' load, so we are defining
+                # crowding as 85% of that capacity.  In TCRP 165, this 
+                # corresponds approximately to the range of 125-150% of
+                # the seated load, which is the maximum design load for
+                # peak of the peak conditions. 
                 if (row['VC'] > 0.85):
                     joined.at[i,'CROWDED'] = 1.0
                 else: 

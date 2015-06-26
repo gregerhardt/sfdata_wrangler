@@ -30,8 +30,8 @@ def calculateWeight(df):
     some trips are still not observed for the month.  Other trips on the same
     route are factored up make up for that.  
 
-    The input dataframe shoudl be gruoped by: 
-    ['TOD', 'AGENCY_ID','ROUTE_SHORT_NAME','ROUTE_LONG_NAME','DIR','SEQ']
+    The input dataframe should be gruoped by: 
+    ['TOD', 'AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
     (but not by TRIP).     
     
     Also, it should be specific to a month and a DOW. 
@@ -251,6 +251,14 @@ class SFMuniDataHelper():
         
     def readRouteEquiv(self, routeEquivFile): 
         df = pd.read_csv(routeEquivFile, index_col='ROUTE_AVL')
+        
+        # normalize the strings
+        df['AGENCY_ID'] = df['AGENCY_ID'].apply(str.strip)
+        df['AGENCY_ID'] = df['AGENCY_ID'].apply(str.upper)
+        df['ROUTE_SHORT_NAME'] = df['ROUTE_SHORT_NAME'].apply(str.strip)
+        df['ROUTE_SHORT_NAME'] = df['ROUTE_SHORT_NAME'].apply(str.upper)
+        df['ROUTE_LONG_NAME'] = df['ROUTE_LONG_NAME'].apply(str.strip)
+        df['ROUTE_LONG_NAME'] = df['ROUTE_LONG_NAME'].apply(str.upper)        
         
         self.routeEquiv['AGENCY_ID'] = df['AGENCY_ID'].to_dict()
         self.routeEquiv['ROUTE_SHORT_NAME'] = df['ROUTE_SHORT_NAME'].to_dict()
@@ -592,7 +600,7 @@ class SFMuniDataHelper():
             ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0],   
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields        
    	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','groupby','object'   ,10],         
-   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','groupby' ,'object'   ,32],  
+   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'   ,32],  
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
             ['TRIP'             ,'TRIP'          ,'groupby' ,'int64'     , 0], 
             ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],       
@@ -623,8 +631,7 @@ class SFMuniDataHelper():
             ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'mean'    ,'float64'   , 0],    
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                
-            ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
+            ['ONTIME5'          ,'ONTIME5'       ,'mean'    ,'float64'   , 0],              
             ['ON'               ,'ON'            ,'mean'    ,'float64'   , 0],          # ridership   
             ['OFF'              ,'OFF'           ,'mean'    ,'float64'   , 0],  
             ['LOAD_ARR'         ,'LOAD_ARR'      ,'mean'    ,'float64'   , 0],  
@@ -852,7 +859,7 @@ class SFMuniDataHelper():
             ['NUMSTOPS'         ,'none'          ,'count'   ,'int64'     , 0],      
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields        
    	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','groupby','object'   ,10],         
-   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','groupby' ,'object'   ,32],  
+   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'   ,32],  
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0], 
             ['SEQ'              ,'SEQ'           ,'groupby' ,'int64'     , 0],       
             ['ROUTE_TYPE'       ,'ROUTE_TYPE'    ,'first'   ,'int64'     , 0],         # route attributes  
@@ -877,8 +884,7 @@ class SFMuniDataHelper():
             ['SERVMILES'        ,'SERVMILES'     ,'sum'     ,'float64'   , 0],
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                 
-            ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
+            ['ONTIME5'          ,'ONTIME5'       ,'mean'    ,'float64'   , 0],              
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],          # ridership   
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0],   
             ['LOAD_ARR'         ,'LOAD_ARR'      ,'sum'     ,'float64'   , 0],   
@@ -986,7 +992,7 @@ class SFMuniDataHelper():
             ['NUMSTOPS'         ,'NUMSTOPS'      ,'sum'     ,'int64'     , 0],   
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields        
    	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','groupby','object'   ,10],         
-   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','groupby' ,'object'   ,32],  
+   	    ['ROUTE_LONG_NAME'  ,'ROUTE_LONG_NAME','first'  ,'object'    ,32],  
             ['DIR'              ,'DIR'           ,'groupby' ,'int64'     , 0],       
             ['ROUTE_TYPE'       ,'ROUTE_TYPE'    ,'first'   ,'int64'     , 0],         # route attributes  
             ['TRIP_HEADSIGN'    ,'TRIP_HEADSIGN' ,'first'   ,'object'    ,64],   
@@ -1003,8 +1009,7 @@ class SFMuniDataHelper():
             ['SERVMILES'        ,'SERVMILES'     ,'sum'     ,'float64'   , 0],
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                 
-            ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
+            ['ONTIME5'          ,'ONTIME5'       ,'mean'    ,'float64'   , 0],           
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],          # ridership   
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0],   
             ['LOAD_ARR'         ,'LOAD_ARR'      ,'sum'     ,'float64'   , 0],   
@@ -1101,8 +1106,7 @@ class SFMuniDataHelper():
             ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','mean','float64'  , 0],   
             ['DWELL_S'          ,'DWELL_S'       ,'sum'     ,'float64'   , 0],
             ['DWELL'            ,'DWELL'         ,'sum'     ,'float64'   , 0],                 
-            ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
+            ['ONTIME5'          ,'ONTIME5'       ,'mean'    ,'float64'   , 0],              
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],        # ridership   
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0], 
             ['WAITHOURS'        ,'WAITHOURS'     ,'sum'     ,'float64'   , 0],   
@@ -1185,8 +1189,7 @@ class SFMuniDataHelper():
             ['SERVMILES'        ,'SERVMILES'     ,'sum'     ,'float64'   , 0], 
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                 
-            ['ONTIME4'          ,'ONTIME4'       ,'mean'    ,'float64'   , 0],   
-            ['ONTIME10'         ,'ONTIME10'      ,'mean'    ,'float64'   , 0],              
+            ['ONTIME5'          ,'ONTIME5'       ,'mean'    ,'float64'   , 0],             
             ['ON'               ,'ON'            ,'sum'     ,'float64'   , 0],          # ridership   
             ['OFF'              ,'OFF'           ,'sum'     ,'float64'   , 0],           
             ['PASSMILES'        ,'PASSMILES'     ,'sum'     ,'float64'   , 0],   
