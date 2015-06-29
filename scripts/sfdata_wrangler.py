@@ -45,6 +45,7 @@ VALID_STEPS = [ 'clean',
                 'expand', 
                 'aggUnweighted', 
                 'aggWeighted', 
+                'aggImputed', 
                 'cleanClipper'
                 ]    
                 
@@ -108,6 +109,7 @@ SFMUNI_OUTFILE    = "D:/Output/sfmuni.h5"
 EXPANDED_OUTFILE  = "D:/Output/sfmuni_expanded.h5"    
 UNWEIGHTED_AGGFILE= "D:/Output/sfmuni_unweighted.h5"
 WEIGHTED_AGGFILE  = "D:/Output/sfmuni_weighted.h5"
+IMPUTED_AGGFILE   = "D:/Output/sfmuni_imputed.h5"
 CLIPPER_OUTFILE   = "D:/Output/clipper.h5"
 
 
@@ -165,6 +167,16 @@ if __name__ == "__main__":
         sfmuniHelper.calculateSystemTotals(WEIGHTED_AGGFILE, 'route_stops',  'system')
         print 'Finished weighted aggregations in ', (datetime.datetime.now() - startTime) 
                 
+    # Impute values where there are no observations for that route in that time of day. 
+    if 'aggImputed' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()           
+        sfmuniHelper.imputeMissingRouteStops(WEIGHTED_AGGFILE, IMPUTED_AGGFILE, 'route_stops', 'route_stops')        
+        sfmuniHelper.calculateRouteTotals(IMPUTED_AGGFILE, 'route_stops',  'routes')  
+        sfmuniHelper.calculateStopTotals(IMPUTED_AGGFILE, 'route_stops',  'stops')
+        sfmuniHelper.calculateSystemTotals(IMPUTED_AGGFILE, 'route_stops',  'system')
+        print 'Finished weighted aggregations in ', (datetime.datetime.now() - startTime) 
+        
+        
     # process Clipper data.  
     if 'cleanClipper' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   

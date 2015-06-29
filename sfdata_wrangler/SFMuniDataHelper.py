@@ -717,7 +717,7 @@ class SFMuniDataHelper():
                         dow, tod, len(df['DATE'].unique()))
     
                     # nothing is imputed, and weights are all 1                                                
-                    df['IMPTRIPS'] = 0
+                    df['IMPTRIPS'] = 0.0
                     df['WEIGHT'] = 1.0
     
                     # normalize times to offset from start of month
@@ -745,18 +745,17 @@ class SFMuniDataHelper():
        
 
     def weightValuesByMonth(self, hdf_infile, hdf_outfile, inkey, outkey):
-        """
-        For each month in the monthly average data frame, looks to imput missing
-        values based on the same trip occurring the month before or the month after.
-        
-        Also calculates a WEIGHT, and uses that weight to scale up ridership. 
-        The weight accounts for the fact that even after imputating missing values, 
+        """        
+        Calculates a WEIGHT, and uses that weight to scale up ridership. 
+        The weight accounts for the fact that even after average across all days, 
         some trips are still not observed for the month.  Other trips on the same
         route are factored up make up for that.  
         
-        hdffile - HDF5 file with data store
-        key - name of key with monthly average data
-        
+        hdf_infile - HDF5 file with detailed data to weight
+        hdf_outfile- HDF5 file for writing weighted data
+        inkey   - key to read data from (i.e. 'df')
+        outkey  - key to write out in HDFstore (i.e. 'df')
+                  
         Overwrites same datastore.  
         """
         
@@ -832,6 +831,262 @@ class SFMuniDataHelper():
         instore.close()
                     
 
+    def imputeMissingRouteStops(self, hdf_infile, hdf_outfile, inkey, outkey):
+        """
+        Applied after calculating monthly averages by TOD, and weighting the data.
+        If the weight is still zero, it means that for this: 
+        
+        ['TOD', 'AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
+        
+        there are scheduled trips, but no observed trips in the month.  (If there
+        are some observed trips in the TOD, they would be weighted up to account
+        for the missing trips.)  Since we don't expect the actual values to be
+        zero, leaving them at zero would under-estimate the total system ridership.
+        
+        To account for this, we impute these missing values based on what is observed
+        for the same route and TOD the month before or the month after.  Imputing
+        values makes the statistics more complicated, so we do so sparingly, 
+        and also maintain the weighted, but un-imputed values for comparison.        
+        
+        hdf_infile - HDF5 file with detailed data to weight
+        hdf_outfile- HDF5 file for writing weighted data
+        inkey   - key to read data from (i.e. 'df')
+        outkey  - key to write out in HDFstore (i.e. 'df')
+                  
+        Overwrites same datastore.  
+        """
+        
+        # specify method as 'join' if it is a field to join on with the previous or next month.  
+        # specify method as 'keep' to keep value from current month
+        # specify as 'impute' to impute value from previous or next month
+        #        #   outfield,            method, type, stringLength                
+        columnSpecs = [         
+            ['MONTH'                 ,'keep'    ,'datetime64', 0],         # monthly aggregations   
+            ['DOW'                   ,'keep'    ,'int64'     , 0],
+            ['TOD'                   ,'join'    ,'object'    ,10],
+            ['NUMDAYS'               ,'keep'    ,'int64'     , 0],         # stats for observations
+            ['TOTTRIPS'              ,'keep'    ,'int64'     , 0],      
+            ['OBSTRIPS'              ,'keep'    ,'float64'   , 0],   
+            ['IMPTRIPS'              ,'keep'    ,'float64'   , 0],   
+            ['IMPUTED'               ,'keep'    ,'int64'     , 0],  
+            ['WEIGHT'                ,'impute'  ,'float64'   , 0], 
+            ['NUMSTOPS'              ,'keep'    ,'int64'     , 0], 
+            ['AGENCY_ID'             ,'join'    ,'object'    ,10],         # grouping fields        
+            ['ROUTE_SHORT_NAME'      ,'join'    ,'object'    ,10],         
+            ['ROUTE_LONG_NAME'       ,'keep'    ,'object'    ,32],  
+            ['DIR'                   ,'join'    ,'int64'     , 0], 
+            ['SEQ'                   ,'join'    ,'int64'     , 0],       
+            ['ROUTE_TYPE'            ,'keep'    ,'int64'     , 0],         # route attributes  
+            ['TRIP_HEADSIGN'         ,'keep'    ,'object'    ,64],   
+            ['HEADWAY'               ,'keep'    ,'float64'   , 0],   
+            ['FARE'                  ,'keep'    ,'float64'   , 0],  
+            ['SCHOOL'                ,'impute'  ,'int64'     , 0],    
+            ['STOPNAME'              ,'keep'    ,'object'    ,32],         # stop attributes
+            ['STOPNAME_AVL'          ,'impute'  ,'object'    ,32],  
+            ['STOP_LAT'              ,'keep'    ,'float64'   , 0],   
+            ['STOP_LON'              ,'keep'    ,'float64'   , 0],   
+            ['EOL'                   ,'keep'    ,'int64'     , 0],   
+            ['SOL'                   ,'keep'    ,'int64'     , 0],   
+            ['TIMEPOINT'             ,'impute'  ,'int64'     , 0],     
+            ['ARRIVAL_TIME_DEV'      ,'impute'  ,'float64'  , 0],          # times 
+            ['DEPARTURE_TIME_DEV'    ,'impute'  ,'float64'   , 0],   
+            ['DWELL_S'               ,'keep'    ,'float64'   , 0],
+            ['DWELL'                 ,'impute'  ,'float64'   , 0],    
+            ['RUNTIME_S'             ,'keep'    ,'float64'   , 0],
+            ['RUNTIME'               ,'impute'  ,'float64'   , 0],    
+            ['SERVMILES_S'           ,'keep'    ,'float64'   , 0],
+            ['SERVMILES'             ,'impute'  ,'float64'   , 0],    
+            ['RUNSPEED_S'            ,'keep'    ,'float64'   , 0],
+            ['RUNSPEED'              ,'impute'  ,'float64'   , 0],                 
+            ['ONTIME5'               ,'impute'  ,'float64'   , 0],       
+            ['ON'                    ,'impute'  ,'float64'   , 0],          # ridership 
+            ['OFF'                   ,'impute'  ,'float64'   , 0],   
+            ['LOAD_ARR'              ,'impute'  ,'float64'   , 0],   
+            ['LOAD_DEP'              ,'impute'  ,'float64'   , 0],          
+            ['PASSMILES'             ,'impute'  ,'float64'   , 0],   
+            ['PASSHOURS'             ,'impute'  ,'float64'   , 0],   
+            ['WAITHOURS'             ,'impute'  ,'float64'   , 0],   
+            ['PASSDELAY_DEP'         ,'impute'  ,'float64'   , 0],   
+            ['PASSDELAY_ARR'         ,'impute'  ,'float64'   , 0],    
+            ['RDBRDNGS'              ,'impute'  ,'float64'   , 0],   
+            ['CAPACITY'              ,'impute'  ,'float64'   , 0],   
+            ['DOORCYCLES'            ,'impute'  ,'float64'   , 0],   
+            ['WHEELCHAIR'            ,'impute'  ,'float64'   , 0],   
+            ['BIKERACK'              ,'impute'  ,'float64'   , 0],   
+            ['VC'                    ,'impute'  ,'float64'   , 0],         # crowding
+            ['CROWDED'               ,'impute'  ,'float64'   , 0],   
+            ['CROWDHOURS'            ,'impute'  ,'float64'   , 0], 
+            #['ARRIVAL_TIME_DEV_STD'  ,'impute'  ,'float64'   , 0],         # standard deviations      
+            #['DEPARTURE_TIME_DEV_STD','impute'  ,'float64'   , 0],       
+            #['DWELL_STD'             ,'impute'  ,'float64'   , 0],     
+            #['RUNTIME_STD'           ,'impute'  ,'float64'   , 0],    
+            #['RUNSPEED_STD'          ,'impute'  ,'float64'   , 0],                
+            #['ON_STD'                ,'impute'  ,'float64'   , 0],  
+            #['OFF_STD'               ,'impute'  ,'float64'   , 0],  
+            #['LOAD_ARR_STD'          ,'impute'  ,'float64'   , 0],  
+            #['LOAD_DEP_STD'          ,'impute'  ,'float64'   , 0],   
+            #['PASSMILES_STD'         ,'impute'  ,'float64'   , 0],  
+            #['PASSHOURS_STD'         ,'impute'  ,'float64'   , 0],   
+            #['WAITHOURS_STD'         ,'impute'  ,'float64'   , 0],  
+            #['PASSDELAY_DEP_STD'     ,'impute'  ,'float64'   , 0],  
+            #['PASSDELAY_ARR_STD'     ,'impute'  ,'float64'   , 0],     
+            #['RDBRDNGS_STD'          ,'impute'  ,'float64'   , 0],  
+            #['DOORCYCLES_STD'        ,'impute'  ,'float64'   , 0],  
+            #['WHEELCHAIR_STD'        ,'impute'  ,'float64'   , 0],  
+            #['BIKERACK_STD'          ,'impute'  ,'float64'   , 0],  
+            ['ROUTE_ID'              ,'keep'    ,'int64'     , 0],         # additional IDs   
+            ['ROUTE_AVL'             ,'impute'  ,'int64'     , 0],        
+            ['STOP_ID'               ,'keep'    ,'int64'     , 0],           
+            ['STOP_AVL'              ,'impute'  ,'float64'   , 0],          
+            ['BLOCK_ID'              ,'keep'    ,'int64'     , 0]  
+            ]
+              
+        # open the data stores
+        instore = pd.HDFStore(hdf_infile)        
+        outstore = pd.HDFStore(hdf_outfile)       
+
+        # don't append the data, overwrite
+        try: 
+            outstore.remove(outkey)
+        except KeyError: 
+            print "HDFStore does not contain object ", outkey
+
+        # get the list of months and days of week to loop through
+        months = instore.select_column(inkey, 'MONTH').unique()
+        months.sort()
+        print 'Retrieved a total of %i months to process' % len(months)
+
+        daysOfWeek = instore.select_column(inkey, 'DOW').unique()
+        print 'For each month, processing %i days of week' % len(daysOfWeek)
+
+        # loop through the months, and days of week
+        for month in months: 
+            print 'Processing ', month            
+            
+            for dow in daysOfWeek: 
+                print ' Processing day of week ', dow
+                dow = int(dow)
+    
+                # get a months worth of data for this day of week
+                df = instore.select(inkey, where='MONTH==Timestamp(month) and DOW==dow')
+                
+                # skip if there are no records
+                if (len(df)==0):
+                    print '0 records, so skipping to next day of week/month'
+                else: 
+                    
+                    df['IMPUTED'] = 0
+                    
+                    # go up to two months in either direction out looking for a match
+                    for i in range(1, 3): 
+    
+                        lastMonth = pd.Timestamp(month) + pd.DateOffset(months=-i)
+                        nextMonth = pd.Timestamp(month) + pd.DateOffset(months=i)
+                                    
+                        # try filling in missing values with data from previous month
+                        # set value for IMPUTED field to -i
+                        sourceDf = instore.select(inkey, where='MONTH==Timestamp(lastMonth) and DOW==dow and OBSTRIPS>=1')
+                        df, stringLengths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, -i) 
+                    
+                        # try filling in missing values with data from next month
+                        # set value for IMPUTED field to i
+                        sourceDf = instore.select(inkey, where='MONTH==Timestamp(nextMonth) and DOW==dow and OBSTRIPS>=1')
+                        df, stringLegnths = self.imputeMissingRecordValues(df, sourceDf, columnSpecs, i) 
+    
+                    # write
+                    print '  writing data.'
+                    outstore.append(outkey, df, data_columns=True, 
+                        min_itemsize=stringLengths)
+                    
+        instore.close()
+        outstore.close()
+                    
+
+    def imputeMissingRecordValues(self, targetDf, sourceDf, columnSpecs, imputedIdentifier):
+        """
+        Fill missing values in targetDf, with matching values from sourceDf. 
+        
+        targetDf - dataframe with missing values we want to fill in (will be overwritten)
+        sourceDf - dataframe with same specification, but values to draw from
+        columnSpecs - where to get each column from.  Can be: 
+                      'join' if it is an index field to join between two data sets
+                      'keep' if to keep value from targetDf
+                      'impute' if to take value from sourceDf
+        imputedIdentifier - integer used to fill field 'IMPUTED'
+        
+        Overwrites same datastore.  
+        """
+        
+        # convert column specs 
+        colnames = []   
+        stringLengths= {}
+        dataTypes = {}
+        joinFields = []
+        imputedFields = []
+        for col in columnSpecs: 
+            name = col[0]
+            method = col[1]
+            dtype = col[2]
+            stringLength = col[3]
+            
+            colnames.append(name)
+            dataTypes[name] = dtype
+            
+            if (stringLength>0): 
+                stringLengths[name] = stringLength
+            if method=='join': 
+                joinFields.append(name)
+            if method=='impute':
+                imputedFields.append(name)
+        
+        # if no data in sourceDf, then nothing to do
+        if len(sourceDf)==0: 
+            print '  Imputing month %i.  No records in source dataframe' % imputedIdentifier         
+            result = targetDf[colnames]     
+            result['IMPTRIPS'] = 0.0
+            return result, stringLengths    
+            
+        # join the data
+        joined = pd.merge(targetDf, sourceDf, how='left', on=joinFields, 
+                                suffixes=('', '_SOURCE'), sort=True)
+        
+        # select the records with missing data, and fill in as appropriate
+        totalRecords = 0
+        missingRecords = 0
+        successfulMatches = 0 
+        for i, row in joined.iterrows():
+            totalRecords += 1
+                 
+            if (row['OBSTRIPS']==0 and row['IMPUTED']==0):
+                missingRecords += 1
+                
+                if (row['OBSTRIPS_SOURCE']>0):
+                    successfulMatches += 1
+                    
+                    joined.loc[i,'IMPUTED'] = imputedIdentifier
+                    joined.loc[i,'IMPTRIPS'] = float(row['OBSTRIPS_SOURCE'])
+                    for col in imputedFields:
+                        if (dataTypes[col]=='datetime64'): 
+                            oldTime = pd.Timestamp(row[col + '_SOURCE'])
+                            newTime = oldTime + pd.DateOffset(months=-imputedIdentifier)
+                            joined.loc[i,col] = newTime
+                        else: 
+                            joined.loc[i,col] = row[col + '_SOURCE']
+            
+        # keep only the relevant columns               
+        result = joined[colnames]     
+
+        # report some statistics
+        stillMissing = missingRecords - successfulMatches
+        print '  Imputing month %i.  For %i total records, started with '\
+               '%i missing and finished with %i.' % (
+               imputedIdentifier, totalRecords, missingRecords, stillMissing)
+        
+        return result, stringLengths
+
+
+        
+                        
     def calculateRouteStopTotals(self, hdffile, inkey, outkey):
         """
         Read disaggregate transit records, and aggregates across trips to a
@@ -936,24 +1191,24 @@ class SFMuniDataHelper():
                 
             # get a months worth of data for this day of week
             df = store.select(inkey, where='MONTH==Timestamp(month)')
-            
+                        
             # apply weights to SERVMILES_S, DWELL, RUNTIME,
             # because they were not weighted previously. 
             df['SERVMILES_S'] = df['SERVMILES']  # unweighted, but for everything
             df['SERVMILES']     = df['WEIGHT'] * df['SERVMILES']
             df['DWELL']         = df['WEIGHT'] * df['DWELL']
             df['RUNTIME']       = df['WEIGHT'] * df['RUNTIME']
-                                                            
+                                                                                                                                                            
             # aggregate
             aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecs)
-                    
+            
             # update speeds
             aggregated = self.updateSpeeds(aggregated)
-                
+                                    
             # write
             store.append(outkey, aggregated, data_columns=True, 
                 min_itemsize=stringLengths)
-                
+            
             # TODO - there is a bug in the calculation of daily totals--do differently
             # now calculate a daily total, and append that
             #aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecsDaily)
