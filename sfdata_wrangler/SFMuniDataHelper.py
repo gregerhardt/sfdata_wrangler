@@ -594,9 +594,12 @@ class SFMuniDataHelper():
             ['DOW'              ,'DOW'           ,'first'   ,'int64'     , 0],
             ['TOD'              ,'TOD'           ,'first'   ,'object'    ,10],
             ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         # stats for observations
-            ['TOTTRIPS'         ,'none'          ,'count'   ,'int64'     , 0],      
-            ['OBSTRIPS'         ,'OBSERVED'      ,'sum'     ,'float64'   , 0],   
-            ['IMPTRIPS'         ,'IMPTRIPS'      ,'sum'     ,'float64'   , 0],    
+            ['TOTTRIPS'         ,'TOTTRIPS'      ,'first'   ,'int64'     , 0],      
+            ['OBSTRIPS'         ,'OBSERVED'      ,'max'     ,'int64'     , 0],   
+            ['IMPTRIPS'         ,'IMPTRIPS'      ,'first'   ,'int64'     , 0],    
+            ['TOTRUNS'          ,'none'          ,'count'   ,'int64'     , 0],      
+            ['OBSRUNS'          ,'OBSERVED'      ,'sum'     ,'int64'     , 0],   
+            ['IMPRUNS'          ,'IMPRUNS'       ,'first'   ,'int64'     , 0],    
             ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0],   
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields        
    	    ['ROUTE_SHORT_NAME' ,'ROUTE_SHORT_NAME','groupby','object'   ,10],         
@@ -716,8 +719,10 @@ class SFMuniDataHelper():
                     print '   Processing day of week %i, and time of day %s with with %i unique dates.' % (
                         dow, tod, len(df['DATE'].unique()))
     
-                    # nothing is imputed, and weights are all 1                                                
-                    df['IMPTRIPS'] = 0.0
+                    # weights are all 1 to start, none are imputed                                              
+                    df['TOTTRIPS'] = 1                                          
+                    df['IMPTRIPS'] = 0                                     
+                    df['IMPRUNS']  = 0
                     df['WEIGHT'] = 1.0
     
                     # normalize times to offset from start of month
@@ -747,7 +752,7 @@ class SFMuniDataHelper():
     def weightValuesByMonth(self, hdf_infile, hdf_outfile, inkey, outkey):
         """        
         Calculates a WEIGHT, and uses that weight to scale up ridership. 
-        The weight accounts for the fact that even after average across all days, 
+        The weight accounts for the fact that even after averaging across all days, 
         some trips are still not observed for the month.  Other trips on the same
         route are factored up make up for that.  
         
@@ -803,6 +808,11 @@ class SFMuniDataHelper():
                 if (len(df)==0):
                     print '0 records, so skipping to next day of week/month'
                 else: 
+                    # calculate the WEIGHT
+                    print '  calculating weights.'
+                    groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
+                    df = df.groupby(groupby).apply(calculateWeight)
+    
                     # scale up the ridership based on weight   
                     # TODO - scale standard deviations too?             
                     df['ON']            = df['WEIGHT'] * df['ON']          
@@ -866,8 +876,11 @@ class SFMuniDataHelper():
             ['TOD'                   ,'join'    ,'object'    ,10],
             ['NUMDAYS'               ,'keep'    ,'int64'     , 0],         # stats for observations
             ['TOTTRIPS'              ,'keep'    ,'int64'     , 0],      
-            ['OBSTRIPS'              ,'keep'    ,'float64'   , 0],   
-            ['IMPTRIPS'              ,'keep'    ,'float64'   , 0],   
+            ['OBSTRIPS'              ,'keep'    ,'int64'     , 0],   
+            ['IMPTRIPS'              ,'keep'    ,'int64'     , 0],   
+            ['TOTRUNS'               ,'keep'    ,'int64'     , 0],      
+            ['OBSRUNS'               ,'keep'    ,'int64'     , 0],   
+            ['IMPRUNS'               ,'keep'    ,'int64'     , 0],    
             ['IMPUTED'               ,'keep'    ,'int64'     , 0],  
             ['WEIGHT'                ,'impute'  ,'float64'   , 0], 
             ['NUMSTOPS'              ,'keep'    ,'int64'     , 0], 
@@ -1043,7 +1056,8 @@ class SFMuniDataHelper():
         if len(sourceDf)==0: 
             print '  Imputing month %i.  No records in source dataframe' % imputedIdentifier         
             result = targetDf[colnames]     
-            result['IMPTRIPS'] = 0.0
+            result['IMPTRIPS'] = 0
+            result['IMPRUNS'] = 0
             return result, stringLengths    
             
         # join the data
@@ -1063,8 +1077,9 @@ class SFMuniDataHelper():
                 if (row['OBSTRIPS_SOURCE']>0):
                     successfulMatches += 1
                     
-                    joined.loc[i,'IMPUTED'] = imputedIdentifier
-                    joined.loc[i,'IMPTRIPS'] = float(row['OBSTRIPS_SOURCE'])
+                    joined.loc[i,'IMPUTED']  = imputedIdentifier
+                    joined.loc[i,'IMPTRIPS'] = 1
+                    joined.loc[i,'IMPRUNS']  = row['OBSRUNS_SOURCE']
                     for col in imputedFields:
                         if (dataTypes[col]=='datetime64'): 
                             oldTime = pd.Timestamp(row[col + '_SOURCE'])
@@ -1108,8 +1123,11 @@ class SFMuniDataHelper():
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],
             ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         # stats for observations
             ['TOTTRIPS'         ,'TOTTRIPS'      ,'sum'     ,'int64'     , 0],      
-            ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'float64'   , 0], 
-            ['IMPTRIPS'         ,'IMPTRIPS'      ,'sum'     ,'float64'   , 0], 
+            ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'int64'     , 0], 
+            ['IMPTRIPS'         ,'IMPTRIPS'      ,'sum'     ,'int64'     , 0], 
+            ['TOTRUNS'          ,'TOTRUNS'       ,'sum'     ,'int64'     , 0],      
+            ['OBSRUNS'          ,'OBSRUNS'       ,'sum'     ,'int64'     , 0], 
+            ['IMPRUNS'          ,'IMPRUNS'       ,'sum'     ,'int64'     , 0], 
             ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0], 
             ['NUMSTOPS'         ,'none'          ,'count'   ,'int64'     , 0],      
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields        
@@ -1240,9 +1258,12 @@ class SFMuniDataHelper():
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],
             ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         # stats for observations
-            ['TOTTRIPS'         ,'TOTTRIPS'      ,'max'     ,'int64'     , 0],      
-            ['OBSTRIPS'         ,'OBSTRIPS'      ,'max'     ,'float64'   , 0], 
-            ['IMPTRIPS'         ,'IMPTRIPS'      ,'max'     ,'float64'   , 0], 
+            ['TOTTRIPS'         ,'TOTTRIPS'      ,'mean'    ,'float64'   , 0],      
+            ['OBSTRIPS'         ,'OBSTRIPS'      ,'mean'    ,'float64'   , 0], 
+            ['IMPTRIPS'         ,'IMPTRIPS'      ,'mean'    ,'float64'   , 0], 
+            ['TOTRUNS'          ,'TOTRUNS'       ,'mean'    ,'float64'   , 0],      
+            ['OBSRUNS'          ,'OBSRUNS'       ,'mean'    ,'float64'   , 0], 
+            ['IMPRUNS'          ,'IMPRUNS'       ,'mean'    ,'float64'   , 0], 
             ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0], 
             ['NUMSTOPS'         ,'NUMSTOPS'      ,'sum'     ,'int64'     , 0],   
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields        
@@ -1329,8 +1350,6 @@ class SFMuniDataHelper():
         outkey  - string - key for writing the aggregated dataframe to the store
                                    
         """
-
-
         # specify 'groupby' as aggregation method as appropriate
         # specify 'none' as aggregation method if we want to include the 
         #   output field, but it is calculated separately
@@ -1340,10 +1359,13 @@ class SFMuniDataHelper():
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],
             ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         # stats for observations
-            ['TOTTRIPS'         ,'TOTTRIPS'      ,'sum'     ,'int64'     , 0],      
+            ['TOTTRIPS'         ,'TOTTRIPS'      ,'sum'     ,'float64'   , 0],      
             ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'float64'   , 0], 
             ['IMPTRIPS'         ,'IMPTRIPS'      ,'sum'     ,'float64'   , 0], 
-            ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0],       
+            ['TOTRUNS'          ,'TOTRUNS'       ,'sum'     ,'float64'   , 0],      
+            ['OBSRUNS'          ,'OBSRUNS'       ,'sum'     ,'float64'   , 0], 
+            ['IMPRUNS'          ,'IMPRUNS'       ,'sum'     ,'float64'   , 0], 
+            ['WEIGHT'           ,'WEIGHT'        ,'sum'     ,'float64'   , 0],       
             ['NUMSTOPS'         ,'NUMSTOPS'      ,'sum'     ,'int64'     , 0],   
             ['STOP_ID'          ,'STOP_ID'       ,'groupby' ,'int64'     , 0],         # group by stop ID        
             ['STOP_AVL'         ,'STOP_AVL'      ,'first'   ,'float64'   , 0], 
@@ -1426,9 +1448,12 @@ class SFMuniDataHelper():
             ['DOW'              ,'DOW'           ,'groupby' ,'int64'     , 0],
             ['TOD'              ,'TOD'           ,'groupby' ,'object'    ,10],
             ['NUMDAYS'          ,'NUMDAYS'       ,'first'   ,'int64'     , 0],         # stats for observations
-            ['TOTTRIPS'         ,'TOTTRIPS'      ,'sum'     ,'int64'     , 0],      
+            ['TOTTRIPS'         ,'TOTTRIPS'      ,'sum'     ,'float64'   , 0],      
             ['OBSTRIPS'         ,'OBSTRIPS'      ,'sum'     ,'float64'   , 0], 
             ['IMPTRIPS'         ,'IMPTRIPS'      ,'sum'     ,'float64'   , 0], 
+            ['TOTRUNS'          ,'TOTRUNS'       ,'sum'     ,'float64'   , 0],      
+            ['OBSRUNS'          ,'OBSRUNS'       ,'sum'     ,'float64'   , 0], 
+            ['IMPRUNS'          ,'IMPRUNS'       ,'sum'     ,'float64'   , 0], 
             ['WEIGHT'           ,'WEIGHT'        ,'mean'    ,'float64'   , 0], 
             ['NUMSTOPS'         ,'NUMSTOPS'      ,'sum'     ,'int64'     , 0],  
    	    ['AGENCY_ID'        ,'AGENCY_ID'     ,'groupby'  ,'object'   ,10],         # grouping fields 
