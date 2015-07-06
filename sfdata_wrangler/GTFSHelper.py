@@ -131,8 +131,8 @@ class GTFSHelper():
 	['DWELL'     ,        0, 0, 'avl'], 
 	['RUNTIME_S' ,        0, 0, 'gtfs'], 
 	['RUNTIME'   ,        0, 0, 'avl'], 
-	['SERVMILES' ,        0, 0, 'gtfs'], 
-	['SERVMILES_AVL',     0, 0, 'avl'],         # Distances and speeds
+	['SERVMILES_S' ,      0, 0, 'gtfs'], 
+	['SERVMILES',         0, 0, 'avl'],         # Distances and speeds
 	['RUNSPEED_S' ,       0, 0, 'gtfs'], 
 	['RUNSPEED'   ,       0, 0, 'calculated'], 
 	['ONTIME5'   ,        0, 0, 'calculated'], 
@@ -374,7 +374,7 @@ class GTFSHelper():
                                 serviceMiles = 0
                             else: 
                                 serviceMiles = round((distanceTraveled - lastDistanceTraveled) / 1609.344, 3)
-                            record['SERVMILES'] = serviceMiles
+                            record['SERVMILES_S'] = serviceMiles
                                 
                             # speed (mph)
                             if runtime > 0: 
@@ -535,7 +535,7 @@ class GTFSHelper():
 
                 # observed speed
                 if runtime>0: 
-                    joined.at[i,'RUNSPEED'] = round(row['SERVMILES'] / (runtime / 60.0), 2)
+                    joined.at[i,'RUNSPEED'] = round(row['SERVMILES_S'] / (runtime / 60.0), 2)
                 else: 
                     joined.at[i,'RUNSPEED'] = 0
                     
@@ -566,7 +566,7 @@ class GTFSHelper():
                     joined.at[i,'ONTIME5'] = 0
                                 
                 # passenger miles traveled
-                joined.at[i,'PASSMILES'] = row['LOAD_ARR'] * row['SERVMILES']
+                joined.at[i,'PASSMILES'] = row['LOAD_ARR'] * row['SERVMILES_S']
                 
                 # passenger hours -- scheduled time
                 joined.at[i,'PASSHOURS'] = (row['LOAD_ARR'] * row['RUNTIME_S']

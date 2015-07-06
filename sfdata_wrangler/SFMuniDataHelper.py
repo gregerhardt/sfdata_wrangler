@@ -21,40 +21,7 @@ __license__     = """
 import pandas as pd
 import numpy as np
 import datetime
-
-
-def calculateWeight(df):
-    """
-    Calculates a WEIGHT.  This will be used to scale up ridership. 
-    The weight accounts for the fact that even after imputating missing values, 
-    some trips are still not observed for the month.  Other trips on the same
-    route are factored up make up for that.  
-
-    The input dataframe should be gruoped by: 
-    ['TOD', 'AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
-    (but not by TRIP).     
-    
-    Also, it should be specific to a month and a DOW. 
-    """            
-    
-    totalValues = 0.0
-    for i, row in df.iterrows():    
-        if ((row['OBSTRIPS'] + row['IMPTRIPS'])>0): 
-            totalValues += 1.0
-    
-    numRecords = float(len(df))
-    if totalValues>0: 
-        weight = numRecords / totalValues
-    else:
-        weight = np.NaN
-        
-    df['WEIGHT'] = 0.0
-    for i, row in df.iterrows():    
-        if ((row['OBSTRIPS'] + row['IMPTRIPS'])>0): 
-            df.loc[i,'WEIGHT'] = weight
-
-    return df                                                
-                
+              
                                     
 class SFMuniDataHelper():
     """ 
@@ -630,8 +597,8 @@ class SFMuniDataHelper():
             ['DWELL'            ,'DWELL'         ,'mean'    ,'float64'   , 0],    
             ['RUNTIME_S'        ,'RUNTIME_S'     ,'mean'    ,'float64'   , 0],
             ['RUNTIME'          ,'RUNTIME'       ,'mean'    ,'float64'   , 0],   
-            ['SERVMILES'        ,'SERVMILES'     ,'mean'    ,'float64'   , 0],
-            ['SERVMILES_AVL'    ,'SERVMILES_AVL' ,'mean'    ,'float64'   , 0],    
+            ['SERVMILES_S'      ,'SERVMILES_S'   ,'mean'    ,'float64'   , 0],
+            ['SERVMILES'        ,'SERVMILES' ,'mean'    ,'float64'   , 0],    
             ['RUNSPEED_S'       ,'RUNSPEED_S'    ,'mean'    ,'float64'   , 0],
             ['RUNSPEED'         ,'RUNSPEED'      ,'mean'    ,'float64'   , 0],                
             ['ONTIME5'          ,'ONTIME5'       ,'mean'    ,'float64'   , 0],              
@@ -749,7 +716,7 @@ class SFMuniDataHelper():
         outstore.close()
        
 
-    def weightValuesByMonth(self, hdf_infile, hdf_outfile, inkey, outkey):
+    def weightRouteStopTotals(self, hdf_infile, hdf_outfile, inkey, outkey):
         """        
         Calculates a WEIGHT, and uses that weight to scale up ridership. 
         The weight accounts for the fact that even after averaging across all days, 
@@ -771,7 +738,6 @@ class SFMuniDataHelper():
         stringLengths['ROUTE_SHORT_NAME'] = 10
         stringLengths['ROUTE_LONG_NAME']  = 32
         stringLengths['TRIP_HEADSIGN']    = 64
-        stringLengths['PATTCODE']         = 10   
         stringLengths['STOPNAME']         = 32
         stringLengths['STOPNAME_AVL']     = 32
               
@@ -810,9 +776,16 @@ class SFMuniDataHelper():
                 else: 
                     # calculate the WEIGHT
                     print '  calculating weights.'
-                    groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
-                    df = df.groupby(groupby).apply(calculateWeight)
-    
+                    
+                    # note that .values is needed due to the following bug in Canopy:
+                    # https://github.com/pydata/pandas/issues/9328 
+                    # also, be sure they are floats
+                    df['WEIGHT'] = (df['TOTTRIPS'].astype(float).values / 
+                        (df['OBSTRIPS'].astype(float) + df['IMPTRIPS'].astype(float)).values)
+
+                    # replace infinite weight with missing value
+                    df['WEIGHT'] = np.where(df['WEIGHT']==np.inf, np.nan, df['WEIGHT'])
+                    
                     # scale up the ridership based on weight   
                     # TODO - scale standard deviations too?             
                     df['ON']            = df['WEIGHT'] * df['ON']          
@@ -833,6 +806,11 @@ class SFMuniDataHelper():
                     #df['CROWDED'] is based on a ratio, so no need to scale
                     df['CROWDHOURS']    = df['WEIGHT'] * df['CROWDHOURS']    
         
+                    # system characteristics?
+                    #df['SERVMILES']     = df['WEIGHT'] * df['SERVMILES']
+                    #df['DWELL']         = df['WEIGHT'] * df['DWELL']
+                    #df['RUNTIME']       = df['WEIGHT'] * df['RUNTIME']
+                                                                          
                     # write
                     print '  writing data.'
                     outstore.append(outkey, df, data_columns=True, 
@@ -1056,8 +1034,8 @@ class SFMuniDataHelper():
         if len(sourceDf)==0: 
             print '  Imputing month %i.  No records in source dataframe' % imputedIdentifier         
             result = targetDf[colnames]     
-            result['IMPTRIPS'] = 0
-            result['IMPRUNS'] = 0
+            result['IMPTRIPS'] = 0.0
+            result['IMPRUNS'] = 0.0
             return result, stringLengths    
             
         # join the data
@@ -1078,7 +1056,7 @@ class SFMuniDataHelper():
                     successfulMatches += 1
                     
                     joined.loc[i,'IMPUTED']  = imputedIdentifier
-                    joined.loc[i,'IMPTRIPS'] = 1
+                    joined.loc[i,'IMPTRIPS'] = 1.0
                     joined.loc[i,'IMPRUNS']  = row['OBSRUNS_SOURCE']
                     for col in imputedFields:
                         if (dataTypes[col]=='datetime64'): 
@@ -1209,14 +1187,7 @@ class SFMuniDataHelper():
                 
             # get a months worth of data for this day of week
             df = store.select(inkey, where='MONTH==Timestamp(month)')
-                        
-            # apply weights to SERVMILES_S, DWELL, RUNTIME,
-            # because they were not weighted previously. 
-            df['SERVMILES_S'] = df['SERVMILES']  # unweighted, but for everything
-            df['SERVMILES']     = df['WEIGHT'] * df['SERVMILES']
-            df['DWELL']         = df['WEIGHT'] * df['DWELL']
-            df['RUNTIME']       = df['WEIGHT'] * df['RUNTIME']
-                                                                                                                                                            
+                                                                                                          
             # aggregate
             aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecs)
             

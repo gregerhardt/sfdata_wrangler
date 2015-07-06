@@ -160,8 +160,7 @@ if __name__ == "__main__":
     # add weights.  Calculate new aggregations. 
     if 'aggWeighted' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sfmuniHelper.weightValuesByMonth(UNWEIGHTED_AGGFILE, WEIGHTED_AGGFILE, 'df', 'df')
-        sfmuniHelper.calculateRouteStopTotals(WEIGHTED_AGGFILE, 'df',  'route_stops')
+        sfmuniHelper.weightRouteStopTotals(UNWEIGHTED_AGGFILE, WEIGHTED_AGGFILE, 'route_stops', 'route_stops')
         sfmuniHelper.calculateRouteTotals(WEIGHTED_AGGFILE, 'route_stops',  'routes')  
         sfmuniHelper.calculateStopTotals(WEIGHTED_AGGFILE, 'route_stops',  'stops')
         sfmuniHelper.calculateSystemTotals(WEIGHTED_AGGFILE, 'route_stops',  'system')
@@ -170,7 +169,8 @@ if __name__ == "__main__":
     # Impute values where there are no observations for that route in that time of day. 
     if 'aggImputed' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()           
-        sfmuniHelper.imputeMissingRouteStops(WEIGHTED_AGGFILE, IMPUTED_AGGFILE, 'route_stops', 'route_stops')        
+        sfmuniHelper.imputeMissingRouteStops(UNWEIGHTED_AGGFILE, IMPUTED_AGGFILE, 'route_stops', 'unweighted_route_stops')        
+        sfmuniHelper.weightRouteStopTotals(IMPUTED_AGGFILE, IMPUTED_AGGFILE, 'unweighted_route_stops', 'route_stops')
         sfmuniHelper.calculateRouteTotals(IMPUTED_AGGFILE, 'route_stops',  'routes')  
         sfmuniHelper.calculateStopTotals(IMPUTED_AGGFILE, 'route_stops',  'stops')
         sfmuniHelper.calculateSystemTotals(IMPUTED_AGGFILE, 'route_stops',  'system')
