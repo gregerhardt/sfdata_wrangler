@@ -486,6 +486,7 @@ class SFMuniDataHelper():
         groupby   = []
         aggMethod = {}
         countFields = []
+        meanFields = []   # keep track of these for calculating weighted averages
         
         for col in columnSpecs:
             
@@ -554,7 +555,7 @@ class SFMuniDataHelper():
 
         # specify 'groupby' as aggregation method as appropriate
         # specify 'none' as aggregation method if we want to include the 
-        #   output field, but it is calculated separately
+        # output field, but it is calculated separately
         #   outfield,            infield,  aggregationMethod, type, stringLength                
         columnSpecs = [              
             ['MONTH'            ,'MONTH'         ,'first'   ,'datetime64', 0],         # monthly aggregations   
@@ -716,6 +717,108 @@ class SFMuniDataHelper():
         instore.close()
         outstore.close()
        
+       
+    def weightData(self, df):
+        """        
+        Calculates a WEIGHT, and uses that weight to scale up ridership and
+        other measures.  
+        The weight accounts for the fact that even after averaging across all days, 
+        some trips are still not observed for the month.  Other trips on the same
+        route are factored up make up for that.  
+
+        WEIGHT builds upon the previous, lower-level weight.  
+                  
+        Returns a modified datastore.    
+        """
+                      
+        # skip if there are no records
+        if (len(df)==0):
+            print '0 records, so no weighting necessary'
+            return df
+        else: 
+            # calculate the WEIGHT
+            print '  calculating weights.'
+                    
+            # note that .values is needed due to the following bug in Canopy:
+            # https://github.com/pydata/pandas/issues/9328 
+            # also, be sure they are floats
+            df['MARGINAL_WEIGHT'] = (df['TOTTRIPS'].astype(float).values 
+                                    / df['WGTTRIPS'].astype(float).values)
+
+            # replace infinite weight with missing value
+            df['MARGINAL_WEIGHT'] = np.where(df['MARGINAL_WEIGHT']==np.inf, 
+                                             np.nan, 
+                                             df['MARGINAL_WEIGHT'])
+            
+            # calculate the total WEIGHT itself, for reference
+            df['WEIGHT'] = df['MARGINAL_WEIGHT'] * df['WEIGHT']
+                            
+            # weighted trips is to check that things add up
+            df['WGTTRIPS'] = df['MARGINAL_WEIGHT'] * df['WGTTRIPS']
+                    
+            # scale up the ridership based on weight
+            # depending on the level of aggregation, some of these may 
+            # not be included, so check first. 
+            if 'ON' in df.columns: 
+                df['ON']            = df['MARGINAL_WEIGHT'] * df['ON']     
+   
+            if 'OFF' in df.columns:   
+                df['OFF']           = df['MARGINAL_WEIGHT'] * df['OFF']    
+   
+            if 'LOAD_ARR' in df.columns:  
+                df['LOAD_ARR']      = df['MARGINAL_WEIGHT'] * df['LOAD_ARR']  
+ 
+            if 'LOAD_DEP' in df.columns: 
+                df['LOAD_DEP']      = df['MARGINAL_WEIGHT'] * df['LOAD_DEP']   
+
+            if 'PASSMILES' in df.columns: 
+                df['PASSMILES']     = df['MARGINAL_WEIGHT'] * df['PASSMILES']  
+
+            if 'PASSHOURS' in df.columns: 
+                df['PASSHOURS']     = df['MARGINAL_WEIGHT'] * df['PASSHOURS']  
+
+            if 'WAITHOURS' in df.columns: 
+                df['WAITHOURS']     = df['MARGINAL_WEIGHT'] * df['WAITHOURS']  
+
+            if 'PASSDELAY_DEP' in df.columns: 
+                df['PASSDELAY_DEP'] = df['MARGINAL_WEIGHT'] * df['PASSDELAY_DEP']  
+
+            if 'PASSDELAY_ARR' in df.columns: 
+                df['PASSDELAY_ARR'] = df['MARGINAL_WEIGHT'] * df['PASSDELAY_ARR']  
+
+            if 'RDBRDNGS' in df.columns: 
+                df['RDBRDNGS']      = df['MARGINAL_WEIGHT'] * df['RDBRDNGS']  
+ 
+            if 'CAPACITY' in df.columns: 
+                df['CAPACITY']      = df['MARGINAL_WEIGHT'] * df['CAPACITY']   
+
+            if 'DOORCYCLES' in df.columns: 
+                df['DOORCYCLES']    = df['MARGINAL_WEIGHT'] * df['DOORCYCLES'] 
+
+            if 'WHEELCHAIR' in df.columns: 
+                df['WHEELCHAIR']    = df['MARGINAL_WEIGHT'] * df['WHEELCHAIR'] 
+
+            if 'BIKERACK' in df.columns: 
+                df['BIKERACK']      = df['MARGINAL_WEIGHT'] * df['BIKERACK']  
+  
+            #df['VC'] is a ratio, so no need to scale
+            #df['CROWDED'] is based on a ratio, so no need to scale
+            
+            if 'CROWDHOURS' in df.columns: 
+                df['CROWDHOURS']    = df['MARGINAL_WEIGHT'] * df['CROWDHOURS']    
+        
+                # system characteristics
+            if 'SERVMILES' in df.columns: 
+                df['SERVMILES']     = df['MARGINAL_WEIGHT'] * df['SERVMILES']
+
+            if 'DWELL' in df.columns: 
+                df['DWELL']         = df['MARGINAL_WEIGHT'] * df['DWELL']
+
+            if 'RUNTIME' in df.columns: 
+                df['RUNTIME']       = df['MARGINAL_WEIGHT'] * df['RUNTIME']
+
+            return df
+                                                           
 
     def weightRouteStopTotals(self, hdf_infile, hdf_outfile, inkey, outkey):
         """        
@@ -1060,9 +1163,13 @@ class SFMuniDataHelper():
                 if (row['OBSTRIPS_SOURCE']>0):
                     successfulMatches += 1
                     
+                    # keep track of the observations
                     joined.loc[i,'IMPUTED']  = imputedIdentifier
                     joined.loc[i,'IMPTRIPS'] = row['OBSTRIPS_SOURCE']
                     joined.loc[i,'IMPRUNS']  = row['OBSRUNS_SOURCE']
+                    joined.loc[i,'WGTTRIPS'] = row ['OBSTRIPS'] + row['OBSTRIPS_SOURCE']
+                    
+                    # impute remaining values
                     for col in imputedFields:
                         if (dataTypes[col]=='datetime64'): 
                             oldTime = pd.Timestamp(row[col + '_SOURCE'])
@@ -1085,7 +1192,7 @@ class SFMuniDataHelper():
 
         
                         
-    def calculateRouteStopTotals(self, hdffile, inkey, outkey):
+    def calculateRouteStopTotals(self, hdffile, inkey, outkey, weight=True):
         """
         Read disaggregate transit records, and aggregates across trips to a
         time-of-day totals. 
@@ -1190,6 +1297,10 @@ class SFMuniDataHelper():
             # aggregate
             aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecs)
             
+            # weight data
+            if weight: 
+                aggregated = self.weightData(aggregated)
+            
             # update speeds
             aggregated = self.updateSpeeds(aggregated)
                                     
@@ -1200,7 +1311,7 @@ class SFMuniDataHelper():
         store.close()
 
 
-    def calculateDailyRouteStopTotals(self, hdffile, inkey, outkey):
+    def calculateDailyRouteStopTotals(self, hdffile, inkey, outkey, weight=True):
         """
         Read route_stops aggregates across trips to a daily total. 
         
@@ -1317,7 +1428,7 @@ class SFMuniDataHelper():
         store.close()
 
 
-    def calculateRouteTotals(self, hdffile, inkey, outkey):
+    def calculateRouteTotals(self, hdffile, inkey, outkey, weight=True):
         """
         Sum across stops to get route totals
         
@@ -1411,6 +1522,10 @@ class SFMuniDataHelper():
             # aggregate
             aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecs)
     
+            # weight data
+            if weight: 
+                aggregated = self.weightData(aggregated)
+
             # update speeds
             aggregated = self.updateSpeeds(aggregated)
                 
@@ -1421,7 +1536,7 @@ class SFMuniDataHelper():
         store.close()
 
 
-    def calculateStopTotals(self, hdffile, inkey, outkey):
+    def calculateStopTotals(self, hdffile, inkey, outkey, weight=True):
         """
         Aggregates across routes to get totals at each stop. 
         
@@ -1500,6 +1615,10 @@ class SFMuniDataHelper():
             # aggregate
             aggregated, stringLengths = self.aggregateTransitRecords(df, columnSpecs)
     
+            # weight data
+            if weight: 
+                aggregated = self.weightData(aggregated)
+
             # update speeds -- no speeds in stop file
             #aggregated = self.updateSpeeds(aggregated)
                 
@@ -1511,7 +1630,7 @@ class SFMuniDataHelper():
 
 
 
-    def calculateSystemTotals(self, hdffile, inkey, outkey):
+    def calculateSystemTotals(self, hdffile, inkey, outkey, weight=True):
         """
         Sum across stops to get system totals
         
@@ -1596,6 +1715,13 @@ class SFMuniDataHelper():
             # update speeds
             aggregated = self.updateSpeeds(aggregated)
                 
+            # weight data
+            if weight: 
+                aggregated = self.weightData(aggregated)
+
+            # update speeds
+            aggregated = self.updateSpeeds(aggregated)
+
             # write
             store.append(outkey, aggregated, data_columns=True, 
                 min_itemsize=stringLengths)
@@ -1660,8 +1786,8 @@ class SFMuniDataHelper():
 
         for i, row in df.iterrows():    
             # FOR DEBUGGING ONLY
-            if (row['RUNTIME']>(10 * row['RUNTIME_S'])): 
-                df.loc[i,'RUNTIME'] = row['RUNTIME_S']
+            #if (row['RUNTIME']>(10 * row['RUNTIME_S'])): 
+            #    df.loc[i,'RUNTIME'] = row['RUNTIME_S']
             
             # REGULAR CODE
             if (row['RUNTIME_S']>0): 

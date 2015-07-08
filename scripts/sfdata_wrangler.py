@@ -19,6 +19,7 @@ __license__     = """
 
 import sys
 import datetime
+import shutil
 
 sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 from SFMuniDataHelper import SFMuniDataHelper
@@ -152,56 +153,61 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         sfmuniHelper.calcMonthlyAverages(EXPANDED_OUTFILE, UNWEIGHTED_AGGFILE, 'expanded', 'df')
 
-        sfmuniHelper.calculateRouteStopTotals(UNWEIGHTED_AGGFILE, 'df',  'route_stops')
-        sfmuniHelper.calculateDailyRouteStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'daily_route_stops')
+#        sfmuniHelper.calculateRouteStopTotals(UNWEIGHTED_AGGFILE, 'df',  'route_stops', weight=False)
+#        sfmuniHelper.calculateDailyRouteStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'daily_route_stops', weight=False)
 
-        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'routes')  
-        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_routes')  
+#        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'routes', weight=False)  
+#        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_routes', weight=False)  
 
-        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'stops')
-        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_stops')
+#        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'stops', weight=False)
+#        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_stops', weight=False)
 
-        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'system')
-        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_system')
+#        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'system', weight=False)
+#        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_system', weight=False)
 
         print 'Finished unweighted aggregations in ', (datetime.datetime.now() - startTime) 
     
+
     # add weights.  Calculate new aggregations. 
     if 'aggWeighted' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
+        
+        #copy unweighted DF to start.
+        shutil.copyfile(UNWEIGHTED_AGGFILE, WEIGHTED_AGGFILE)
 
-        sfmuniHelper.weightRouteStopTotals(UNWEIGHTED_AGGFILE, WEIGHTED_AGGFILE, 'route_stops', 'route_stops')
-        sfmuniHelper.calculateDailyRouteStopTotals(WEIGHTED_AGGFILE, 'route_stops',  'daily_route_stops')
+        sfmuniHelper.calculateRouteStopTotals(WEIGHTED_AGGFILE, 'df',  'route_stops', weight=True)
+        sfmuniHelper.calculateDailyRouteStopTotals(WEIGHTED_AGGFILE, 'route_stops',  'daily_route_stops', weight=True)
 
-        sfmuniHelper.calculateRouteTotals(WEIGHTED_AGGFILE, 'route_stops',  'routes')  
-        sfmuniHelper.calculateRouteTotals(WEIGHTED_AGGFILE, 'daily_route_stops',  'daily_routes')
+        sfmuniHelper.calculateRouteTotals(WEIGHTED_AGGFILE, 'route_stops',  'routes', weight=True)  
+        sfmuniHelper.calculateRouteTotals(WEIGHTED_AGGFILE, 'daily_route_stops',  'daily_routes', weight=True)
 
-        sfmuniHelper.calculateStopTotals(WEIGHTED_AGGFILE, 'route_stops',  'stops')
-        sfmuniHelper.calculateStopTotals(WEIGHTED_AGGFILE, 'daily_route_stops',  'daily_stops')
+        sfmuniHelper.calculateStopTotals(WEIGHTED_AGGFILE, 'route_stops',  'stops', weight=True)
+        sfmuniHelper.calculateStopTotals(WEIGHTED_AGGFILE, 'daily_route_stops',  'daily_stops', weight=True)
 
-        sfmuniHelper.calculateSystemTotals(WEIGHTED_AGGFILE, 'route_stops',  'system')
-        sfmuniHelper.calculateSystemTotals(WEIGHTED_AGGFILE, 'daily_route_stops',  'daily_system')
+        sfmuniHelper.calculateSystemTotals(WEIGHTED_AGGFILE, 'route_stops',  'system', weight=True)
+        sfmuniHelper.calculateSystemTotals(WEIGHTED_AGGFILE, 'daily_route_stops',  'daily_system', weight=True)
 
         print 'Finished weighted aggregations in ', (datetime.datetime.now() - startTime) 
                 
+
     # Impute values where there are no observations for that route in that time of day. 
     if 'aggImputed' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()           
         sfmuniHelper.imputeMissingRouteStops(UNWEIGHTED_AGGFILE, IMPUTED_AGGFILE, 'route_stops', 'unweighted_route_stops')
         
-        sfmuniHelper.weightRouteStopTotals(IMPUTED_AGGFILE, IMPUTED_AGGFILE, 'unweighted_route_stops', 'route_stops')
-        sfmuniHelper.calculateDailyRouteStopTotals(IMPUTED_AGGFILE, 'route_stops',  'daily_route_stops')
+        sfmuniHelper.calculateRouteStopTotals(IMPUTED_AGGFILE, 'df',  'route_stops', weight=True)
+        sfmuniHelper.calculateDailyRouteStopTotals(IMPUTED_AGGFILE, 'route_stops',  'daily_route_stops', weight=True)
 
-        sfmuniHelper.calculateRouteTotals(IMPUTED_AGGFILE, 'route_stops',  'routes')  
-        sfmuniHelper.calculateRouteTotals(IMPUTED_AGGFILE, 'daily_route_stops',  'daily_routes')
+        sfmuniHelper.calculateRouteTotals(IMPUTED_AGGFILE, 'route_stops',  'routes', weight=True)  
+        sfmuniHelper.calculateRouteTotals(IMPUTED_AGGFILE, 'daily_route_stops',  'daily_routes', weight=True)
 
-        sfmuniHelper.calculateStopTotals(IMPUTED_AGGFILE, 'route_stops',  'stops')
-        sfmuniHelper.calculateStopTotals(IMPUTED_AGGFILE, 'daily_route_stops',  'daily_stops')
+        sfmuniHelper.calculateStopTotals(IMPUTED_AGGFILE, 'route_stops',  'stops', weight=True)
+        sfmuniHelper.calculateStopTotals(IMPUTED_AGGFILE, 'daily_route_stops',  'daily_stops', weight=True)
 
-        sfmuniHelper.calculateSystemTotals(IMPUTED_AGGFILE, 'route_stops',  'system')
-        sfmuniHelper.calculateSystemTotals(IMPUTED_AGGFILE, 'daily_route_stops',  'daily_system')
+        sfmuniHelper.calculateSystemTotals(IMPUTED_AGGFILE, 'route_stops',  'system', weight=True)
+        sfmuniHelper.calculateSystemTotals(IMPUTED_AGGFILE, 'daily_route_stops',  'daily_system', weight=True)
 
-        print 'Finished weighted aggregations in ', (datetime.datetime.now() - startTime) 
+        print 'Finished imputed aggregations in ', (datetime.datetime.now() - startTime) 
         
         
     # process Clipper data.  
