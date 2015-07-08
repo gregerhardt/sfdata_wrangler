@@ -31,10 +31,13 @@ def cleanCrosstab(rows, cols, values, aggfunc=sum):
     Also, adds in proper row and column totals
     """
         
-    t = pd.crosstab(rows, cols, values.fillna(np.inf), aggfunc=aggfunc)
-    t.replace(to_replace=np.nan, value=0, inplace=True)
-    t.replace(to_replace=np.inf, value=np.nan, inplace=True)
+    t = pd.crosstab(rows, cols, values, aggfunc=aggfunc, dropna=False)
+    count = pd.crosstab(rows, cols, dropna=False)
+    
+    t = t.mask(count==0, other=0)
+        
     t['Total'] = t.sum(axis=1)
     t = t.append(pd.Series(t.sum(axis=0), name='Total'))
+    
     return t
         
