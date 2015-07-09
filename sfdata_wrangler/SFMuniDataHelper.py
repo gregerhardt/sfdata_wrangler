@@ -742,80 +742,79 @@ class SFMuniDataHelper():
             # note that .values is needed due to the following bug in Canopy:
             # https://github.com/pydata/pandas/issues/9328 
             # also, be sure they are floats
-            df['MARGINAL_WEIGHT'] = (df['TOTTRIPS'].astype(float).values 
-                                    / df['WGTTRIPS'].astype(float).values)
+            df['WEIGHT'] = (df['TOTTRIPS'].astype(float).values /
+                           (df['OBSTRIPS'].astype(float).values + 
+                            df['IMPTRIPS'].astype(float).values))
 
             # replace infinite weight with missing value
-            df['MARGINAL_WEIGHT'] = np.where(df['MARGINAL_WEIGHT']==np.inf, 
-                                             np.nan, 
-                                             df['MARGINAL_WEIGHT'])
+            df['WEIGHT'] = np.where(df['WEIGHT']==np.inf, 
+                                    np.nan, 
+                                    df['WEIGHT'])
             
-            # calculate the total WEIGHT itself, for reference
-            df['WEIGHT'] = df['MARGINAL_WEIGHT'] * df['WEIGHT']
                             
             # weighted trips is to check that things add up
-            df['WGTTRIPS'] = df['MARGINAL_WEIGHT'] * df['WGTTRIPS']
+            df['WGTTRIPS'] = df['WEIGHT'] * (df['OBSTRIPS'] + df['IMPTRIPS'])
                     
             # scale up the ridership based on weight
             # depending on the level of aggregation, some of these may 
             # not be included, so check first. 
             if 'ON' in df.columns: 
-                df['ON']            = df['MARGINAL_WEIGHT'] * df['ON']     
+                df['ON']            = df['WEIGHT'] * df['ON']     
    
             if 'OFF' in df.columns:   
-                df['OFF']           = df['MARGINAL_WEIGHT'] * df['OFF']    
+                df['OFF']           = df['WEIGHT'] * df['OFF']    
    
             if 'LOAD_ARR' in df.columns:  
-                df['LOAD_ARR']      = df['MARGINAL_WEIGHT'] * df['LOAD_ARR']  
+                df['LOAD_ARR']      = df['WEIGHT'] * df['LOAD_ARR']  
  
             if 'LOAD_DEP' in df.columns: 
-                df['LOAD_DEP']      = df['MARGINAL_WEIGHT'] * df['LOAD_DEP']   
+                df['LOAD_DEP']      = df['WEIGHT'] * df['LOAD_DEP']   
 
             if 'PASSMILES' in df.columns: 
-                df['PASSMILES']     = df['MARGINAL_WEIGHT'] * df['PASSMILES']  
+                df['PASSMILES']     = df['WEIGHT'] * df['PASSMILES']  
 
             if 'PASSHOURS' in df.columns: 
-                df['PASSHOURS']     = df['MARGINAL_WEIGHT'] * df['PASSHOURS']  
+                df['PASSHOURS']     = df['WEIGHT'] * df['PASSHOURS']  
 
             if 'WAITHOURS' in df.columns: 
-                df['WAITHOURS']     = df['MARGINAL_WEIGHT'] * df['WAITHOURS']  
+                df['WAITHOURS']     = df['WEIGHT'] * df['WAITHOURS']  
 
             if 'PASSDELAY_DEP' in df.columns: 
-                df['PASSDELAY_DEP'] = df['MARGINAL_WEIGHT'] * df['PASSDELAY_DEP']  
+                df['PASSDELAY_DEP'] = df['WEIGHT'] * df['PASSDELAY_DEP']  
 
             if 'PASSDELAY_ARR' in df.columns: 
-                df['PASSDELAY_ARR'] = df['MARGINAL_WEIGHT'] * df['PASSDELAY_ARR']  
+                df['PASSDELAY_ARR'] = df['WEIGHT'] * df['PASSDELAY_ARR']  
 
             if 'RDBRDNGS' in df.columns: 
-                df['RDBRDNGS']      = df['MARGINAL_WEIGHT'] * df['RDBRDNGS']  
+                df['RDBRDNGS']      = df['WEIGHT'] * df['RDBRDNGS']  
  
             if 'CAPACITY' in df.columns: 
-                df['CAPACITY']      = df['MARGINAL_WEIGHT'] * df['CAPACITY']   
+                df['CAPACITY']      = df['WEIGHT'] * df['CAPACITY']   
 
             if 'DOORCYCLES' in df.columns: 
-                df['DOORCYCLES']    = df['MARGINAL_WEIGHT'] * df['DOORCYCLES'] 
+                df['DOORCYCLES']    = df['WEIGHT'] * df['DOORCYCLES'] 
 
             if 'WHEELCHAIR' in df.columns: 
-                df['WHEELCHAIR']    = df['MARGINAL_WEIGHT'] * df['WHEELCHAIR'] 
+                df['WHEELCHAIR']    = df['WEIGHT'] * df['WHEELCHAIR'] 
 
             if 'BIKERACK' in df.columns: 
-                df['BIKERACK']      = df['MARGINAL_WEIGHT'] * df['BIKERACK']  
+                df['BIKERACK']      = df['WEIGHT'] * df['BIKERACK']  
   
             #df['VC'] is a ratio, so no need to scale
             #df['CROWDED'] is based on a ratio, so no need to scale
             
             if 'CROWDHOURS' in df.columns: 
-                df['CROWDHOURS']    = df['MARGINAL_WEIGHT'] * df['CROWDHOURS']    
+                df['CROWDHOURS']    = df['WEIGHT'] * df['CROWDHOURS']    
         
                 # system characteristics
             if 'SERVMILES' in df.columns: 
-                df['SERVMILES']     = df['MARGINAL_WEIGHT'] * df['SERVMILES']
+                df['SERVMILES']     = df['WEIGHT'] * df['SERVMILES']
 
             if 'DWELL' in df.columns: 
-                df['DWELL']         = df['MARGINAL_WEIGHT'] * df['DWELL']
+                df['DWELL']         = df['WEIGHT'] * df['DWELL']
 
             if 'RUNTIME' in df.columns: 
-                df['RUNTIME']       = df['MARGINAL_WEIGHT'] * df['RUNTIME']
+                df['RUNTIME']       = df['WEIGHT'] * df['RUNTIME']
 
             return df
                                                            

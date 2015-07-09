@@ -153,17 +153,17 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         sfmuniHelper.calcMonthlyAverages(EXPANDED_OUTFILE, UNWEIGHTED_AGGFILE, 'expanded', 'df')
 
-#        sfmuniHelper.calculateRouteStopTotals(UNWEIGHTED_AGGFILE, 'df',  'route_stops', weight=False)
-#        sfmuniHelper.calculateDailyRouteStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'daily_route_stops', weight=False)
+        sfmuniHelper.calculateRouteStopTotals(UNWEIGHTED_AGGFILE, 'df',  'route_stops', weight=False)
+        sfmuniHelper.calculateDailyRouteStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'daily_route_stops', weight=False)
 
-#        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'routes', weight=False)  
-#        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_routes', weight=False)  
+        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'routes', weight=False)  
+        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_routes', weight=False)  
 
-#        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'stops', weight=False)
-#        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_stops', weight=False)
+        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'stops', weight=False)
+        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_stops', weight=False)
 
-#        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'system', weight=False)
-#        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_system', weight=False)
+        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'system', weight=False)
+        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_system', weight=False)
 
         print 'Finished unweighted aggregations in ', (datetime.datetime.now() - startTime) 
     
@@ -175,6 +175,8 @@ if __name__ == "__main__":
         #copy unweighted DF to start.
         shutil.copyfile(UNWEIGHTED_AGGFILE, WEIGHTED_AGGFILE)
 
+        # should calculate weights at lowest level
+        
         sfmuniHelper.calculateRouteStopTotals(WEIGHTED_AGGFILE, 'df',  'route_stops', weight=True)
         sfmuniHelper.calculateDailyRouteStopTotals(WEIGHTED_AGGFILE, 'route_stops',  'daily_route_stops', weight=True)
 
