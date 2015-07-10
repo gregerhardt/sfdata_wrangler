@@ -44,9 +44,8 @@ USAGE = r"""
 # VALID STEPS-- list of allowable steps to run
 VALID_STEPS = [ 'clean', 
                 'expand', 
-                'aggUnweighted', 
-                'aggWeighted', 
-                'aggImputed', 
+                'weight', 
+                'aggregate', 
                 'cleanClipper'
                 ]    
                 
@@ -106,11 +105,11 @@ RAW_CLIPPER_FILES =[#"D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
                    ]
 
 # OUTPUT FILES--change as needed
-SFMUNI_OUTFILE    = "D:/Output/sfmuni.h5"    
+CLEANED_OUTFILE   = "D:/Output/sfmuni_cleaned.h5"    
 EXPANDED_OUTFILE  = "D:/Output/sfmuni_expanded.h5"    
-UNWEIGHTED_AGGFILE= "D:/Output/sfmuni_unweighted.h5"
-WEIGHTED_AGGFILE  = "D:/Output/sfmuni_weighted.h5"
-IMPUTED_AGGFILE   = "D:/Output/sfmuni_imputed.h5"
+WEIGHTED_OUTFILE  = "D:/Output/sfmuni_weighted_YYYY.h5"
+AGGREGATE_OUTFILE = "D:/Output/sfmuni_aggregate.h5"
+
 CLIPPER_OUTFILE   = "D:/Output/clipper.h5"
 
 
@@ -132,85 +131,50 @@ if __name__ == "__main__":
     # create the helper
     sfmuniHelper = SFMuniDataHelper()
     sfmuniHelper.readRouteEquiv(ROUTE_EQUIV)
+    gtfsHelper = GTFSHelper()
 
     # convert the AVL/APC data
     if 'clean' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         for infile in RAW_STP_FILES: 
-            sfmuniHelper.processRawData(infile, SFMUNI_OUTFILE)
-        print 'Finished converting SFMuni data in ', (datetime.datetime.now() - startTime)
+            sfmuniHelper.processRawData(infile, CLEANED_OUTFILE)
+        print 'Finished cleaning SFMuni data in ', (datetime.datetime.now() - startTime)
 
     # process GTFS data, and join AVL/APC data to it. 
     if 'expand' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        gtfsHelper = GTFSHelper()
         for infile in RAW_GTFS_FILES: 
-            gtfsHelper.processRawData(infile, SFMUNI_OUTFILE, EXPANDED_OUTFILE)        
-        print 'Finished converting and joining GTFS in ', (datetime.datetime.now() - startTime)
+            gtfsHelper.processRawData(infile, CLEANED_OUTFILE, EXPANDED_OUTFILE)        
+        print 'Finished expanding to GTFS in ', (datetime.datetime.now() - startTime)
 
     # calculate monthly averages, and aggregate the unweighted data
-    if 'aggUnweighted' in STEPS_TO_RUN: 
+    if 'weight' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sfmuniHelper.calcMonthlyAverages(EXPANDED_OUTFILE, UNWEIGHTED_AGGFILE, 'expanded', 'df')
-
-        sfmuniHelper.calculateRouteStopTotals(UNWEIGHTED_AGGFILE, 'df',  'route_stops', weight=False)
-        sfmuniHelper.calculateDailyRouteStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'daily_route_stops', weight=False)
-
-        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'routes', weight=False)  
-        sfmuniHelper.calculateRouteTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_routes', weight=False)  
-
-        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'stops', weight=False)
-        sfmuniHelper.calculateStopTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_stops', weight=False)
-
-        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'route_stops',  'system', weight=False)
-        sfmuniHelper.calculateSystemTotals(UNWEIGHTED_AGGFILE, 'daily_route_stops',  'daily_system', weight=False)
-
-        print 'Finished unweighted aggregations in ', (datetime.datetime.now() - startTime) 
+        gtfsHelper.weightExpandedData(EXPANDED_OUTFILE, WEIGHTED_OUTFILE)
+        print 'Finished weighting data in ', (datetime.datetime.now() - startTime) 
     
 
     # add weights.  Calculate new aggregations. 
-    if 'aggWeighted' in STEPS_TO_RUN: 
+    if 'aggregate' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         
-        #copy unweighted DF to start.
-        shutil.copyfile(UNWEIGHTED_AGGFILE, WEIGHTED_AGGFILE)
-
-        # should calculate weights at lowest level
+        sfmuniHelper.calcMonthlyAverages(EXPANDED_OUTFILE, AGGREGATE_OUTFILE, 'expanded', 'df')
         
-        sfmuniHelper.calculateRouteStopTotals(WEIGHTED_AGGFILE, 'df',  'route_stops', weight=True)
-        sfmuniHelper.calculateDailyRouteStopTotals(WEIGHTED_AGGFILE, 'route_stops',  'daily_route_stops', weight=True)
+        sfmuniHelper.calculateRouteStopTotals(AGGREGATE_OUTFILE, 'df',  'route_stops', weight=True)
+        sfmuniHelper.calculateDailyRouteStopTotals(AGGREGATE_OUTFILE, 'route_stops',  'daily_route_stops', weight=True)
 
-        sfmuniHelper.calculateRouteTotals(WEIGHTED_AGGFILE, 'route_stops',  'routes', weight=True)  
-        sfmuniHelper.calculateRouteTotals(WEIGHTED_AGGFILE, 'daily_route_stops',  'daily_routes', weight=True)
+        sfmuniHelper.calculateRouteTotals(AGGREGATE_OUTFILE, 'route_stops',  'routes', weight=True)  
+        sfmuniHelper.calculateRouteTotals(AGGREGATE_OUTFILE, 'daily_route_stops',  'daily_routes', weight=True)
 
-        sfmuniHelper.calculateStopTotals(WEIGHTED_AGGFILE, 'route_stops',  'stops', weight=True)
-        sfmuniHelper.calculateStopTotals(WEIGHTED_AGGFILE, 'daily_route_stops',  'daily_stops', weight=True)
+        sfmuniHelper.calculateStopTotals(AGGREGATE_OUTFILE, 'route_stops',  'stops', weight=True)
+        sfmuniHelper.calculateStopTotals(AGGREGATE_OUTFILE, 'daily_route_stops',  'daily_stops', weight=True)
 
-        sfmuniHelper.calculateSystemTotals(WEIGHTED_AGGFILE, 'route_stops',  'system', weight=True)
-        sfmuniHelper.calculateSystemTotals(WEIGHTED_AGGFILE, 'daily_route_stops',  'daily_system', weight=True)
+        sfmuniHelper.calculateSystemTotals(AGGREGATE_OUTFILE, 'route_stops',  'system', weight=True)
+        sfmuniHelper.calculateSystemTotals(AGGREGATE_OUTFILE, 'daily_route_stops',  'daily_system', weight=True)
 
-        print 'Finished weighted aggregations in ', (datetime.datetime.now() - startTime) 
+        print 'Finished aggregations in ', (datetime.datetime.now() - startTime) 
                 
 
-    # Impute values where there are no observations for that route in that time of day. 
-    if 'aggImputed' in STEPS_TO_RUN: 
-        startTime = datetime.datetime.now()           
-        sfmuniHelper.imputeMissingRouteStops(UNWEIGHTED_AGGFILE, IMPUTED_AGGFILE, 'route_stops', 'unweighted_route_stops')
-        
-        sfmuniHelper.calculateRouteStopTotals(IMPUTED_AGGFILE, 'df',  'route_stops', weight=True)
-        sfmuniHelper.calculateDailyRouteStopTotals(IMPUTED_AGGFILE, 'route_stops',  'daily_route_stops', weight=True)
-
-        sfmuniHelper.calculateRouteTotals(IMPUTED_AGGFILE, 'route_stops',  'routes', weight=True)  
-        sfmuniHelper.calculateRouteTotals(IMPUTED_AGGFILE, 'daily_route_stops',  'daily_routes', weight=True)
-
-        sfmuniHelper.calculateStopTotals(IMPUTED_AGGFILE, 'route_stops',  'stops', weight=True)
-        sfmuniHelper.calculateStopTotals(IMPUTED_AGGFILE, 'daily_route_stops',  'daily_stops', weight=True)
-
-        sfmuniHelper.calculateSystemTotals(IMPUTED_AGGFILE, 'route_stops',  'system', weight=True)
-        sfmuniHelper.calculateSystemTotals(IMPUTED_AGGFILE, 'daily_route_stops',  'daily_system', weight=True)
-
-        print 'Finished imputed aggregations in ', (datetime.datetime.now() - startTime) 
-        
         
     # process Clipper data.  
     if 'cleanClipper' in STEPS_TO_RUN: 

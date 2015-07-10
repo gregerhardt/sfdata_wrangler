@@ -486,7 +486,6 @@ class SFMuniDataHelper():
         groupby   = []
         aggMethod = {}
         countFields = []
-        meanFields = []   # keep track of these for calculating weighted averages
         
         for col in columnSpecs:
             

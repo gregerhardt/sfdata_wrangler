@@ -82,7 +82,56 @@ def reproject(latitude, longitude):
     y = latitude * lat_dist
     x = longitude * lat_dist * cos(radians(latitude))
     return x, y
+
+
+def calcGroupWeights(df, oldWeight):
+    """
+    df - dataframe to operate on.  Must contain columns for TRIP_STOPS
+         and for the oldWeight.  
+    oldWeight - column name in df containing the previous weight. 
     
+    Intended to operate on a group and weight up to the TRIP_STOPS
+    in the group.  
+    
+    """
+    
+    obs = float((df[oldWeight] * df['TRIP_STOPS']).sum())
+    tot = float(df['TRIP_STOPS'].sum())    
+    if obs>0:
+        factor = tot / obs
+    else: 
+        factor = np.nan
+        
+    out = df[oldWeight] * factor   
+    
+    return out
+
+
+def calcWeights(df, groupby, oldWeight):
+    """
+    df - dataframe to operate on.  Must contain columns for TOTTRIPS
+         and for the oldWeight.  
+    groupby - list of columns for grouping dataframe
+    oldWeight - column name in df containing the previous weight. 
+    
+    groups the dataframe as specified, and calculates weights to 
+    match the total trips in each group. 
+    
+    returns series with the weights, and same index df    
+    """
+    
+    grouped = df.groupby(groupby)
+    
+    # special case if only one group
+    if (len(grouped)==1):
+        return calcGroupWeights(df, oldWeight)
+    else: 
+        weights = grouped.apply(calcGroupWeights, oldWeight)        
+        weights = weights.reset_index(level=groupby)        
+        return weights[oldWeight]
+    
+
+            
     
 class GTFSHelper():
     """ 
@@ -107,7 +156,8 @@ class GTFSHelper():
         ['DIR',               0, 1, 'join'], 
         ['TRIP',              0, 1, 'join'], 
         ['SEQ',               0, 1, 'join'], 
-        ['OBSERVED',          0, 1, 'gtfs'],        # observed in AVL data?
+        ['TRIP_STOPS',        0, 0, 'calculated'],  # observed in AVL data?
+        ['OBSERVED',          0, 0, 'gtfs'],        # observed in AVL data?
         ['ROUTE_TYPE',        0, 0, 'gtfs'],        # route/trip attributes 
         ['TRIP_HEADSIGN',    64, 0, 'gtfs'], 
 	['HEADWAY'   ,        0, 0, 'gtfs'], 
@@ -314,6 +364,9 @@ class GTFSHelper():
                             record['DATE'] = startDate
                             record['DOW']  = int(trip.service_id)
                             record['TOD']  = timeOfDay
+                            
+                            # observations
+                            record['TRIP_STOPS'] = 1
                             record['OBSERVED'] = 0
             
                             # For matching to AVL data
@@ -614,3 +667,109 @@ class GTFSHelper():
         return joined
 
     
+    def weightExpandedData(self, expanded_file, weighted_file):
+        """
+        Reads in the expanded sfmuni data, and adds a series of weight columns
+        that will be used when aggregating the data.  
+        
+        """
+        
+        # open the data stores
+        instore = pd.HDFStore(expanded_file)
+        
+        # get the list of months and days of week to loop through
+        months = instore.select_column('expanded', 'MONTH').unique()
+        months.sort()
+        print 'Retrieved a total of %i months to process' % len(months)
+
+        daysOfWeek = instore.select_column('expanded', 'DOW').unique()
+        print 'For each month, processing %i days of week' % len(daysOfWeek)        
+        
+        # loop through the months, and days of week
+        for month in months: 
+            print 'Processing ', month
+            
+            for dow in daysOfWeek: 
+                dow = int(dow)
+                print '  Processing day of week ', dow
+                                
+
+                print '    Reading data ', datetime.datetime.now()      
+                # get a months worth of data for this day of week
+                # be sure we have a clean index
+                df = instore.select('expanded', 
+                        where='MONTH==Timestamp(month) and DOW==dow and TOD=tod')
+                df.index = pd.Series(range(0,len(df)))      
+                  
+
+                print '    Calculating weights ', datetime.datetime.now()             
+
+                # start with all observations weighted equally
+                df['TRIP_STOPS'] = 1
+                df['BASE_WEIGHT'] = df['OBSERVED'].mask(df['OBSERVED']==0, other=np.nan)
+
+                # add the weight columns, specific to the level of aggregation
+                # the weights build upon the lower-level weights, so we scale
+                # the low-weights up uniformly within the group.  
+                # note: RS = routestop
+                
+                # route_stops
+                df['RS_TRIP_WEIGHT'] = calcWeights(df, 
+                        groupby=['DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP', 'SEQ'], 
+                        oldWeight='BASE_WEIGHT')
+
+                df['RS_TOD_WEIGHT'] = calcWeights(df, 
+                        groupby=['DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
+                        oldWeight='RS_TRIP_WEIGHT')                
+                                              
+                df['RS_DAY_WEIGHT'] = calcWeights(df, 
+                        groupby=['DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
+                        oldWeight='RS_TOD_WEIGHT')
+                
+                # routes
+                df['ROUTE_TOD_WEIGHT'] = calcWeights(df, 
+                        groupby=['DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
+                        oldWeight='RS_TOD_WEIGHT')
+
+                df['ROUTE_DAY_WEIGHT'] = calcWeights(df, 
+                        groupby=['DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
+                        oldWeight='ROUTE_TOD_WEIGHT')
+
+                # stops
+                df['STOP_TOD_WEIGHT'] = calcWeights(df, 
+                        groupby=['DOW','TOD','AGENCY_ID','STOP_ID'], 
+                        oldWeight='RS_TOD_WEIGHT')
+
+                df['STOP_DAY_WEIGHT'] = calcWeights(df, 
+                        groupby=['DOW','AGENCY_ID','STOP_ID'], 
+                        oldWeight='STOP_TOD_WEIGHT')
+
+                # system
+                df['SYSTEM_TOD_WEIGHT'] = calcWeights(df, 
+                        groupby=['DOW','TOD','AGENCY_ID'], 
+                        oldWeight='ROUTE_TOD_WEIGHT')
+
+                df['SYSTEM_DAY_WEIGHT'] = calcWeights(df, 
+                        groupby=['DOW','AGENCY_ID'], 
+                        oldWeight='ROUTE_DAY_WEIGHT')
+
+
+                print '    Writing data ', datetime.datetime.now()                      
+                # use a separate file for each year
+                # and write a separate table for each month and DOW
+                # format of the table name is YYYYMMDDdX, where X is the day of week
+                outfile = weighted_file.replace('YYYY', str(pd.Timestamp(month).year))                
+                outkey = str(pd.Timestamp(month).date()).replace('-', '') + 'd' + str(dow)
+
+                outstore = pd.HDFStore(outfile)
+                
+                # don't append the data, overwrite
+                try: 
+                    outstore.remove(outkey)      
+                    print "Replacing HDF table ", outkey       
+                except KeyError: 
+                    print "Creating HDF table ", outkey
+                    
+                outstore.append(outkey, df, data_columns=True)
+                outstore.close()
+
