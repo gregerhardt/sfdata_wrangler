@@ -20,7 +20,7 @@ __license__     = """
 import pandas as pd
 import numpy as np
 
-def cleanCrosstab(rows, cols, values, aggfunc=sum): 
+def cleanCrosstab(rows, cols, values, aggfunc=sum, weight=None): 
     """ 
     Performs a crosstab on the rows, cols and values specified.
     
@@ -30,8 +30,12 @@ def cleanCrosstab(rows, cols, values, aggfunc=sum):
     
     Also, adds in proper row and column totals
     """
-        
-    t = pd.crosstab(rows, cols, values, aggfunc=aggfunc, dropna=False)
+    
+    if weight is None:     
+        t = pd.crosstab(rows, cols, values, aggfunc=aggfunc, dropna=False)
+    else:
+        t = pd.crosstab(rows, cols, values*weight, aggfunc=aggfunc, dropna=False)
+
     count = pd.crosstab(rows, cols, dropna=False)
     
     t = t.mask(count==0, other=0)
