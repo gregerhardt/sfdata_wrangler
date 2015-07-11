@@ -84,6 +84,20 @@ def reproject(latitude, longitude):
     return x, y
 
 
+def getOutfile(filename, date):
+    """
+    gets a filename with the year replacing YYYY
+    """
+    return filename.replace('YYYY', str(date.year))
+
+
+def getOutkey(month, dow):
+    """
+    gets the key name as a string from the month and the day of week
+    """
+    return str(month.date()).replace('-', '') + 'd' + str(dow)
+                    
+
 def calcGroupWeights(df, oldWeight):
     """
     df - dataframe to operate on.  Must contain columns for TRIP_STOPS
@@ -123,11 +137,11 @@ def calcWeights(df, groupby, oldWeight):
     grouped = df.groupby(groupby)
     
     # special case if only one group
-    if (len(grouped)==1):
+    if (len(grouped)<=1):
         return calcGroupWeights(df, oldWeight)
     else: 
         weights = grouped.apply(calcGroupWeights, oldWeight)        
-        weights = weights.reset_index(level=groupby)        
+        weights = weights.reset_index(level=groupby)      
         return weights[oldWeight]
     
 
@@ -217,7 +231,7 @@ class GTFSHelper():
         ]
                 
 
-    def processRawData(self, gtfs_file, sfmuni_file, outfile):
+    def processRawData(self, gtfs_file, sfmuni_file, expanded_file):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
         This will be done for every individual day, so you get a list of 
@@ -248,18 +262,20 @@ class GTFSHelper():
                         
         # open the data stores
         sfmuni_store = pd.HDFStore(sfmuni_file)
-        out_store = pd.HDFStore(outfile)                
         
         # establish the feed
         tfl = transitfeed.Loader(feed_path=gtfs_file)
         schedule = tfl.Load()
         
+        #TODO - this doesn't work properly.  Fix it!
+        '''
         # adjust the start date to make sure we don't overlap with 
         # previously written records, and also that we don't leave any gaps
         dateRange = schedule.GetDateRange()
         startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
         newStartDate = startDate
         try: 
+            out_store = pd.HDFStore(outfile)                
             existingDates = out_store.select_column('gtfs', 'DATE').unique()
             newStartDate = pd.to_datetime(existingDates.max()) + pd.DateOffset(days=1)
         except: 
@@ -271,6 +287,7 @@ class GTFSHelper():
             servicePeriods = schedule.GetServicePeriodList()
             for period in servicePeriods:
                 period.SetStartDate(dateString)
+        '''
 
         # determine the dates
         dateRange = schedule.GetDateRange()
@@ -479,9 +496,10 @@ class GTFSHelper():
         servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate)        
         for date, servicePeriods in servicePeriodsEachDate:
             
-            month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()            
-            
+            month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()    
+  
             for period in servicePeriods: 
+                
                 # get the corresponding MUNI data for this date
                 sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
                 if len(sfmuni)>0: 
@@ -497,15 +515,22 @@ class GTFSHelper():
                     df['MONTH'] = month
                     
                     # join the sfmuni data
-                    joined = self.joinSFMuniData(df, sfmuni)
-            
+                    joined = self.joinSFMuniData(df, sfmuni)            
     
-                    # write the output
-                    out_store.append('expanded', joined, data_columns=True, 
+                    # write the output        
+                    # use a separate file for each year
+                    # and write a separate table for each month and DOW
+                    # format of the table name is YYYYMMDDdX, where X is the day of week
+                    outfile = getOutfile(expanded_file, month)
+                    outkey = getOutkey(month, period.service_id)                    
+                    outstore = pd.HDFStore(outfile)         
+                                            
+                    outstore.append(outkey, joined, data_columns=True, 
                                 min_itemsize=stringLengths)
+                    
+                    outstore.close()
 
         sfmuni_store.close()
-        out_store.close()
 
 
     def joinSFMuniData(self, gtfs, sfmuni):
@@ -675,6 +700,7 @@ class GTFSHelper():
         """
         
         # open the data stores
+        #TODO - switch to Year-Month-DOW file structure
         instore = pd.HDFStore(expanded_file)
         
         # get the list of months and days of week to loop through
@@ -711,7 +737,6 @@ class GTFSHelper():
                 # add the weight columns, specific to the level of aggregation
                 # the weights build upon the lower-level weights, so we scale
                 # the low-weights up uniformly within the group.  
-                # note: RS = routestop
                 
                 # route_stops
                 df['RS_TRIP_WEIGHT'] = calcWeights(df, 
@@ -754,13 +779,14 @@ class GTFSHelper():
                         oldWeight='ROUTE_DAY_WEIGHT')
 
 
-                print '    Writing data ', datetime.datetime.now()                      
+                print '    Writing data ', datetime.datetime.now()            
+                          
                 # use a separate file for each year
                 # and write a separate table for each month and DOW
                 # format of the table name is YYYYMMDDdX, where X is the day of week
-                outfile = weighted_file.replace('YYYY', str(pd.Timestamp(month).year))                
-                outkey = str(pd.Timestamp(month).date()).replace('-', '') + 'd' + str(dow)
-
+                outfile = getOutfile(weighted_file, pd.Timestamp(month))
+                outkey = getOutkey(pd.Timestamp(month), dow)
+                
                 outstore = pd.HDFStore(outfile)
                 
                 # don't append the data, overwrite
