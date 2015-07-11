@@ -267,28 +267,6 @@ class GTFSHelper():
         tfl = transitfeed.Loader(feed_path=gtfs_file)
         schedule = tfl.Load()
         
-        #TODO - this doesn't work properly.  Fix it!
-        '''
-        # adjust the start date to make sure we don't overlap with 
-        # previously written records, and also that we don't leave any gaps
-        dateRange = schedule.GetDateRange()
-        startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
-        newStartDate = startDate
-        try: 
-            out_store = pd.HDFStore(outfile)                
-            existingDates = out_store.select_column('gtfs', 'DATE').unique()
-            newStartDate = pd.to_datetime(existingDates.max()) + pd.DateOffset(days=1)
-        except: 
-            print 'No need to check start date at start of file.'
-        if startDate != newStartDate:
-            print 'To avoid gaps and overlaps, startDate is changed to ', newStartDate 
-            dateString = ("{0:0>4}".format(newStartDate.year) + 
-                "{0:0>2}".format(newStartDate.month) + "{0:0>2}".format(newStartDate.day))
-            servicePeriods = schedule.GetServicePeriodList()
-            for period in servicePeriods:
-                period.SetStartDate(dateString)
-        '''
-
         # determine the dates
         dateRange = schedule.GetDateRange()
         startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
@@ -502,6 +480,7 @@ class GTFSHelper():
                 
                 # get the corresponding MUNI data for this date
                 sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
+                
                 if len(sfmuni)>0: 
                     print 'Writing ', date, ' with ', len(sfmuni), ' observed records.'
             
@@ -724,7 +703,7 @@ class GTFSHelper():
                 # get a months worth of data for this day of week
                 # be sure we have a clean index
                 df = instore.select('expanded', 
-                        where='MONTH==Timestamp(month) and DOW==dow and TOD=tod')
+                        where='MONTH==Timestamp(month) and DOW==dow')                        
                 df.index = pd.Series(range(0,len(df)))      
                   
 
