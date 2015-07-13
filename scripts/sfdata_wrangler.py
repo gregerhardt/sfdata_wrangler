@@ -106,7 +106,7 @@ RAW_CLIPPER_FILES =[#"D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
 
 # OUTPUT FILES--change as needed
 CLEANED_OUTFILE   = "D:/Output/sfmuni_cleaned.h5"    
-EXPANDED_OUTFILE  = "D:/Output/sfmuni_expanded.h5"    
+EXPANDED_OUTFILE  = "D:/Output/sfmuni_expanded_YYYY.h5"    
 WEIGHTED_OUTFILE  = "D:/Output/sfmuni_weighted_YYYY.h5"
 AGGREGATE_OUTFILE = "D:/Output/sfmuni_aggregate.h5"
 

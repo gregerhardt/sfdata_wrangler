@@ -21,6 +21,7 @@ __license__     = """
 import pandas as pd
 import numpy as np
 import datetime
+import glob
 
 import transitfeed  
 import pyproj  
@@ -95,7 +96,7 @@ def getOutkey(month, dow):
     """
     gets the key name as a string from the month and the day of week
     """
-    return str(month.date()).replace('-', '') + 'd' + str(dow)
+    return 'm' + str(month.date()).replace('-', '') + 'd' + str(dow)
                     
 
 def calcGroupWeights(df, oldWeight):
@@ -170,7 +171,7 @@ class GTFSHelper():
         ['DIR',               0, 1, 'join'], 
         ['TRIP',              0, 1, 'join'], 
         ['SEQ',               0, 1, 'join'], 
-        ['TRIP_STOPS',        0, 0, 'calculated'],  # observed in AVL data?
+        ['TRIP_STOPS',        0, 0, 'gtfs'],        # total number of trip-stops
         ['OBSERVED',          0, 0, 'gtfs'],        # observed in AVL data?
         ['ROUTE_TYPE',        0, 0, 'gtfs'],        # route/trip attributes 
         ['TRIP_HEADSIGN',    64, 0, 'gtfs'], 
@@ -678,103 +679,92 @@ class GTFSHelper():
         
         """
         
-        # open the data stores
-        #TODO - switch to Year-Month-DOW file structure
-        instore = pd.HDFStore(expanded_file)
+        # get all infiles matching the pattern
+        pattern = expanded_file.replace('YYYY', '*')
+        infiles = glob.glob(pattern)
+        print 'Retrieved a total of %i years to process' % len(infiles)
         
-        # get the list of months and days of week to loop through
-        months = instore.select_column('expanded', 'MONTH').unique()
-        months.sort()
-        print 'Retrieved a total of %i months to process' % len(months)
-
-        daysOfWeek = instore.select_column('expanded', 'DOW').unique()
-        print 'For each month, processing %i days of week' % len(daysOfWeek)        
-        
-        # loop through the months, and days of week
-        for month in months: 
-            print 'Processing ', month
+        for infile in infiles: 
             
-            for dow in daysOfWeek: 
-                dow = int(dow)
-                print '  Processing day of week ', dow
-                                
-
-                print '    Reading data ', datetime.datetime.now()      
+            # open the data store and get the tokens to loop through
+            instore = pd.HDFStore(infile)            
+            keys = instore.keys()
+            print 'Retrieved a total of %i keys to process' % len(keys)   
+    
+            # loop through the months, and days of week
+            for key in keys: 
+                print 'Processing ', key
+                
                 # get a months worth of data for this day of week
                 # be sure we have a clean index
-                df = instore.select('expanded', 
-                        where='MONTH==Timestamp(month) and DOW==dow')                        
+                df = instore.select('key')                        
                 df.index = pd.Series(range(0,len(df)))      
-                  
-
-                print '    Calculating weights ', datetime.datetime.now()             
-
+                    
                 # start with all observations weighted equally
                 df['TRIP_STOPS'] = 1
                 df['BASE_WEIGHT'] = df['OBSERVED'].mask(df['OBSERVED']==0, other=np.nan)
-
+    
                 # add the weight columns, specific to the level of aggregation
                 # the weights build upon the lower-level weights, so we scale
                 # the low-weights up uniformly within the group.  
-                
+                    
                 # route_stops
                 df['RS_TRIP_WEIGHT'] = calcWeights(df, 
                         groupby=['DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP', 'SEQ'], 
                         oldWeight='BASE_WEIGHT')
-
+    
                 df['RS_TOD_WEIGHT'] = calcWeights(df, 
                         groupby=['DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
                         oldWeight='RS_TRIP_WEIGHT')                
-                                              
+                                                
                 df['RS_DAY_WEIGHT'] = calcWeights(df, 
                         groupby=['DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
                         oldWeight='RS_TOD_WEIGHT')
-                
+                    
                 # routes
                 df['ROUTE_TOD_WEIGHT'] = calcWeights(df, 
                         groupby=['DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
                         oldWeight='RS_TOD_WEIGHT')
-
+    
                 df['ROUTE_DAY_WEIGHT'] = calcWeights(df, 
                         groupby=['DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
                         oldWeight='ROUTE_TOD_WEIGHT')
-
+    
                 # stops
                 df['STOP_TOD_WEIGHT'] = calcWeights(df, 
                         groupby=['DOW','TOD','AGENCY_ID','STOP_ID'], 
                         oldWeight='RS_TOD_WEIGHT')
-
+    
                 df['STOP_DAY_WEIGHT'] = calcWeights(df, 
                         groupby=['DOW','AGENCY_ID','STOP_ID'], 
                         oldWeight='STOP_TOD_WEIGHT')
-
+    
                 # system
                 df['SYSTEM_TOD_WEIGHT'] = calcWeights(df, 
                         groupby=['DOW','TOD','AGENCY_ID'], 
                         oldWeight='ROUTE_TOD_WEIGHT')
-
+    
                 df['SYSTEM_DAY_WEIGHT'] = calcWeights(df, 
                         groupby=['DOW','AGENCY_ID'], 
                         oldWeight='ROUTE_DAY_WEIGHT')
-
-
-                print '    Writing data ', datetime.datetime.now()            
-                          
+                            
                 # use a separate file for each year
                 # and write a separate table for each month and DOW
                 # format of the table name is YYYYMMDDdX, where X is the day of week
+                datestring = (key.partition('m')[2]).partition('d')[0]
+                month = pd.to_datetime(datestring, format='%Y%m%d')
                 outfile = getOutfile(weighted_file, pd.Timestamp(month))
-                outkey = getOutkey(pd.Timestamp(month), dow)
-                
+                    
                 outstore = pd.HDFStore(outfile)
-                
+                    
                 # don't append the data, overwrite
                 try: 
-                    outstore.remove(outkey)      
-                    print "Replacing HDF table ", outkey       
+                    outstore.remove(key)      
+                    print "  Replacing HDF table ", key       
                 except KeyError: 
-                    print "Creating HDF table ", outkey
-                    
-                outstore.append(outkey, df, data_columns=True)
+                    print "  Creating HDF table ", key
+                        
+                outstore.append(key, df, data_columns=True)
                 outstore.close()
-
+            
+            instore.close()
