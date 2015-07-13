@@ -151,30 +151,13 @@ if __name__ == "__main__":
     if 'weight' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         gtfsHelper.weightExpandedData(EXPANDED_OUTFILE, WEIGHTED_OUTFILE)
-        print 'Finished weighting data in ', (datetime.datetime.now() - startTime) 
-    
+        print 'Finished weighting data in ', (datetime.datetime.now() - startTime)     
 
     # add weights.  Calculate new aggregations. 
     if 'aggregate' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        
-        sfmuniHelper.calcMonthlyAverages(EXPANDED_OUTFILE, AGGREGATE_OUTFILE, 'expanded', 'df')
-        
-        sfmuniHelper.calculateRouteStopTotals(AGGREGATE_OUTFILE, 'df',  'route_stops', weight=True)
-        sfmuniHelper.calculateDailyRouteStopTotals(AGGREGATE_OUTFILE, 'route_stops',  'daily_route_stops', weight=True)
-
-        sfmuniHelper.calculateRouteTotals(AGGREGATE_OUTFILE, 'route_stops',  'routes', weight=True)  
-        sfmuniHelper.calculateRouteTotals(AGGREGATE_OUTFILE, 'daily_route_stops',  'daily_routes', weight=True)
-
-        sfmuniHelper.calculateStopTotals(AGGREGATE_OUTFILE, 'route_stops',  'stops', weight=True)
-        sfmuniHelper.calculateStopTotals(AGGREGATE_OUTFILE, 'daily_route_stops',  'daily_stops', weight=True)
-
-        sfmuniHelper.calculateSystemTotals(AGGREGATE_OUTFILE, 'route_stops',  'system', weight=True)
-        sfmuniHelper.calculateSystemTotals(AGGREGATE_OUTFILE, 'daily_route_stops',  'daily_system', weight=True)
-
+        sfmuniHelper.aggregateToMonths(WEIGHTED_OUTFILE, AGGREGATE_OUTFILE)
         print 'Finished aggregations in ', (datetime.datetime.now() - startTime) 
-                
-
         
     # process Clipper data.  
     if 'cleanClipper' in STEPS_TO_RUN: 

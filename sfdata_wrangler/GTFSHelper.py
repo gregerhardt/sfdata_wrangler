@@ -450,10 +450,11 @@ class GTFSHelper():
                             data.append(record)                
                             i += 1
                                     
-            # convert to data frame
+            # convert to data frame and set unique index
             print "service_id %s has %i trip-stop records" % (period.service_id, len(data))
-            df = pd.DataFrame(data)            
-            
+            df = pd.DataFrame(data)       
+            df.index = pd.Series(range(0,len(df)))
+
             # calculate the headways, based on difference in previous bus on 
             # this route stopping at the same stop
             groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
@@ -657,12 +658,14 @@ class GTFSHelper():
                 # corresponds approximately to the range of 125-150% of
                 # the seated load, which is the maximum design load for
                 # peak of the peak conditions. 
-                if (row['VC'] > 0.85):
+                if (row['LOAD_ARR'] / row['CAPACITY'] > 0.85):
                     joined.at[i,'CROWDED'] = 1.0
+                    joined.at[i,'CROWDHOURS'] = (row['LOAD_ARR'] * row['RUNTIME_S']
+                                               + row['LOAD_DEP'] * row['DWELL_S']) / 60.0                  
                 else: 
                     joined.at[i,'CROWDED'] = 0.0
+                    joined.at[i,'CROWDHOURS'] = 0.0   
                     
-                joined.at[i,'CROWDHOURS'] = row['CROWDED'] * row['PASSHOURS']
                         
                                                 
             # keep only relevant columns, sorted
