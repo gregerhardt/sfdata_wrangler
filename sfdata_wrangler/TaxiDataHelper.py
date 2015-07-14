@@ -134,12 +134,12 @@ class TaxiDataHelper():
             rowsRead    += len(chunk)
         
             # convert to x y coordinates
-            lon_lat = pd.Series(zip(chunk['longitude'], chunk['latitude']))
+            lon_lat = pd.Series(zip(chunk['longitude'], chunk['latitude']), index=chunk.index)
             x_y = lon_lat.apply(HwyNetwork.convertLongitudeLatitudeToXY)
             chunk['x'], chunk['y'] = zip(*x_y)
             
             # keep only the points within the city bounds
-            chunk['in_sf'] = x_y.apply(HwyNetwork.isInSanFranciscoBox)
+            chunk['in_sf'] = x_y.apply(HwyNetwork.isInSanFranciscoBox, index=chunk.index)
             chunk = chunk[chunk['in_sf']==True]
         
             # convert to timedate formats
