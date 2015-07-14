@@ -65,10 +65,10 @@ def calculateHeadways(df):
     lastDeparture = 0
     for i, row in df.iterrows():    
         if lastDeparture==0: 
-            df['HEADWAY'][i] = np.NaN        # missing headway for first trip
+            df['HEADWAY_S'][i] = np.NaN        # missing headway for first trip
         else:
             diff = df['DEPARTURE_TIME_S'][i] - lastDeparture
-            df['HEADWAY'][i] = round(diff.seconds / 60.0, 2)
+            df['HEADWAY_S'][i] = round(diff.seconds / 60.0, 2)
         lastDeparture = df['DEPARTURE_TIME_S'][i]
     
     return df                                                
@@ -175,7 +175,7 @@ class GTFSHelper():
         ['OBSERVED',          0, 0, 'gtfs'],        # observed in AVL data?
         ['ROUTE_TYPE',        0, 0, 'gtfs'],        # route/trip attributes 
         ['TRIP_HEADSIGN',    64, 0, 'gtfs'], 
-	['HEADWAY'   ,        0, 0, 'gtfs'], 
+	['HEADWAY_S' ,        0, 0, 'gtfs'], 
         ['FARE',              0, 0, 'gtfs'], 
 	['PATTCODE'  ,       10, 0, 'avl'], 
 	['SCHOOL'    ,        0, 0, 'avl'], 
@@ -201,13 +201,14 @@ class GTFSHelper():
 	['RUNSPEED_S' ,       0, 0, 'gtfs'], 
 	['RUNSPEED'   ,       0, 0, 'calculated'], 
 	['ONTIME5'   ,        0, 0, 'calculated'], 
-	['ON'        ,        0, 0, 'avl'], # ridership
+	['ON'        ,        0, 0, 'avl'],           # ridership
 	['OFF'       ,        0, 0, 'avl'], 
 	['LOAD_ARR'  ,        0, 0, 'avl'], 
 	['LOAD_DEP'  ,        0, 0, 'avl'], 
 	['PASSMILES' ,        0, 0, 'calculated'], 
 	['PASSHOURS',         0, 0, 'calculated'], 
 	['WAITHOURS',         0, 0, 'calculated'], 
+	['FULLFARE_REV',      0, 0, 'calculated'],     # revenue if all passengers paid full fare
 	['PASSDELAY_DEP',     0, 0, 'calculated'], 
 	['PASSDELAY_ARR',     0, 0, 'calculated'], 
 	['RDBRDNGS'  ,        0, 0, 'avl'], 
@@ -376,7 +377,7 @@ class GTFSHelper():
                             # route/trip attributes
                             record['ROUTE_TYPE']       = int(route.route_type)
                             record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
-                            record['HEADWAY']          = np.NaN             # calculated below
+                            record['HEADWAY_S']        = np.NaN             # calculated below
                             record['FARE']             = float(fare)  
                             
                             # stop attriutes
@@ -560,6 +561,7 @@ class GTFSHelper():
         joined['PASSMILES']   = np.NaN
         joined['PASSHOURS']   = np.NaN
         joined['WAITHOURS']   = np.NaN
+        joined['FULLFARE_REV']   = np.NaN
         joined['PASSDELAY_DEP'] = np.NaN
         joined['PASSDELAY_ARR'] = np.NaN
         joined['VC'] = np.NaN
@@ -633,7 +635,10 @@ class GTFSHelper():
                                                                                         
                 # passenger hours of waiting time -- scheduled time
                 joined.at[i,'WAITHOURS'] = (row['ON'] 
-                                    * 0.5 * row['HEADWAY']) / 60.0
+                                    * 0.5 * row['HEADWAY_s']) / 60.0                    
+                                   
+                # fair paid, if each boarding pays full fare
+                joined.at[i,'FULLFARE_REV'] = (row['ON'] * row['FARE']) 
                     
                 # passenger hours of delay at departure
                 if departureTimeDeviation > 0: 

@@ -218,9 +218,9 @@ class SFMuniDataHelper():
     AGGREGATION_RULES = [              
             ['MONTH'             ,'MONTH'             ,'first'   ,'system' ,'datetime64', 0],         # monthly aggregations   
             ['NUMDAYS'           ,'NUMDAYS'           ,'none'    ,'system' ,'int64'     , 0],         # stats for observations
-            ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'count'   ,'system' ,'int64'     , 0],    
-            ['OBS_TRIP_STOPS'    ,'OBSERVED'          ,'count'   ,'system' ,'int64'     , 0],      
-            ['WGT_TRIP_STOPS'    ,'TRIP_STOPS'        ,'sum'     ,'system' ,'float64'   , 0],  
+            ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'system' ,'int64'     , 0],         #  note: attributes from schedule/gtfs should be unweighted   
+            ['OBS_TRIP_STOPS'    ,'OBSERVED'          ,'sum'     ,'system' ,'int64'     , 0],
+            ['WGT_TRIP_STOPS'    ,'TRIP_STOPS'        ,'wgtSum'  ,'system' ,'float64'   , 0],  
             ['TRIP_ID'           ,'TRIP_ID'           ,'first'   ,'route_stop','int64'  , 0],         # trip attributes  
 	    ['STOP_ID'           ,'STOP_ID'           ,'first'   ,'route_stop','int64'  , 0],  
             ['SHAPE_ID'          ,'SHAPE_ID'          ,'first'   ,'route_stop','int64'  , 0],  
@@ -228,7 +228,7 @@ class SFMuniDataHelper():
    	    ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route'  ,'object'    ,32],         # route attributes    
             ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route'  ,'int64'     , 0], 
             ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route'  ,'object'    ,64],   
-            ['HEADWAY'           ,'HEADWAY'           ,'mean'    ,'system' ,'float64'   , 0],   
+            ['HEADWAY_S'         ,'HEADWAY'           ,'mean'    ,'system' ,'float64'   , 0],   
             ['FARE'              ,'FARE'              ,'mean'    ,'system' ,'float64'   , 0], 
 	    ['SCHOOL'            ,'SCHOOL'            ,'first'   ,'route'  ,'int64'     , 0],    
             ['STOPNAME'          ,'STOPNAME'          ,'first'   ,'stop'   ,'object'    ,32],         # stop attributes
@@ -238,34 +238,35 @@ class SFMuniDataHelper():
             ['EOL'               ,'EOL'               ,'first'   ,'stop'   ,'int64'     , 0],   
             ['SOL'               ,'SOL'               ,'first'   ,'stop'   ,'int64'     , 0],   
             ['TIMEPOINT'         ,'TIMEPOINT'         ,'first'   ,'stop'   ,'int64'     , 0],     
-            ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'mean'    ,'system' ,'float64'   , 0],         # times 
-            ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','mean'    ,'system' ,'float64'   , 0],   
+            ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'wgtAvg'  ,'system' ,'float64'   , 0],         # times 
+            ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','wgtAvg'  ,'system' ,'float64'   , 0],   
             ['DWELL_S'           ,'DWELL_S'           ,'mean'    ,'system' ,'float64'   , 0],
-            ['DWELL'             ,'DWELL'             ,'mean'    ,'system' ,'float64'   , 0],    
+            ['DWELL'             ,'DWELL'             ,'wgtAvg'  ,'system' ,'float64'   , 0],    
             ['RUNTIME_S'         ,'RUNTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
-            ['RUNTIME'           ,'RUNTIME'           ,'sum'     ,'system' ,'float64'   , 0],   
+            ['RUNTIME'           ,'RUNTIME'           ,'wgtSum'  ,'system' ,'float64'   , 0],   
             ['SERVMILES_S'       ,'SERVMILES_S'       ,'sum'     ,'system' ,'float64'   , 0],
-            ['SERVMILES'         ,'SERVMILES'         ,'sum'     ,'system' ,'float64'   , 0],
+            ['SERVMILES'         ,'SERVMILES'         ,'wgtSum'  ,'system' ,'float64'   , 0],
             ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
-            ['RUNSPEED'          ,'RUNSPEED'          ,'mean'    ,'system' ,'float64'   , 0],                 
-            ['ONTIME5'           ,'ONTIME5'           ,'mean'    ,'system' ,'float64'   , 0],              
-            ['ON'                ,'ON'                ,'sum'     ,'system' ,'float64'   , 0],         # ridership   
-            ['OFF'               ,'OFF'               ,'sum'     ,'system' ,'float64'   , 0],   
-            ['LOAD_ARR'          ,'LOAD_ARR'          ,'sum'     ,'system' ,'float64'   , 0],   
-            ['LOAD_DEP'          ,'LOAD_DEP'          ,'sum'     ,'system' ,'float64'   , 0],            
-            ['PASSMILES'         ,'PASSMILES'         ,'sum'     ,'system' ,'float64'   , 0],   
-            ['PASSHOURS'         ,'PASSHOURS'         ,'sum'     ,'system' ,'float64'   , 0],  
-            ['WAITHOURS'         ,'WAITHOURS'         ,'sum'     ,'system' ,'float64'   , 0],   
-            ['PASSDELAY_DEP'     ,'PASSDELAY_DEP'     ,'sum'     ,'system' ,'float64'   , 0],   
-            ['PASSDELAY_ARR'     ,'PASSDELAY_ARR'     ,'sum'     ,'system' ,'float64'   , 0],   
-            ['RDBRDNGS'          ,'RDBRDNGS'          ,'sum'     ,'system' ,'float64'   , 0],   
-            ['CAPACITY'          ,'CAPACITY'          ,'sum'     ,'system' ,'float64'   , 0],   
-            ['DOORCYCLES'        ,'DOORCYCLES'        ,'sum'     ,'system' ,'float64'   , 0],   
-            ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'sum'     ,'system' ,'float64'   , 0],  
-            ['BIKERACK'          ,'BIKERACK'          ,'sum'     ,'system' ,'float64'   , 0],  
-            ['VC'                ,'VC'                ,'mean'    ,'system' ,'float64'   , 0],        # crowding
-            ['CROWDED'           ,'CROWDED'           ,'mean'    ,'system' ,'float64'   , 0],   
-            ['CROWDHOURS'        ,'CROWDHOURS'        ,'sum'     ,'system' ,'float64'   , 0]  
+            ['RUNSPEED'          ,'RUNSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],                 
+            ['ONTIME5'           ,'ONTIME5'           ,'wgtAvg'  ,'system' ,'float64'   , 0],              
+            ['ON'                ,'ON'                ,'wgtSum'  ,'system' ,'float64'   , 0],         # ridership   
+            ['OFF'               ,'OFF'               ,'wgtSum'  ,'system' ,'float64'   , 0],   
+            ['LOAD_ARR'          ,'LOAD_ARR'          ,'wgtSum'  ,'system' ,'float64'   , 0],   
+            ['LOAD_DEP'          ,'LOAD_DEP'          ,'wgtSum'  ,'system' ,'float64'   , 0],            
+            ['PASSMILES'         ,'PASSMILES'         ,'wgtSum'  ,'system' ,'float64'   , 0],   
+            ['PASSHOURS'         ,'PASSHOURS'         ,'wgtSum'  ,'system' ,'float64'   , 0],  
+            ['WAITHOURS'         ,'WAITHOURS'         ,'wgtSum'  ,'system' ,'float64'   , 0],  
+            ['FULLFARE_REV'      ,'FULLFARE_REV'      ,'wgtSum'  ,'system' ,'float64'   , 0],               
+            ['PASSDELAY_DEP'     ,'PASSDELAY_DEP'     ,'wgtSum'  ,'system' ,'float64'   , 0],   
+            ['PASSDELAY_ARR'     ,'PASSDELAY_ARR'     ,'wgtSum'  ,'system' ,'float64'   , 0],  
+            ['RDBRDNGS'          ,'RDBRDNGS'          ,'wgtSum'  ,'system' ,'float64'   , 0],     
+            ['DOORCYCLES'        ,'DOORCYCLES'        ,'wgtSum'  ,'system' ,'float64'   , 0],   
+            ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'wgtSum'  ,'system' ,'float64'   , 0],  
+            ['BIKERACK'          ,'BIKERACK'          ,'wgtSum'  ,'system' ,'float64'   , 0],   
+            ['CAPACITY'          ,'CAPACITY'          ,'sum'     ,'system' ,'float64'   , 0],        # crowding 
+            ['VC'                ,'VC'                ,'wgtAvg'  ,'system' ,'float64'   , 0],
+            ['CROWDED'           ,'CROWDED'           ,'wgtAvg'  ,'system' ,'float64'   , 0],   
+            ['CROWDHOURS'        ,'CROWDHOURS'        ,'wgtSum'  ,'system' ,'float64'   , 0]  
             ]
 
 
@@ -700,8 +701,13 @@ class SFMuniDataHelper():
         colorder  = list(groupby)
         coltypes  = {}
         stringLengths= {}
-        aggMethod = {}
-        countFields = []
+        aggMethod = {}        
+        countOutFields = set()   
+        sumOutFields = set()
+        
+        wgtSumInFields = set()
+        wgtAvgInFields = set()
+        wgtAvgOutFields = set()
         
         for col in columnSpecs:
             
@@ -732,6 +738,23 @@ class SFMuniDataHelper():
 
             # skip aggregation if none, or no input field
             if aggregation != 'none' and infield != 'none': 
+                
+                # for keeping track of daily averages
+                if aggregation == 'sum' or aggregation == 'wgtSum':
+                    sumOutFields.add(outfield)
+                
+                # for weighted averages
+                if aggregation == 'wgtSum':                    
+                    wgtSumInFields.add(infield)
+                    aggregation = 'sum'
+                    infield = 'w' + infield
+                elif aggregation == 'wgtAvg': 
+                    wgtAvgInFields.add(infield)
+                    wgtAvgOutFields.add(outfield)
+                    aggregation = 'sum'
+                    infield = 'w' + infield
+                
+                # the main aggregation methods
                 if infield in aggMethod: 
                     aggMethod[infield][outfield] = aggregation
                 else:
@@ -739,12 +762,18 @@ class SFMuniDataHelper():
                         
             # these fields get the count of the number of records
             if aggregation == 'count': 
-                countFields.append(outfield)
+                countOutFields.add(outfield)
 
+        # since groupby isn't listed above
         if 'ROUTE_SHORT_NAME' in groupby:
             stringLengths['ROUTE_SHORT_NAME'] = 32
 
-        #TODO - deal with weighting                                           
+        # include the weight when aggregating
+        aggMethod[weight] = {weight : 'sum'}
+
+        # scale up any weighted columns  
+        for col in wgtSumInFields.union(wgtAvgInFields):
+            df['w'+col] = df[weight] * df[col]
                                                                                                                                  
         # group
         grouped = df.groupby(groupby)
@@ -755,14 +784,22 @@ class SFMuniDataHelper():
         labels = aggregated.columns.labels
         aggregated.columns = levels[1][labels[1]]
 
+        # for any average fields, divide by the sum of the weights
+        for col in wgtAvgOutFields:
+            aggregated[col] = (aggregated[col]).values / (aggregated[weight]).values
+
         # add count fields
-        for field in countFields: 
+        for field in countOutFields: 
             aggregated[field] = grouped.size()
         
         # count the number of days
-        aggregated['NUMDAYS'] = len(df['DATE'].unique())
-        #TODO - divide by number of days to get daily average
-
+        numdays = len(df['DATE'].unique())  
+        aggregated['NUMDAYS'] = numdays       
+        
+        #divide by number of days to get daily average for any sum fields or count fields
+        for col in sumOutFields.union(countOutFields):
+            aggregated[col] = (aggregated[col].values) / float(numdays)       
+                
         # update scheduled speed
         speedInput = pd.Series(zip(aggregated['SERVMILES_S'], 
                                    aggregated['RUNTIME_S']), 
