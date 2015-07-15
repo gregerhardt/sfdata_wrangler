@@ -19,7 +19,6 @@ __license__     = """
 
 import sys
 import datetime
-import shutil
 
 sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 from SFMuniDataHelper import SFMuniDataHelper
@@ -45,7 +44,8 @@ USAGE = r"""
 VALID_STEPS = [ 'clean', 
                 'expand', 
                 'weight', 
-                'aggregate', 
+                'aggToDays', 
+                'aggToMonths', 
                 'cleanClipper'
                 ]    
                 
@@ -108,7 +108,8 @@ RAW_CLIPPER_FILES =[#"D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
 CLEANED_OUTFILE   = "D:/Output/sfmuni_cleaned.h5"    
 EXPANDED_OUTFILE  = "D:/Output/sfmuni_expanded_YYYY.h5"    
 WEIGHTED_OUTFILE  = "D:/Output/sfmuni_weighted_YYYY.h5"
-AGGREGATE_OUTFILE = "D:/Output/sfmuni_aggregate.h5"
+DAILY_OUTFILE     = "D:/Output/sfmuni_daily.h5"
+MONTHLY_OUTFILE   = "D:/Output/sfmuni_monthly.h5"
 
 CLIPPER_OUTFILE   = "D:/Output/clipper.h5"
 
@@ -147,17 +148,24 @@ if __name__ == "__main__":
             gtfsHelper.processRawData(infile, CLEANED_OUTFILE, EXPANDED_OUTFILE)        
         print 'Finished expanding to GTFS in ', (datetime.datetime.now() - startTime)
 
-    # calculate monthly averages, and aggregate the unweighted data
+    # add weights
     if 'weight' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         gtfsHelper.weightExpandedData(EXPANDED_OUTFILE, WEIGHTED_OUTFILE)
         print 'Finished weighting data in ', (datetime.datetime.now() - startTime)     
 
-    # add weights.  Calculate new aggregations. 
-    if 'aggregate' in STEPS_TO_RUN: 
+    # aggregate to daily totals
+    if 'aggToDays' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sfmuniHelper.aggregateToMonths(WEIGHTED_OUTFILE, AGGREGATE_OUTFILE)
-        print 'Finished aggregations in ', (datetime.datetime.now() - startTime) 
+        sfmuniHelper.aggregateToDays(WEIGHTED_OUTFILE, DAILY_OUTFILE)
+        print 'Finished daily aggregations in ', (datetime.datetime.now() - startTime) 
+
+    # aggregate to monthly totals
+    if 'aggToMonths' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()   
+        sfmuniHelper.aggregateToMonths(DAILY_OUTFILE, MONTHLY_OUTFILE)
+        #sfmuniHelper.aggregateToMonths(WEIGHTED_OUTFILE, MONTHLY_OUTFILE)
+        print 'Finished monthly aggregations in ', (datetime.datetime.now() - startTime) 
         
     # process Clipper data.  
     if 'cleanClipper' in STEPS_TO_RUN: 

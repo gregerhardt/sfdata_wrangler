@@ -705,7 +705,7 @@ class GTFSHelper():
                 
                 # get a months worth of data for this day of week
                 # be sure we have a clean index
-                df = instore.select('key')                        
+                df = instore.select(key)                        
                 df.index = pd.Series(range(0,len(df)))      
                     
                 # start with all observations weighted equally
@@ -716,44 +716,40 @@ class GTFSHelper():
                 # the weights build upon the lower-level weights, so we scale
                 # the low-weights up uniformly within the group.  
                     
-                # route_stops
-                df['RS_TRIP_WEIGHT'] = calcWeights(df, 
-                        groupby=['DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP', 'SEQ'], 
-                        oldWeight='BASE_WEIGHT')
-    
+                # route_stops    
                 df['RS_TOD_WEIGHT'] = calcWeights(df, 
-                        groupby=['DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
-                        oldWeight='RS_TRIP_WEIGHT')                
+                        groupby=['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
+                        oldWeight='BASE_WEIGHT')                
                                                 
                 df['RS_DAY_WEIGHT'] = calcWeights(df, 
-                        groupby=['DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
+                        groupby=['DATE','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
                         oldWeight='RS_TOD_WEIGHT')
                     
                 # routes
                 df['ROUTE_TOD_WEIGHT'] = calcWeights(df, 
-                        groupby=['DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
+                        groupby=['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
                         oldWeight='RS_TOD_WEIGHT')
     
                 df['ROUTE_DAY_WEIGHT'] = calcWeights(df, 
-                        groupby=['DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
+                        groupby=['DATE','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
                         oldWeight='ROUTE_TOD_WEIGHT')
     
                 # stops
                 df['STOP_TOD_WEIGHT'] = calcWeights(df, 
-                        groupby=['DOW','TOD','AGENCY_ID','STOP_ID'], 
+                        groupby=['DATE','TOD','AGENCY_ID','STOP_ID'], 
                         oldWeight='RS_TOD_WEIGHT')
     
                 df['STOP_DAY_WEIGHT'] = calcWeights(df, 
-                        groupby=['DOW','AGENCY_ID','STOP_ID'], 
+                        groupby=['DATE','AGENCY_ID','STOP_ID'], 
                         oldWeight='STOP_TOD_WEIGHT')
     
                 # system
                 df['SYSTEM_TOD_WEIGHT'] = calcWeights(df, 
-                        groupby=['DOW','TOD','AGENCY_ID'], 
+                        groupby=['DATE','TOD','AGENCY_ID'], 
                         oldWeight='ROUTE_TOD_WEIGHT')
     
                 df['SYSTEM_DAY_WEIGHT'] = calcWeights(df, 
-                        groupby=['DOW','AGENCY_ID'], 
+                        groupby=['DATE','AGENCY_ID'], 
                         oldWeight='ROUTE_DAY_WEIGHT')
                             
                 # use a separate file for each year
