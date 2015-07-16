@@ -74,6 +74,37 @@ def calculateHeadways(df):
     return df                                                
     
 
+def updateSpeeds(speedInputs):
+    """
+    Calculates the speed based on a tuple (servmiles, runtime)
+                                       
+    """
+        
+    (servmiles, runtime) = speedInputs
+    
+    if runtime>0: 
+        return round(servmiles / (runtime / 60.0), 2)
+    elif runtime == 0: 
+        return 0.0
+    else: 
+        return np.nan
+        
+
+def getScheduleDeviation((actualTime, schedTime)):
+    """
+    Calculates the speed based on a tuple (servmiles, runtime)
+                                       
+    """
+    if pd.isnull(actualTime): 
+        return np.nan
+    elif (actualTime >= schedTime):
+        diff = actualTime - schedTime
+        return round(diff.seconds / 60.0, 2)
+    else: 
+        diff = schedTime - actualTime
+        return -round(diff.seconds / 60.0, 2)
+        
+
 def reproject(latitude, longitude):
     """Returns the x & y coordinates in meters using a sinusoidal projection"""
     from math import pi, cos, radians
@@ -92,11 +123,11 @@ def getOutfile(filename, date):
     return filename.replace('YYYY', str(date.year))
 
 
-def getOutkey(month, dow):
+def getOutkey(month, dow, prefix):
     """
     gets the key name as a string from the month and the day of week
     """
-    return 'm' + str(month.date()).replace('-', '') + 'd' + str(dow)
+    return prefix + str(month.date()).replace('-', '') + 'd' + str(dow)
                     
 
 def calcGroupWeights(df, oldWeight):
@@ -178,7 +209,6 @@ class GTFSHelper():
 	['HEADWAY_S' ,        0, 0, 'gtfs'], 
         ['FARE',              0, 0, 'gtfs'], 
 	['PATTCODE'  ,       10, 0, 'avl'], 
-	['SCHOOL'    ,        0, 0, 'avl'], 
         ['STOPNAME',         32, 0, 'gtfs'],        # stop attributes
 	['STOPNAME_AVL',     32, 0, 'avl' ], 
         ['STOP_LAT',          0, 0, 'gtfs'], 
@@ -232,7 +262,7 @@ class GTFSHelper():
         ['SCHED_END',         0, 0, 'gtfs']
         ]
                 
-
+    
     def processRawData(self, gtfs_file, sfmuni_file, expanded_file):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
@@ -262,9 +292,6 @@ class GTFSHelper():
             if index==1: 
                 indexColumns.append(name)
                         
-        # open the data stores
-        sfmuni_store = pd.HDFStore(sfmuni_file)
-        
         # establish the feed
         tfl = transitfeed.Loader(feed_path=gtfs_file)
         schedule = tfl.Load()
@@ -277,7 +304,10 @@ class GTFSHelper():
         # create dictionary with one dataframe for each service period
         dataframes = {}
         servicePeriods = schedule.GetServicePeriodList()         
-                              
+        
+        # for debugging
+        servicePeriods = servicePeriods[:1]
+                             
         for period in servicePeriods:
                     
             # create an empty list of dictionaries to store the data
@@ -470,51 +500,56 @@ class GTFSHelper():
             # keep one dataframe for each service period
             dataframes[period.service_id] = df
 
-
+            
         # loop through each date, and add the appropriate service to the database
         print 'Writing data for periods from ', startDate, ' to ', endDate
 
+        # open the data stores
+        sfmuni_store = pd.HDFStore(sfmuni_file)
+        observedDates = sfmuni_store.select_column('sample', 'DATE').unique()
+        
         servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate)        
-        for date, servicePeriods in servicePeriodsEachDate:
-            
-            month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()    
-  
-            for period in servicePeriods: 
-                
-                # get the corresponding MUNI data for this date
-                sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')
-                
-                if len(sfmuni)>0: 
-                    print 'Writing ', date, ' with ', len(sfmuni), ' observed records.'
-            
-                    df = dataframes[period.service_id]
+        for date, servicePeriodsForDate in servicePeriodsEachDate:
+                        
+            if date.to_datetime64() in observedDates:     
+                month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()   
+                for period in servicePeriodsForDate: 
                     
+                    if not (period in servicePeriods): 
+                        continue
+                    
+                    df = dataframes[period.service_id]
+                        
                     # update the dates
-                    for i, row in df.iterrows():
-                        df.at[i,'ARRIVAL_TIME_S'] = date + (row['ARRIVAL_TIME_S'] - row['DATE'])
-                        df.at[i,'DEPARTURE_TIME_S'] = date + (row['DEPARTURE_TIME_S'] - row['DATE'])
+                    df['ARRIVAL_TIME_S']   = date + (df['ARRIVAL_TIME_S'] - df['DATE'])
+                    df['DEPARTURE_TIME_S'] = date + (df['DEPARTURE_TIME_S'] - df['DATE'])
+
                     df['DATE'] = date
                     df['MONTH'] = month
-                    
+
+                    # get the corresponding MUNI data for this date
+                    sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')                    
+                    print 'Processing ', date, ' with ', len(sfmuni), ' observed records.' 
+
                     # join the sfmuni data
                     joined = self.joinSFMuniData(df, sfmuni)            
-    
+        
                     # write the output        
                     # use a separate file for each year
                     # and write a separate table for each month and DOW
                     # format of the table name is YYYYMMDDdX, where X is the day of week
                     outfile = getOutfile(expanded_file, month)
-                    outkey = getOutkey(month, period.service_id)                    
+                    outkey = getOutkey(month=month, dow=period.service_id, prefix='ts')                    
                     outstore = pd.HDFStore(outfile)         
-                                            
+                                                
                     outstore.append(outkey, joined, data_columns=True, 
                                 min_itemsize=stringLengths)
-                    
+                        
                     outstore.close()
 
         sfmuni_store.close()
 
-
+    
     def joinSFMuniData(self, gtfs, sfmuni):
         """
         Left join from GTFS to SFMuni sample.        
@@ -552,31 +587,15 @@ class GTFSHelper():
         joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
                                 suffixes=('', '_AVL'), sort=True)
 
-        # initialize derived fields as missing
+        # calculate observed RUNTIME
         joined['RUNTIME'] = np.NaN
-        joined['RUNSPEED'] = np.NaN
-        joined['ARRIVAL_TIME_DEV']   = np.NaN
-        joined['DEPARTURE_TIME_DEV'] = np.NaN
-        joined['ONTIME5']  = np.NaN
-        joined['PASSMILES']   = np.NaN
-        joined['PASSHOURS']   = np.NaN
-        joined['WAITHOURS']   = np.NaN
-        joined['FULLFARE_REV']   = np.NaN
-        joined['PASSDELAY_DEP'] = np.NaN
-        joined['PASSDELAY_ARR'] = np.NaN
-        joined['VC'] = np.NaN
-        joined['CROWDED'] = np.NaN
-        joined['CROWDHOURS'] = np.NaN
-
-        # calculate derived fields, in overlapping frames           
         lastRoute = 0
         lastDir = 0
         lastTrip = 0
         lastDepartureTime = 0
         for i, row in joined.iterrows():
             if row['OBSERVED_AVL'] == 1: 
-                joined.at[i,'OBSERVED'] = 1
-                
+
                 # observed runtime
                 if (row['ROUTE_AVL']==lastRoute 
                     and row['DIR']==lastDir 
@@ -593,87 +612,63 @@ class GTFSHelper():
                         
                 joined.at[i,'RUNTIME'] = runtime
                 lastDepartureTime = row['DEPARTURE_TIME']
-
-                # observed speed
-                if runtime>0: 
-                    joined.at[i,'RUNSPEED'] = round(row['SERVMILES_S'] / (runtime / 60.0), 2)
-                else: 
-                    joined.at[i,'RUNSPEED'] = 0
-                    
-            
-                # deviation from scheduled arrival
-                if row['ARRIVAL_TIME'] >= row['ARRIVAL_TIME_S']: 
-                    diff = row['ARRIVAL_TIME'] - row['ARRIVAL_TIME_S']
-                    arrivalTimeDeviation = round(diff.seconds / 60.0, 2)
-                else: 
-                    diff = row['ARRIVAL_TIME_S'] - row['ARRIVAL_TIME']
-                    arrivalTimeDeviation = - round(diff.seconds / 60.0, 2)                        
-                joined.at[i,'ARRIVAL_TIME_DEV'] = arrivalTimeDeviation
-    
-                # deviation from scheduled departure
-                if row['DEPARTURE_TIME'] >= row['DEPARTURE_TIME_S']: 
-                    diff = row['DEPARTURE_TIME'] - row['DEPARTURE_TIME_S']
-                    departureTimeDeviation = round(diff.seconds / 60.0, 2)
-                else: 
-                    diff = row['DEPARTURE_TIME_S'] - row['DEPARTURE_TIME']
-                    departureTimeDeviation = - round(diff.seconds / 60.0, 2)                        
-                joined.at[i,'DEPARTURE_TIME_DEV'] = departureTimeDeviation
+        
+        # calculate other derived fields
+        # observations
+        joined['OBSERVED'] = np.where(joined['OBSERVED_AVL'] == 1, 1, 0)
+        
+        # speed   
+        speedInput = pd.Series(zip(joined['SERVMILES_S'], 
+                                   joined['RUNTIME']), 
+                               index=joined.index)     
+        joined['RUNSPEED'] = speedInput.apply(updateSpeeds)
+        
+        # schedule deviation          
+        arrTime = pd.Series(zip(joined['ARRIVAL_TIME'], joined['ARRIVAL_TIME_S']), index=joined.index)   
+        depTime = pd.Series(zip(joined['DEPARTURE_TIME'], joined['DEPARTURE_TIME_S']), index=joined.index)         
+        joined['ARRIVAL_TIME_DEV']   = arrTime.apply(getScheduleDeviation)
+        joined['DEPARTURE_TIME_DEV'] = depTime.apply(getScheduleDeviation)
+        
+        # ontime defined consistent with TCRP 165
+        joined['ONTIME5'] = np.where((joined['DEPARTURE_TIME_DEV']>-1.0) & (joined['ARRIVAL_TIME_DEV']<5.0), 1, 0)
+                                       
+        # passenger miles traveled
+        joined['PASSMILES'] = joined['LOAD_ARR'] * joined['SERVMILES_S']
                 
-                # ontime, from -1 to 5 minutes
-                # Consistent with definition in TCRP 165
-                if (arrivalTimeDeviation>-1.0 and arrivalTimeDeviation < 5.0): 
-                    joined.at[i,'ONTIME5'] = 1
-                else: 
-                    joined.at[i,'ONTIME5'] = 0
-                                
-                # passenger miles traveled
-                joined.at[i,'PASSMILES'] = row['LOAD_ARR'] * row['SERVMILES_S']
-                
-                # passenger hours -- scheduled time
-                joined.at[i,'PASSHOURS'] = (row['LOAD_ARR'] * row['RUNTIME_S']
-                                        + row['LOAD_DEP'] * row['DWELL_S']) / 60.0
+        # passenger hours -- scheduled time
+        joined['PASSHOURS'] = (joined['LOAD_ARR'] * joined['RUNTIME']
+                             + joined['LOAD_DEP'] * joined['DWELL']).values / 60.0
                                                                                         
-                # passenger hours of waiting time -- scheduled time
-                joined.at[i,'WAITHOURS'] = (row['ON'] 
-                                    * 0.5 * row['HEADWAY_s']) / 60.0                    
+        # passenger hours of waiting time -- scheduled time
+        joined['WAITHOURS'] = (joined['ON'] * 0.5 * joined['HEADWAY_S']).values / 60.0                    
                                    
-                # fair paid, if each boarding pays full fare
-                joined.at[i,'FULLFARE_REV'] = (row['ON'] * row['FARE']) 
+        # fair paid, if each boarding pays full fare
+        joined['FULLFARE_REV'] = (joined['ON'] * joined['FARE']) 
                     
-                # passenger hours of delay at departure
-                if departureTimeDeviation > 0: 
-                    joined.at[i,'PASSDELAY_DEP'] = (row['ON']
-                                        * departureTimeDeviation) / 60.0
-                else: 
-                    joined.at[i,'PASSDELAY_DEP'] = 0                    
+        # passenger hours of delay at departure
+        joined['PASSDELAY_DEP'] = np.where(joined['ONTIME5']==0, 
+                                     joined['ON'] * joined['DEPARTURE_TIME_DEV'], 0)
+        
+        # passenger hours of delay at arrival
+        joined['PASSDELAY_ARR'] = np.where(joined['ONTIME5']==0, 
+                                     joined['ON'] * joined['ARRIVAL_TIME_DEV'], 0)
+
+        # volume-capacity ratio
+        joined['VC'] = (joined['LOAD_ARR']).values / (joined['CAPACITY']).values
                 
-                # passenger hours of delay at arrival  
-                if arrivalTimeDeviation > 0: 
-                    joined.at[i,'PASSDELAY_ARR'] = (row['OFF'] 
-                                        * arrivalTimeDeviation) / 60.0
-                else: 
-                    joined.at[i,'PASSDELAY_ARR'] = 0        
-                
-                # volume-capacity ratio
-                joined.at[i,'VC'] = row['LOAD_ARR'] / row['CAPACITY']
-                
-                # croweded if VC>0.85
-                # the capacity is the 'crush' load, so we are defining
-                # crowding as 85% of that capacity.  In TCRP 165, this 
-                # corresponds approximately to the range of 125-150% of
-                # the seated load, which is the maximum design load for
-                # peak of the peak conditions. 
-                if (row['LOAD_ARR'] / row['CAPACITY'] > 0.85):
-                    joined.at[i,'CROWDED'] = 1.0
-                    joined.at[i,'CROWDHOURS'] = (row['LOAD_ARR'] * row['RUNTIME_S']
-                                               + row['LOAD_DEP'] * row['DWELL_S']) / 60.0                  
-                else: 
-                    joined.at[i,'CROWDED'] = 0.0
-                    joined.at[i,'CROWDHOURS'] = 0.0   
-                    
-                        
+        # croweded if VC>0.85
+        # the capacity is the 'crush' load, so we are defining
+        # crowding as 85% of that capacity.  In TCRP 165, this 
+        # corresponds approximately to the range of 125-150% of
+        # the seated load, which is the maximum design load for
+        # peak of the peak conditions. 
+        joined['CROWDED'] = np.where(joined['VC'] > 0.85, 1.0, 0.0)
+
+        joined['CROWDHOURS'] = (joined['CROWDED'] * (
+                                joined['LOAD_ARR'] * joined['RUNTIME']
+                                + joined['LOAD_DEP'] * joined['DWELL'])).values / 60.0                       
                                                 
-            # keep only relevant columns, sorted
+        # keep only relevant columns, sorted
         joined.sort(indexColumns, inplace=True)                        
         joined = joined[colnames]
             
@@ -690,6 +685,7 @@ class GTFSHelper():
         # get all infiles matching the pattern
         pattern = expanded_file.replace('YYYY', '*')
         infiles = glob.glob(pattern)
+        print 'Weighting expanded data'
         print 'Retrieved a total of %i years to process' % len(infiles)
         
         for infile in infiles: 
