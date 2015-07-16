@@ -44,6 +44,7 @@ USAGE = r"""
 VALID_STEPS = [ 'clean', 
                 'expand', 
                 'weight', 
+                'aggToTrips', 
                 'aggToDays', 
                 'aggToMonths', 
                 'cleanClipper'
@@ -90,7 +91,7 @@ RAW_GTFS_FILES = [
   #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120319_0337_1.zip",  # 20120121 to 20120608 (originally 20120615)
                                                                                            # above file modified to avoid overlap of 6 days
   #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130302_0432_1.zip",  # 20120929 to 20130329 (originally 20130322)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130302_0432_1.zip",  # 20120929 to 20130329 (originally 20130322)
                                                                                            # above file modified to avoid gap of 8 days
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
@@ -147,6 +148,12 @@ if __name__ == "__main__":
         for infile in RAW_GTFS_FILES: 
             gtfsHelper.processRawData(infile, CLEANED_OUTFILE, EXPANDED_OUTFILE)        
         print 'Finished expanding to GTFS in ', (datetime.datetime.now() - startTime)
+
+    # aggregate from trip_stops to trips
+    if 'aggToTrips' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()   
+        sfmuniHelper.aggregateToTrips(EXPANDED_OUTFILE)
+        print 'Finished trip aggregations in ', (datetime.datetime.now() - startTime) 
 
     # add weights
     if 'weight' in STEPS_TO_RUN: 
