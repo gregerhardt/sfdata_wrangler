@@ -204,7 +204,6 @@ class SFMuniDataHelper():
 		'DEPARTURE_TIME' ,   # (264, 270) - departure time	
 		'DWELL'     ,   # (212, 217) - dwell time (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME), zero at first and last stop
 		'PULLOUT'   ,   # (345, 351) - movement time
-		'PULLDWELL'     #            - pullout dwell (time interval between door close and movement), excluding end-of-line
 		
 		]         
 		    
@@ -230,10 +229,7 @@ class SFMuniDataHelper():
         df['ROUTE_LONG_NAME'] = df['ROUTE_LONG_NAME'].apply(str.strip)
         df['ROUTE_LONG_NAME'] = df['ROUTE_LONG_NAME'].apply(str.upper)        
         
-        self.routeEquiv['AGENCY_ID'] = df['AGENCY_ID'].to_dict()
-        self.routeEquiv['ROUTE_SHORT_NAME'] = df['ROUTE_SHORT_NAME'].to_dict()
-        self.routeEquiv['ROUTE_LONG_NAME'] = df['ROUTE_LONG_NAME'].to_dict()
-        self.routeEquiv['ROUTE_TYPE'] = df['ROUTE_TYPE'].to_dict()
+        self.routeEquiv = df
         
             
     def processRawData(self, infile, outfile):
@@ -314,89 +310,34 @@ class SFMuniDataHelper():
             chunk['LON']      = -1 * chunk['LON']
             chunk['LOAD_ARR'] = chunk['LOAD_DEP'] - chunk['ON'] + chunk['OFF']
             
-            # generate empty fields        
-            chunk['TIMEPOINT'] = 0 
-            chunk['EOL'] = 0
-            chunk['AGENCY_ID'] = ''
-            chunk['ROUTE_SHORT_NAME'] = ''
-            chunk['ROUTE_LONG_NAME'] = ''
-            chunk['OBSERVED'] = 1       # all records here are observed   
+            # some calculated rows
+            chunk['TIMEPOINT'] = np.where(chunk['ARRIVAL_TIME_S_INT'] < 9999, 1, 0)
+            chunk['EOL'] = chunk['STOPNAME_AVL'].apply(lambda x: str(x).count('- EOL'))
+            chunk['DWELL'] = np.where(chunk['EOL'] == 1, 0, chunk['DWELL'])
+            chunk['DWELL'] = np.where(chunk['SEQ'] == 1, 0, chunk['DWELL'])
             
-            # iterate through the rows for computed fields
-            for i, row in chunk.iterrows():
-                
-                # identify scheduled time points
-                if (row['ARRIVAL_TIME_S_INT'] < 9999): 
-                    chunk.at[i,'TIMEPOINT'] = 1
-                
-                # identify end-of-line stops
-                chunk.at[i,'EOL'] = str(row['STOPNAME_AVL']).count("- EOL")            
-                
-                # exclude beginning and end of line from DWELL time
-                if ((row['EOL'] == 1) or (row['SEQ'] == 1)): 
-                    chunk.at[i,'DWELL'] = 0
-                                        
-                # match to GTFS indices using route equivalency
-                r = row['ROUTE_AVL']
-                try: 
-                    chunk.at[i,'AGENCY_ID']        = str(self.routeEquiv['AGENCY_ID'][r])
-                    chunk.at[i,'ROUTE_SHORT_NAME'] = str(self.routeEquiv['ROUTE_SHORT_NAME'][r])
-                    chunk.at[i,'ROUTE_LONG_NAME']  = str(self.routeEquiv['ROUTE_LONG_NAME'][r])
-                except KeyError: 
+            # match to GTFS indices using route equivalency
+            chunk['AGENCY_ID']        = chunk['ROUTE_AVL'].map(self.routeEquiv['AGENCY_ID'])
+            chunk['ROUTE_SHORT_NAME'] = chunk['ROUTE_AVL'].map(self.routeEquiv['ROUTE_SHORT_NAME'])
+            chunk['ROUTE_LONG_NAME']  = chunk['ROUTE_AVL'].map(self.routeEquiv['ROUTE_LONG_NAME'])
+            
+            # check for missing route IDs
+            for r in chunk['ROUTE_AVL'].unique(): 
+                if not r in self.routeEquiv.index: 
                     missingRouteIds.add(r)
-            
-            # convert to timedate formats
-            # trick here is that the MUNI service day starts and ends at 3 am, 
-            # so boardings from midnight to 3 have a service date of the day before
-            chunk['DATE']        = ''
-            chunk['ARRIVAL_TIME']    = ''
-            chunk['DEPARTURE_TIME']   = ''
-            chunk['PULLOUT']     = ''
-            chunk['PULLDWELL']   = 0.0
-    
-            # convert to string formats
-            # use .loc instead of chained assignment.
-            #        see: http://pandas.pydata.org/pandas-docs/stable/indexing.html#indexing-view-versus-copy
-            for i, row in chunk.iterrows():        
-                chunk.at[i,'DATE'] = "{0:0>6}".format(row['DATE_INT'])   
-                
-                if (row['ARRIVAL_TIME_INT'] >= 240000): 
-                    chunk.at[i,'ARRIVAL_TIME_INT'] = row['ARRIVAL_TIME_INT'] - 240000
-                chunk.at[i,'ARRIVAL_TIME'] = (chunk.at[i,'DATE'] + 
-                    "{0:0>6}".format(chunk.at[i,'ARRIVAL_TIME_INT']))         
-    
-                if (row['DEPARTURE_TIME_INT'] >= 240000): 
-                    chunk.at[i,'DEPARTURE_TIME_INT'] = row['DEPARTURE_TIME_INT'] - 240000
-                chunk.at[i,'DEPARTURE_TIME'] = (chunk.at[i,'DATE'] + 
-                    "{0:0>6}".format(chunk.at[i,'DEPARTURE_TIME_INT']))
-    
-                if (row['PULLOUT_INT'] >= 240000): 
-                    chunk.at[i,'PULLOUT_INT'] = row['PULLOUT_INT'] - 240000
-                chunk.at[i,'PULLOUT'] = (chunk.at[i,'DATE'] + 
-                    "{0:0>6}".format(chunk.at[i,'PULLOUT_INT']))               
+                    print 'ROUTE_AVL id ', r, ' not found in route equivalency file'
                 
             # convert to timedate formats
-            chunk['DATE']           = pd.to_datetime(chunk['DATE'],          format="%m%d%y")    
-            chunk['ARRIVAL_TIME']   = pd.to_datetime(chunk['ARRIVAL_TIME'],  format="%m%d%y%H%M%S")
-            chunk['DEPARTURE_TIME'] = pd.to_datetime(chunk['DEPARTURE_TIME'],format="%m%d%y%H%M%S")    
-            chunk['PULLOUT']        = pd.to_datetime(chunk['PULLOUT'],       format="%m%d%y%H%M%S")
+            arrTimeInt = pd.Series(zip(chunk['DATE_INT'], chunk['ARRIVAL_TIME_INT']), index=chunk.index)   
+            depTimeInt = pd.Series(zip(chunk['DATE_INT'], chunk['DEPARTURE_TIME_INT']), index=chunk.index) 
+            pulloutInt = pd.Series(zip(chunk['DATE_INT'], chunk['PULLOUT_INT']), index=chunk.index)   
             
-            # deal with offsets for midnight to 3 am
-            for i, row in chunk.iterrows():       
-                if (row['ARRIVAL_TIME'].hour < 3): 
-                    chunk.at[i,'ARRIVAL_TIME'] = row['ARRIVAL_TIME'] + pd.DateOffset(days=1)
-    
-                if (row['DEPARTURE_TIME'].hour < 3): 
-                    chunk.at[i,'DEPARTURE_TIME'] = row['DEPARTURE_TIME'] + pd.DateOffset(days=1)
-    
-                if (row['PULLOUT'].hour < 3): 
-                    chunk.at[i,'PULLOUT'] = row['PULLOUT'] + pd.DateOffset(days=1)
-                                            
-                # PULLDWELL = pullout dwell (time interval between door close and movement)
-                if (row['EOL']==0):
-                    pulldwell = row['PULLOUT'] - row['DEPARTURE_TIME']
-                    chunk.at[i,'PULLDWELL'] = round(pulldwell.seconds / 60.0, 2)
-                    
+            chunk['DATE']           = chunk['DATE_INT'].apply(self.getDate)    
+            chunk['ARRIVAL_TIME']   = arrTimeInt.apply(self.getWrapAroundTime)  
+            chunk['DEPARTURE_TIME'] = depTimeInt.apply(self.getWrapAroundTime)      
+            chunk['PULLOUT']        = pulloutInt.apply(self.getWrapAroundTime)  
+                        
+                                                                                
             # drop duplicates (not sure why these occur) and sort
             chunk.drop_duplicates(cols=self.INDEX_COLUMNS, inplace=True) 
             chunk.sort(self.INDEX_COLUMNS, inplace=True)
@@ -1105,24 +1046,39 @@ class SFMuniDataHelper():
         """
         return len(series.unique())       
         
-    def getWrapAroundTime(dateString, timeString):
-    """
-    Converts a string in the format '%H:%M:%S' to a datetime object.
-    Accounts for the convention where service after midnight is counted
-    with the previous day, so input times can be >24 hours. 
-    """        
-        nextDay = False
-        hr, min, sec = timeString.split(':')
-        if int(hr)>= 24:
-            hr = str(int(hr) - 24)
-            timeString = hr + ':' + min + ':' + sec
+    def getWrapAroundTime(self, (dateInt, timeInt)):
+        """
+        Converts a string in the format '%H%M%S' to a datetime object.
+        Accounts for the convention where service after midnight is counted
+        with the previous day, so input times can be >24 hours. 
+        """        
+        
+        if timeInt>= 240000:
+            timeInt = timeInt - 240000
             nextDay = True
+        else: 
+            nextDay = False
             
+        dateString = "{0:0>6}".format(dateInt)  
+        timeString = "{0:0>6}".format(timeInt)      
         datetimeString = dateString + ' ' + timeString    
-        time = pd.to_datetime(datetimeString, format='%Y-%m-%d %H:%M:%S')
+        
+        try: 
+            time = pd.to_datetime(datetimeString, format="%m%d%y %H%M%S")
+        except ValueError:
+            print 'Count not convert ', datetimeString
+            raise
             
         if nextDay: 
-        time = time + pd.DateOffset(days=1)
+            time = time + pd.DateOffset(days=1)
         
         return time
-                    
+        
+    
+    def getDate(self, dateInt):
+        """
+        Converts an integer in the format "%m%d%y" into a datetime object.
+        """
+        dateString = "{0:0>6}".format(dateInt)          
+        date = pd.to_datetime(dateString, format="%m%d%y")
+        return date
