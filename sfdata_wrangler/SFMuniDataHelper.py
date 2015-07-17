@@ -203,7 +203,7 @@ class SFMuniDataHelper():
 		'ARRIVAL_TIME'  ,   # ( 48,  54) - arrival time
 		'DEPARTURE_TIME' ,  # (264, 270) - departure time	
 		'DWELL'     ,       # (212, 217) - dwell time (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME), zero at first and last stop
-		'RUNTIME'   ,       # calculated, because from the data set it doesn't look right
+		'RUNTIME'   ,       # note that the value from the data set looks weird
 		'PULLOUT'   ,       # (345, 351) - movement time
 		
 		]         
@@ -337,7 +337,7 @@ class SFMuniDataHelper():
             chunk['ARRIVAL_TIME']   = arrTimeInt.apply(self.getWrapAroundTime)  
             chunk['DEPARTURE_TIME'] = depTimeInt.apply(self.getWrapAroundTime)      
             chunk['PULLOUT']        = pulloutInt.apply(self.getWrapAroundTime)  
-                        
+          
                                                                                 
             # drop duplicates (not sure why these occur) and sort
             chunk.drop_duplicates(cols=self.INDEX_COLUMNS, inplace=True) 
@@ -390,7 +390,8 @@ class SFMuniDataHelper():
         #   output field, but it is calculated separately
         #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
         AGGREGATION_RULES = [              
-                ['MONTH'             ,'MONTH'             ,'first'   ,'trip' ,'datetime64', 0],           
+                ['MONTH'             ,'MONTH'             ,'first'   ,'trip' ,'datetime64', 0],          
+                ['SCHED_DATES'       ,'SCHED_DATES'       ,'first'   ,'trip' ,'object'    ,20],      
                 ['NUMDAYS'           ,'DATE'              ,'first'   ,'trip' ,'int64'     , 0],         # stats for observations
                 ['TRIPS'             ,'TRIPS'             ,'max'     ,'trip' ,'int64'     , 0], 
                 ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'trip' ,'int64'     , 0], 
@@ -400,7 +401,7 @@ class SFMuniDataHelper():
        	        ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'trip' ,'object'    ,32],         # route attributes    
                 ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'trip' ,'int64'     , 0], 
                 ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'trip' ,'object'    ,64],   
-                ['HEADWAY_S'         ,'HEADWAY'           ,'mean'    ,'trip' ,'float64'   , 0],   
+                ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'trip' ,'float64'   , 0],   
                 ['FARE'              ,'FARE'              ,'mean'    ,'trip' ,'float64'   , 0],  
                 ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'last'    ,'trip' ,'float64'   , 0],         # times 
                 ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','first'   ,'trip' ,'float64'   , 0],   
@@ -463,7 +464,10 @@ class SFMuniDataHelper():
                 # get a months worth of data for this day of week
                 # be sure we have a clean index
                 df = store.select(inkey)                        
-                df.index = pd.Series(range(0,len(df)))                         
+                df.index = pd.Series(range(0,len(df)))         
+                
+                # initialize new terms
+                df['TRIPS'] = 1                
                         
                 # routes
                 aggdf, stringLengths  = self.aggregateTransitRecords(df, 
@@ -472,7 +476,7 @@ class SFMuniDataHelper():
                         level='trip', 
                         weight=None)
                 aggdf.index = trip_count + pd.Series(range(0,len(aggdf)))
-                store.append('route_tod', aggdf, data_columns=True, 
+                store.append(outkey, aggdf, data_columns=True, 
                         min_itemsize=stringLengths)   
                 trip_count += len(aggdf)
     
@@ -493,7 +497,8 @@ class SFMuniDataHelper():
         #   output field, but it is calculated separately
         #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
         STOP_RULES = [              
-                ['MONTH'             ,'MONTH'             ,'first'   ,'system' ,'datetime64', 0],           
+                ['MONTH'             ,'MONTH'             ,'first'   ,'system' ,'datetime64', 0],          
+                ['SCHED_DATES'       ,'SCHED_DATES'       ,'first'   ,'system' ,'object'    ,20],       
                 ['NUMDAYS'           ,'DATE'        ,self.countUnique,'system' ,'int64'     , 0],         # stats for observations
                 ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'system' ,'int64'     , 0],         #  note: attributes from schedule/gtfs should be unweighted             
                 ['OBS_TRIP_STOPS'    ,'OBSERVED'          ,'sum'     ,'system' ,'int64'     , 0],
@@ -502,7 +507,7 @@ class SFMuniDataHelper():
                 ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route_stop','object' ,32],         # route attributes    
                 ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route_stop','int64'  , 0], 
                 ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route_stop','object' ,64],   
-                ['HEADWAY_S'         ,'HEADWAY'           ,'mean'    ,'system' ,'float64'   , 0],   
+                ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'system' ,'float64'   , 0],   
                 ['FARE'              ,'FARE'              ,'mean'    ,'system' ,'float64'   , 0],    
                 ['STOPNAME'          ,'STOPNAME'          ,'first'   ,'stop'   ,'object'    ,32],         # stop attributes
                 ['STOPNAME_AVL'      ,'STOPNAME_AVL'      ,'first'   ,'stop'   ,'object'    ,32],  
@@ -548,6 +553,7 @@ class SFMuniDataHelper():
         #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
         TRIP_RULES = [              
                 ['MONTH'             ,'MONTH'             ,'first'   ,'system' ,'datetime64', 0],           
+                ['SCHED_DATES'       ,'SCHED_DATES'       ,'first'   ,'system' ,'object'    ,20],          
                 ['NUMDAYS'           ,'DATE'        ,self.countUnique,'system' ,'int64'     , 0],         # stats for observations
                 ['TRIPS'             ,'TRIPS'             ,'sum'     ,'system' ,'int64'     , 0],         #  note: attributes from schedule/gtfs should be unweighted             
                 ['OBS_TRIPS'         ,'OBSERVED'          ,'sum'     ,'system' ,'int64'     , 0],
@@ -555,7 +561,7 @@ class SFMuniDataHelper():
                 ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route'  ,'object'    ,32],         # route attributes    
                 ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route'  ,'int64'     , 0], 
                 ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route'  ,'object'    ,64],   
-                ['HEADWAY_S'         ,'HEADWAY'           ,'mean'    ,'system' ,'float64'   , 0],   
+                ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'system' ,'float64'   , 0],   
                 ['FARE'              ,'FARE'              ,'mean'    ,'system' ,'float64'   , 0],    
                 ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'wgtAvg'  ,'route'  ,'float64'   , 0],         # times 
                 ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','wgtAvg'  ,'route'  ,'float64'   , 0],   
@@ -776,7 +782,7 @@ class SFMuniDataHelper():
                 ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route_stop','object' ,32],         # route attributes    
                 ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route_stop','int64'  , 0], 
                 ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route_stop','object' ,64],   
-                ['HEADWAY_S'         ,'HEADWAY'           ,'mean'    ,'system' ,'float64'   , 0],   
+                ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'system' ,'float64'   , 0],   
                 ['FARE'              ,'FARE'              ,'mean'    ,'system' ,'float64'   , 0],    
                 ['STOPNAME'          ,'STOPNAME'          ,'first'   ,'stop'   ,'object'    ,32],         # stop attributes
                 ['STOPNAME_AVL'      ,'STOPNAME_AVL'      ,'first'   ,'stop'   ,'object'    ,32],  
@@ -829,7 +835,7 @@ class SFMuniDataHelper():
                 ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route'  ,'object'    ,32],         # route attributes    
                 ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route'  ,'int64'     , 0], 
                 ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route'  ,'object'    ,64],   
-                ['HEADWAY_S'         ,'HEADWAY'           ,'mean'    ,'system' ,'float64'   , 0],   
+                ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'system' ,'float64'   , 0],   
                 ['FARE'              ,'FARE'              ,'mean'    ,'system' ,'float64'   , 0],    
                 ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'mean'    ,'route'  ,'float64'   , 0],         # times 
                 ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','mean'    ,'route'  ,'float64'   , 0],   
@@ -1215,6 +1221,8 @@ class SFMuniDataHelper():
         for col in coltypes: 
             try: 
                 aggregated[col] = aggregated[col].astype(coltypes[col])
+            except TypeError:
+                pass
             except ValueError: 
                 pass
                                                                                         
