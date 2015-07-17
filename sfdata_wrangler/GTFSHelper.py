@@ -65,13 +65,34 @@ def calculateHeadways(df):
     lastDeparture = 0
     for i, row in df.iterrows():    
         if lastDeparture==0: 
-            df['HEADWAY_S'][i] = np.NaN        # missing headway for first trip
+            df.at[i,'HEADWAY_S'] = np.NaN        # missing headway for first trip
         else:
-            diff = df['DEPARTURE_TIME_S'][i] - lastDeparture
-            df['HEADWAY_S'][i] = round(diff.seconds / 60.0, 2)
-        lastDeparture = df['DEPARTURE_TIME_S'][i]
+            diff = row['DEPARTURE_TIME_S'] - lastDeparture
+            df.at[i,'HEADWAY_S'] = round(diff.seconds / 60.0, 2)
+        lastDeparture = row['DEPARTURE_TIME_S']
     
     return df                                                
+    
+
+def calculateRuntime(df):
+    """
+    Calculates the runtime between trip_stops. Assumes data are grouped by: 
+    ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
+    """        
+    df.sort(['SEQ'], inplace=True)
+
+    firstStop = True
+    lastDepartureTime = None
+    for i, row in df.iterrows():    
+        if firstStop: 
+            df.at[i,'RUNTIME'] = 0        # no runtime for first trip
+            firstStop = False
+        else:
+            diff = row['ARRIVAL_TIME'] - lastDepartureTime
+            df.at[i,'RUNTIME'] = max(0, round(diff.total_seconds() / 60.0, 2))
+        lastDepartureTime = row['DEPARTURE_TIME']
+    
+    return df
     
 
 def updateSpeeds(speedInputs):
@@ -166,14 +187,13 @@ def calcWeights(df, groupby, oldWeight):
     returns series with the weights, and same index df    
     """
     
-    grouped = df.groupby(groupby)
+    grouped = df.groupby(groupby, as_index=False)
     
     # special case if only one group
     if (len(grouped)<=1):
         return calcGroupWeights(df, oldWeight)
     else: 
-        weights = grouped.apply(calcGroupWeights, oldWeight)        
-        weights = weights.reset_index(level=groupby)      
+        weights = grouped.apply(calcGroupWeights, oldWeight)   
         return weights[oldWeight]
     
 
@@ -258,8 +278,7 @@ class GTFSHelper():
         ['SHAPE_ID',          0, 0, 'gtfs'],
         ['SHAPE_DIST',        0, 0, 'gtfs'],
 	['VEHNO'     ,        0, 0, 'avl'], 
-        ['SCHED_START',       0, 0, 'gtfs'],  # range of this GTFS schedule
-        ['SCHED_END',         0, 0, 'gtfs']
+        ['SCHED_DATES',      20, 0, 'gtfs']  # range of this GTFS schedule
         ]
                 
     
@@ -300,14 +319,12 @@ class GTFSHelper():
         dateRange = schedule.GetDateRange()
         startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
         endDate   = pd.to_datetime(dateRange[1], format='%Y%m%d')
+        dateRangeString = str(dateRange[0]) + '-' + str(dateRange[1])
         
         # create dictionary with one dataframe for each service period
         dataframes = {}
         servicePeriods = schedule.GetServicePeriodList()         
-        
-        # for debugging
-        servicePeriods = servicePeriods[:1]
-                             
+                                     
         for period in servicePeriods:
                     
             # create an empty list of dictionaries to store the data
@@ -471,8 +488,7 @@ class GTFSHelper():
                             record['SHAPE_ID']       = int(trip.shape_id)
                             
                             # indicates range this schedule is in operation    
-                            record['SCHED_START']    = startDate            # start date for this schedule
-                            record['SCHED_END']      = endDate              # end date for this schedule    
+                            record['SCHED_DATES'] = dateRangeString          # start and end date for this schedule
                             
                             # track from previous record
                             lastDepartureTime = departureTime      
@@ -489,9 +505,7 @@ class GTFSHelper():
             # calculate the headways, based on difference in previous bus on 
             # this route stopping at the same stop
             groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
-            df = df.groupby(groupby).apply(calculateHeadways)
-            df = df.drop(['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ'], axis=1)
-            df = df.reset_index()
+            df = df.groupby(groupby, as_index=False).apply(calculateHeadways)
             
             # keep only relevant columns, sorted
             df.sort(indexColumns, inplace=True)                        
@@ -530,7 +544,12 @@ class GTFSHelper():
                     # get the corresponding MUNI data for this date
                     sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')                    
                     print 'Processing ', date, ' with ', len(sfmuni), ' observed records.' 
-
+        
+                    # calculate observed RUNTIME
+                    # happens here because the values in the AVL data look screwy.
+                    groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
+                    sfmuni = sfmuni.groupby(groupby, as_index=False).apply(calculateRuntime)
+                    
                     # join the sfmuni data
                     joined = self.joinSFMuniData(df, sfmuni)            
         
@@ -584,35 +603,17 @@ class GTFSHelper():
         sfmuni['OBSERVED'] = 1
 
         # join 
-        joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
-                                suffixes=('', '_AVL'), sort=True)
+        try: 
+            joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
+                                    suffixes=('', '_AVL'), sort=True)
+        except KeyError:
+            print joinFields
+            print gtfs.info()
+            print gtfs.head()
+            print sfmuni.info()
+            print sfmuni.head()
+            raise
 
-        # calculate observed RUNTIME
-        joined['RUNTIME'] = np.NaN
-        lastRoute = 0
-        lastDir = 0
-        lastTrip = 0
-        lastDepartureTime = 0
-        for i, row in joined.iterrows():
-            if row['OBSERVED_AVL'] == 1: 
-
-                # observed runtime
-                if (row['ROUTE_AVL']==lastRoute 
-                    and row['DIR']==lastDir 
-                    and row['TRIP']==lastTrip): 
-
-                    diff = row['ARRIVAL_TIME'] - lastDepartureTime
-                    runtime = max(0, round(diff.total_seconds() / 60.0, 2))
-                else: 
-                    runtime = 0
-                        
-                    lastRoute = row['ROUTE_AVL']
-                    lastDir = row['DIR']
-                    lastTrip = row['TRIP']
-                        
-                joined.at[i,'RUNTIME'] = runtime
-                lastDepartureTime = row['DEPARTURE_TIME']
-        
         # calculate other derived fields
         # observations
         joined['OBSERVED'] = np.where(joined['OBSERVED_AVL'] == 1, 1, 0)
