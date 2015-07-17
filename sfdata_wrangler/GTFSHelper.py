@@ -153,7 +153,7 @@ def getOutkey(month, dow, prefix):
 
 def calcGroupWeights(df, oldWeight):
     """
-    df - dataframe to operate on.  Must contain columns for TRIP_STOPS
+    df - dataframe to operate on.  Must contain columns for TRIPS
          and for the oldWeight.  
     oldWeight - column name in df containing the previous weight. 
     
@@ -162,8 +162,8 @@ def calcGroupWeights(df, oldWeight):
     
     """
     
-    obs = float((df[oldWeight] * df['TRIP_STOPS']).sum())
-    tot = float(df['TRIP_STOPS'].sum())    
+    obs = float((df[oldWeight] * df['TRIPS']).sum())
+    tot = float(df['TRIPS'].sum())    
     if obs>0:
         factor = tot / obs
     else: 
@@ -176,7 +176,7 @@ def calcGroupWeights(df, oldWeight):
 
 def calcWeights(df, groupby, oldWeight):
     """
-    df - dataframe to operate on.  Must contain columns for TOTTRIPS
+    df - dataframe to operate on.  Must contain columns for TRIPS
          and for the oldWeight.  
     groupby - list of columns for grouping dataframe
     oldWeight - column name in df containing the previous weight. 
@@ -187,13 +187,14 @@ def calcWeights(df, groupby, oldWeight):
     returns series with the weights, and same index df    
     """
     
-    grouped = df.groupby(groupby, as_index=False)
+    grouped = df.groupby(groupby)
     
     # special case if only one group
     if (len(grouped)<=1):
         return calcGroupWeights(df, oldWeight)
     else: 
         weights = grouped.apply(calcGroupWeights, oldWeight)   
+        weights = weights.reset_index(level=groupby)
         return weights[oldWeight]
     
 
@@ -282,7 +283,7 @@ class GTFSHelper():
         ]
                 
     
-    def processRawData(self, gtfs_file, sfmuni_file, expanded_file):
+    def processRawData(self, gtfs_file, sfmuni_file, expanded_file, dow=[1,2,3]):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
         This will be done for every individual day, so you get a list of 
@@ -321,10 +322,15 @@ class GTFSHelper():
         endDate   = pd.to_datetime(dateRange[1], format='%Y%m%d')
         dateRangeString = str(dateRange[0]) + '-' + str(dateRange[1])
         
+        # only keep the service periods for the days of week specified in the input
+        servicePeriods = schedule.GetServicePeriodList()         
+        for period in servicePeriods:
+            if not (int(period.service_id) in dow):
+                servicePeriods.remove(period)
+        
+                                     
         # create dictionary with one dataframe for each service period
         dataframes = {}
-        servicePeriods = schedule.GetServicePeriodList()         
-                                     
         for period in servicePeriods:
                     
             # create an empty list of dictionaries to store the data
@@ -617,9 +623,12 @@ class GTFSHelper():
         # calculate other derived fields
         # observations
         joined['OBSERVED'] = np.where(joined['OBSERVED_AVL'] == 1, 1, 0)
+
+        # normalize to consistent measure of service miles
+        joined['SERVMILES'] = np.where(joined['OBSERVED']==1, joined['SERVMILES_S'], np.nan)
         
         # speed   
-        speedInput = pd.Series(zip(joined['SERVMILES_S'], 
+        speedInput = pd.Series(zip(joined['SERVMILES'], 
                                    joined['RUNTIME']), 
                                index=joined.index)     
         joined['RUNSPEED'] = speedInput.apply(updateSpeeds)
@@ -635,7 +644,7 @@ class GTFSHelper():
         joined['ONTIME5'] = joined['OBSERVED'].mask(joined['OBSERVED']==0, other=np.nan)
                                        
         # passenger miles traveled
-        joined['PASSMILES'] = joined['LOAD_ARR'] * joined['SERVMILES_S']
+        joined['PASSMILES'] = joined['LOAD_ARR'] * joined['SERVMILES']
                 
         # passenger hours -- scheduled time
         joined['PASSHOURS'] = (joined['LOAD_ARR'] * joined['RUNTIME']
@@ -695,81 +704,91 @@ class GTFSHelper():
         
         for infile in infiles: 
             
-            # open the data store and get the tokens to loop through
+            # open the file, and start with just the trip keys
             instore = pd.HDFStore(infile)            
-            keys = instore.keys()
-            print 'Retrieved a total of %i keys to process' % len(keys)   
+            allKeys = instore.keys()
+            trip_keys = []
+            for allkey in allKeys: 
+                if allkey.startswith('/trip'): 
+                    trip_keys.append(allkey)                     
+            print 'Retrieved a total of %i trip_keys to process' % len(trip_keys)   
     
             # loop through the months, and days of week
-            for key in keys: 
-                print 'Processing ', key
+            for trip_key in trip_keys: 
+                print 'Processing ',trip_key
+                ts_key = trip_key.replace('trip', 'ts')
                 
+                # use a separate file for each year
+                # and write a separate table for each month and DOW
+                # format of the table name is tripYYYYMMDDdX, where X is the day of week
+                datestring = (trip_key.partition('trip')[2]).partition('d')[0]
+                month = pd.to_datetime(datestring, format='%Y%m%d')
+                outfile = getOutfile(weighted_file, pd.Timestamp(month))                    
+                outstore = pd.HDFStore(outfile)
+
+                # don't append the data, overwrite
+                try: 
+                    outstore.remove(trip_key)      
+                    print "  Replacing existing HDF table ", trip_key       
+                except KeyError: 
+                    pass
+                try: 
+                    outstore.remove(ts_key)      
+                    print "  Replacing existing HDF table ", trip_key       
+                except KeyError: 
+                    pass
+
                 # get a months worth of data for this day of week
-                # be sure we have a clean index
-                df = instore.select(key)                        
-                df.index = pd.Series(range(0,len(df)))      
+                trips = instore.select(trip_key)              
+                
+                # make sure we don't overflow the string lengths
+                stringLengths= {}
+                for col in trips.columns:
+                    if trips[col].dtype == 'object':
+                        stringLengths[col] = trips[col].map(len).max()
                     
                 # start with all observations weighted equally
-                df['TRIP_STOPS'] = 1
-                df['BASE_WEIGHT'] = df['OBSERVED'].mask(df['OBSERVED']==0, other=np.nan)
+                trips['TRIPS'] = 1
+                trips['TRIP_WEIGHT'] = trips['OBSERVED'].mask(trips['OBSERVED']==0, other=np.nan)
     
                 # add the weight columns, specific to the level of aggregation
                 # the weights build upon the lower-level weights, so we scale
                 # the low-weights up uniformly within the group.  
-                    
-                # route_stops    
-                df['RS_TOD_WEIGHT'] = calcWeights(df, 
-                        groupby=['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
-                        oldWeight='BASE_WEIGHT')                
-                                                
-                df['RS_DAY_WEIGHT'] = calcWeights(df, 
-                        groupby=['DATE','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
-                        oldWeight='RS_TOD_WEIGHT')
-                    
+                                        
                 # routes
-                df['ROUTE_TOD_WEIGHT'] = calcWeights(df, 
+                trips['TOD_WEIGHT'] = calcWeights(trips, 
                         groupby=['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                        oldWeight='RS_TOD_WEIGHT')
+                        oldWeight='TRIP_WEIGHT')
     
-                df['ROUTE_DAY_WEIGHT'] = calcWeights(df, 
+                trips['DAY_WEIGHT'] = calcWeights(trips, 
                         groupby=['DATE','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                        oldWeight='ROUTE_TOD_WEIGHT')
-    
-                # stops
-                df['STOP_TOD_WEIGHT'] = calcWeights(df, 
-                        groupby=['DATE','TOD','AGENCY_ID','STOP_ID'], 
-                        oldWeight='RS_TOD_WEIGHT')
-    
-                df['STOP_DAY_WEIGHT'] = calcWeights(df, 
-                        groupby=['DATE','AGENCY_ID','STOP_ID'], 
-                        oldWeight='STOP_TOD_WEIGHT')
-    
+                        oldWeight='TOD_WEIGHT')
+        
                 # system
-                df['SYSTEM_TOD_WEIGHT'] = calcWeights(df, 
+                trips['SYSTEM_WEIGHT'] = calcWeights(trips, 
                         groupby=['DATE','TOD','AGENCY_ID'], 
-                        oldWeight='ROUTE_TOD_WEIGHT')
-    
-                df['SYSTEM_DAY_WEIGHT'] = calcWeights(df, 
-                        groupby=['DATE','AGENCY_ID'], 
-                        oldWeight='ROUTE_DAY_WEIGHT')
-                            
-                # use a separate file for each year
-                # and write a separate table for each month and DOW
-                # format of the table name is YYYYMMDDdX, where X is the day of week
-                datestring = (key.partition('m')[2]).partition('d')[0]
-                month = pd.to_datetime(datestring, format='%Y%m%d')
-                outfile = getOutfile(weighted_file, pd.Timestamp(month))
-                    
-                outstore = pd.HDFStore(outfile)
-                    
-                # don't append the data, overwrite
-                try: 
-                    outstore.remove(key)      
-                    print "  Replacing HDF table ", key       
-                except KeyError: 
-                    print "  Creating HDF table ", key
+                        oldWeight='DAY_WEIGHT')
                         
-                outstore.append(key, df, data_columns=True)
+                # write the trip data
+                outstore.append(trip_key, trips, data_columns=True)
+                        
+                # now merge the weights to the corresponding trip_stops table                    
+                mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
+                weightFields = ['TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
+                tripWeights = trips[mergeFields + weightFields]
+
+                # do this day-by-day to save memory
+                dates = trips['DATE'].unique()
+                print '  Merging to ', ts_key, ' with ', len(dates), ' days.'
+                for date in dates:                                 
+                    ts = instore.select(ts_key, where='DATE=Timestamp(date)')                         
+                    ts = pd.merge(ts, tripWeights, how='left', on=mergeFields, sort=True)    
+                    outstore.append(ts_key, ts, data_columns=True, 
+                        min_itemsize=stringLengths)
+                
+                # close file--next one may be new year
                 outstore.close()
             
             instore.close()
+
+

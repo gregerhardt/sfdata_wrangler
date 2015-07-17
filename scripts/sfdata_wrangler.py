@@ -44,9 +44,7 @@ USAGE = r"""
 VALID_STEPS = [ 'clean', 
                 'expand', 
                 'weight', 
-                'aggToTrips', 
-                'aggToDays', 
-                'aggToMonths', 
+                'aggregate', 
                 'cleanClipper'
                 ]    
                 
@@ -142,38 +140,27 @@ if __name__ == "__main__":
             sfmuniHelper.processRawData(infile, CLEANED_OUTFILE)
         print 'Finished cleaning SFMuni data in ', (datetime.datetime.now() - startTime)
 
-    # process GTFS data, and join AVL/APC data to it. 
+    # process GTFS data, and join AVL/APC data to it, also aggregate trip_stops to trips
     if 'expand' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         for infile in RAW_GTFS_FILES: 
-            gtfsHelper.processRawData(infile, CLEANED_OUTFILE, EXPANDED_OUTFILE)        
+            gtfsHelper.processRawData(infile, CLEANED_OUTFILE, EXPANDED_OUTFILE, dow=[1])   
         print 'Finished expanding to GTFS in ', (datetime.datetime.now() - startTime)
-
-    # aggregate from trip_stops to trips
-    if 'aggToTrips' in STEPS_TO_RUN: 
-        startTime = datetime.datetime.now()   
-        sfmuniHelper.aggregateToTrips(EXPANDED_OUTFILE)
-        print 'Finished trip aggregations in ', (datetime.datetime.now() - startTime) 
 
     # add weights
     if 'weight' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
+        #sfmuniHelper.aggregateToTrips(EXPANDED_OUTFILE)     
         gtfsHelper.weightExpandedData(EXPANDED_OUTFILE, WEIGHTED_OUTFILE)
         print 'Finished weighting data in ', (datetime.datetime.now() - startTime)     
 
     # aggregate to daily totals
-    if 'aggToDays' in STEPS_TO_RUN: 
+    if 'aggregate' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         sfmuniHelper.aggregateToDays(WEIGHTED_OUTFILE, DAILY_OUTFILE)
-        print 'Finished daily aggregations in ', (datetime.datetime.now() - startTime) 
-
-    # aggregate to monthly totals
-    if 'aggToMonths' in STEPS_TO_RUN: 
-        startTime = datetime.datetime.now()   
         sfmuniHelper.aggregateToMonths(DAILY_OUTFILE, MONTHLY_OUTFILE)
-        #sfmuniHelper.aggregateToMonths(WEIGHTED_OUTFILE, MONTHLY_OUTFILE)
-        print 'Finished monthly aggregations in ', (datetime.datetime.now() - startTime) 
-        
+        print 'Finished aggregations in ', (datetime.datetime.now() - startTime) 
+
     # process Clipper data.  
     if 'cleanClipper' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   

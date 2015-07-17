@@ -392,7 +392,7 @@ class SFMuniDataHelper():
         AGGREGATION_RULES = [              
                 ['MONTH'             ,'MONTH'             ,'first'   ,'trip' ,'datetime64', 0],          
                 ['SCHED_DATES'       ,'SCHED_DATES'       ,'first'   ,'trip' ,'object'    ,20],      
-                ['NUMDAYS'           ,'DATE'              ,'first'   ,'trip' ,'int64'     , 0],         # stats for observations
+                ['NUMDAYS'           ,'DATE'     ,self.countUnique   ,'trip' ,'int64'     , 0],         # stats for observations
                 ['TRIPS'             ,'TRIPS'             ,'max'     ,'trip' ,'int64'     , 0], 
                 ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'trip' ,'int64'     , 0], 
                 ['OBSERVED'          ,'OBSERVED'          ,'max'     ,'trip' ,'int64'     , 0], 
@@ -431,9 +431,6 @@ class SFMuniDataHelper():
                 ['CROWDHOURS'        ,'CROWDHOURS'        ,'sum'     ,'trip' ,'float64'   , 0]  
                 ]
         
-        # count the number of rows in each table so our 
-        # indices are unique
-        trip_count     = 0
 
         # get all infiles matching the pattern
         pattern = expanded_file.replace('YYYY', '*')
@@ -458,27 +455,32 @@ class SFMuniDataHelper():
     
             # loop through the months, and days of week
             for inkey in inkeys: 
-                outkey = inkey.replace('/ts', '/trip')
-                print 'Processing ', inkey, ' to write to ', outkey
+                outkey = inkey.replace('/ts', '/trip')                
+                dates = store.select_column(inkey, column='DATE').unique()
+                print 'Processing ', inkey, ' to write to ', outkey, ' with ', len(dates), ' days.'
                 
-                # get a months worth of data for this day of week
-                # be sure we have a clean index
-                df = store.select(inkey)                        
-                df.index = pd.Series(range(0,len(df)))         
-                
-                # initialize new terms
-                df['TRIPS'] = 1                
-                        
-                # routes
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP'], 
-                        columnSpecs=AGGREGATION_RULES, 
-                        level='trip', 
-                        weight=None)
-                aggdf.index = trip_count + pd.Series(range(0,len(aggdf)))
-                store.append(outkey, aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)   
-                trip_count += len(aggdf)
+                # count the number of rows in each table so our 
+                # indices are unique
+                trip_count     = 0
+
+                # process for each day
+                for date in dates: 
+
+                    df = store.select(inkey, where='DATE=Timestamp(date)')                   
+                    
+                    # initialize new terms
+                    df['TRIPS'] = 1                
+                            
+                    # routes
+                    aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                            groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP'], 
+                            columnSpecs=AGGREGATION_RULES, 
+                            level='trip', 
+                            weight=None)
+                    aggdf.index = trip_count + pd.Series(range(0,len(aggdf)))
+                    store.append(outkey, aggdf, data_columns=True, 
+                            min_itemsize=stringLengths)   
+                    trip_count += len(aggdf)
     
             store.close()
 
@@ -687,7 +689,7 @@ class SFMuniDataHelper():
                         groupby=['DATE','DOW','TOD','AGENCY_ID'], 
                         columnSpecs=STOP_RULES, 
                         level='system', 
-                        weight='SYSTEM_TOD_WEIGHT')      
+                        weight='SYSTEM_WEIGHT')      
                 aggdf.index = system_tod_count_s + pd.Series(range(0,len(aggdf))) 
                 outstore.append('system_tod_s', aggdf, data_columns=True, 
                         min_itemsize=stringLengths)   
@@ -697,7 +699,7 @@ class SFMuniDataHelper():
                         groupby=['DATE','DOW','AGENCY_ID'], 
                         columnSpecs=STOP_RULES, 
                         level='system', 
-                        weight='SYSTEM_DAY_WEIGHT')     
+                        weight='SYSTEM_WEIGHT')     
                 aggdf.index = system_day_count_s + pd.Series(range(0,len(aggdf)))                       
                 outstore.append('system_day_s', aggdf, data_columns=True, 
                         min_itemsize=stringLengths)   
@@ -738,7 +740,7 @@ class SFMuniDataHelper():
                         groupby=['DATE','DOW','TOD','AGENCY_ID'], 
                         columnSpecs=TRIP_RULES, 
                         level='system', 
-                        weight='SYSTEM_TOD_WEIGHT')      
+                        weight='SYSTEM_WEIGHT')      
                 aggdf.index = system_tod_count + pd.Series(range(0,len(aggdf))) 
                 outstore.append('system_tod', aggdf, data_columns=True, 
                         min_itemsize=stringLengths)   
@@ -748,7 +750,7 @@ class SFMuniDataHelper():
                         groupby=['DATE','DOW','AGENCY_ID'], 
                         columnSpecs=TRIP_RULES, 
                         level='system', 
-                        weight='SYSTEM_DAY_WEIGHT')     
+                        weight='SYSTEM_WEIGHT')     
                 aggdf.index = system_day_count + pd.Series(range(0,len(aggdf)))                       
                 outstore.append('system_day', aggdf, data_columns=True, 
                         min_itemsize=stringLengths)   
@@ -1211,7 +1213,7 @@ class SFMuniDataHelper():
         aggregated['RUNSPEED_S'] = speedInput.apply(self.updateSpeeds)
         
         # update actual speed--based on scheduled service miles for consistency
-        speedInput = pd.Series(zip(aggregated['SERVMILES_S'], 
+        speedInput = pd.Series(zip(aggregated['SERVMILES'], 
                                    aggregated['RUNTIME']), 
                                index=aggregated.index)            
         aggregated['RUNSPEED'] = speedInput.apply(self.updateSpeeds)
