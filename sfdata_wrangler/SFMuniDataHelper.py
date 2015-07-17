@@ -380,7 +380,73 @@ class SFMuniDataHelper():
         store.close()
 
 
-    def aggregateToTrips(self, expanded_file):
+    def aggregateToTrips(self, df):
+        """
+        Aggregates the dataframe from trip_stops to trip totals. 
+        
+        """
+                    
+        # specify 'none' as aggregation method if we want to include the 
+        #   output field, but it is calculated separately
+        #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
+        AGGREGATION_RULES = [              
+                ['MONTH'             ,'MONTH'             ,'first'   ,'trip' ,'datetime64', 0],          
+                ['SCHED_DATES'       ,'SCHED_DATES'       ,'first'   ,'trip' ,'object'    ,20],      
+                ['NUMDAYS'           ,'DATE'     ,self.countUnique   ,'trip' ,'int64'     , 0],         # stats for observations
+                ['TRIPS'             ,'TRIPS'             ,'max'     ,'trip' ,'int64'     , 0], 
+                ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'trip' ,'int64'     , 0], 
+                ['OBSERVED'          ,'OBSERVED'          ,'max'     ,'trip' ,'int64'     , 0], 
+                ['TRIP_ID'           ,'TRIP_ID'           ,'first'   ,'trip' ,'int64'     , 0],         # trip attributes  
+   	        ['SHAPE_ID'          ,'SHAPE_ID'          ,'first'   ,'trip' ,'int64'     , 0],  
+   	        ['PATTCODE'          ,'PATTCODE'          ,'first'   ,'trip' ,'int64'     , 0],  
+       	        ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'trip' ,'object'    ,32],         # route attributes    
+                ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'trip' ,'int64'     , 0], 
+                ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'trip' ,'object'    ,64],   
+                ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'trip' ,'float64'   , 0],   
+                ['FARE'              ,'FARE'              ,'mean'    ,'trip' ,'float64'   , 0],  
+                ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'last'    ,'trip' ,'float64'   , 0],         # times 
+                ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','first'   ,'trip' ,'float64'   , 0],   
+                ['DWELL_S'           ,'DWELL_S'           ,'sum'     ,'trip' ,'float64'   , 0],
+                ['DWELL'             ,'DWELL'             ,'sum'     ,'trip' ,'float64'   , 0],    
+                ['RUNTIME_S'         ,'RUNTIME_S'         ,'sum'     ,'trip' ,'float64'   , 0],
+                ['RUNTIME'           ,'RUNTIME'           ,'sum'     ,'trip' ,'float64'   , 0],   
+                ['SERVMILES_S'       ,'SERVMILES_S'       ,'sum'     ,'trip' ,'float64'   , 0],
+                ['SERVMILES'         ,'SERVMILES'         ,'sum'     ,'trip' ,'float64'   , 0],
+                ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'mean'    ,'trip' ,'float64'   , 0],
+                ['RUNSPEED'          ,'RUNSPEED'          ,'mean'    ,'trip' ,'float64'   , 0],                 
+                ['ONTIME5'           ,'ONTIME5'           ,'mean'    ,'trip' ,'float64'   , 0],              
+                ['ON'                ,'ON'                ,'sum'     ,'trip' ,'float64'   , 0],         # ridership   
+                ['OFF'               ,'OFF'               ,'sum'     ,'trip' ,'float64'   , 0],                           
+                ['PASSMILES'         ,'PASSMILES'         ,'sum'     ,'trip' ,'float64'   , 0],   
+                ['PASSHOURS'         ,'PASSHOURS'         ,'sum'     ,'trip' ,'float64'   , 0],  
+                ['WAITHOURS'         ,'WAITHOURS'         ,'sum'     ,'trip' ,'float64'   , 0],  
+                ['FULLFARE_REV'      ,'FULLFARE_REV'      ,'sum'     ,'trip' ,'float64'   , 0],               
+                ['PASSDELAY_DEP'     ,'PASSDELAY_DEP'     ,'sum'     ,'trip' ,'float64'   , 0],   
+                ['PASSDELAY_ARR'     ,'PASSDELAY_ARR'     ,'sum'     ,'trip' ,'float64'   , 0],  
+                ['RDBRDNGS'          ,'RDBRDNGS'          ,'sum'     ,'trip' ,'float64'   , 0],     
+                ['DOORCYCLES'        ,'DOORCYCLES'        ,'sum'     ,'trip' ,'float64'   , 0],   
+                ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'sum'     ,'trip' ,'float64'   , 0],  
+                ['BIKERACK'          ,'BIKERACK'          ,'sum'     ,'trip' ,'float64'   , 0],
+                ['VC'                ,'VC'                ,'max'     ,'trip' ,'float64'   , 0],         # crowding 
+                ['CROWDED'           ,'CROWDED'           ,'max'     ,'trip' ,'float64'   , 0],   
+                ['CROWDHOURS'        ,'CROWDHOURS'        ,'sum'     ,'trip' ,'float64'   , 0]  
+                ]
+                            
+        # initialize new terms
+        df['TRIPS'] = 1                
+                            
+        # trips
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP'], 
+                columnSpecs=AGGREGATION_RULES, 
+                level='trip', 
+                weight=None)
+        aggdf.index = pd.Series(range(0,len(aggdf)))
+    
+        return aggdf
+
+
+    def old_aggregateFileToTrips(self, expanded_file):
         """
         Aggregates the expanded data from trip_stops to trip totals. 
         

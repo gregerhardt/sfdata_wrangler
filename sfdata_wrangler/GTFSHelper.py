@@ -26,6 +26,8 @@ import glob
 import transitfeed  
 import pyproj  
 from shapely.geometry import Point, LineString  
+
+from SFMuniDataHelper import SFMuniDataHelper
             
 
 #  define projection from LON, LAT to UTM zone 10
@@ -283,7 +285,7 @@ class GTFSHelper():
         ]
                 
     
-    def processRawData(self, gtfs_file, sfmuni_file, expanded_file, dow=[1,2,3]):
+    def expandAndWeight(self, gtfs_file, sfmuni_file, trip_outfile, ts_outfile, dow=[1,2,3]):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
         This will be done for every individual day, so you get a list of 
@@ -295,285 +297,303 @@ class GTFSHelper():
         
         print datetime.datetime.now(), 'Converting raw data in file: ', gtfs_file
         
+        # from column specs
+        stringLengths = self.getStringLengths()         
+        
+        # establish the feed
+        tfl = transitfeed.Loader(feed_path=gtfs_file)
+        schedule = tfl.Load()
+        
+        # create dictionary with one dataframe for each service period
+        dataframes = {}
+        servicePeriods = schedule.GetServicePeriodList()        
+        for period in servicePeriods:   
+            if int(period.service_id) in dow:         
+                dataframes[period.service_id]  = self.getGTFSDataFrame(schedule, period)
+
+        # open the data stores
+        sfmuni_store = pd.HDFStore(sfmuni_file)            
+        
+        # loop through each date, and add the appropriate service to the database
+        observedDates = sfmuni_store.select_column('sample', 'DATE').unique()        
+        dateRange = schedule.GetDateRange()
+        startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
+        endDate   = pd.to_datetime(dateRange[1], format='%Y%m%d')
+        servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate) 
+           
+        print 'Writing data for periods from ', startDate, ' to ', endDate
+        for date, servicePeriodsForDate in servicePeriodsEachDate:           
+                        
+            if date.to_datetime64() in observedDates:                
+                print 'Processing ', date         
+                
+                # use a separate file for each year
+                # and write a separate table for each month and DOW
+                # format of the table name is mYYYYMMDDdX, where X is the day of week
+                month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()    
+                trip_outstore = pd.HDFStore(getOutfile(trip_outfile, month))  
+                ts_outstore = pd.HDFStore(getOutfile(ts_outfile, month))  
+                
+                for period in servicePeriodsForDate: 
+                    if int(period.service_id) in dow:     
+                        
+                        outkey = getOutkey(month=month, dow=period.service_id, prefix='m') 
+                                            
+                        df = dataframes[period.service_id]
+                            
+                        # update the dates
+                        df['ARRIVAL_TIME_S']   = date + (df['ARRIVAL_TIME_S'] - df['DATE'])
+                        df['DEPARTURE_TIME_S'] = date + (df['DEPARTURE_TIME_S'] - df['DATE'])
+    
+                        df['DATE'] = date
+                        df['MONTH'] = month
+    
+                        # get the corresponding MUNI data for this date
+                        sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')   
+            
+                        # calculate observed RUNTIME
+                        # happens here because the values in the AVL data look screwy.
+                        groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
+                        sfmuni = sfmuni.groupby(groupby, as_index=False).apply(calculateRuntime)
+                        
+                        # join the sfmuni data
+                        joined = self.joinSFMuniData(df, sfmuni)    
+                        
+                        # aggregate from trip-stops to trips
+                        sfmuniHelper = SFMuniDataHelper()
+                        trips = sfmuniHelper.aggregateToTrips(joined)
+                        
+                        # weight the trips
+                        trips = self.weightTrips(trips)
+                        
+                        # write the trips                                                                     
+                        trip_outstore.append(outkey, trips, data_columns=True, 
+                                    min_itemsize=stringLengths)
+                        
+                        # add weights to trip-stop df                          
+                        mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
+                        weightFields = ['TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
+                        tripWeights = trips[mergeFields + weightFields]            
+                        ts = pd.merge(joined, tripWeights, how='left', on=mergeFields, sort=True)  
+                        
+                        # write the trip-stops                                          
+                        ts_outstore.append(outkey, ts, data_columns=True, 
+                                    min_itemsize=stringLengths)
+                                            
+                trip_outstore.close()
+                ts_outstore.close()
+
+        sfmuni_store.close()
+
+    def getGTFSDataFrame(self, schedule, period):
+        """
+        Converts the schedule into a dataframe for the given period
+        """
+        
         # convert column specs 
         colnames = []   
-        stringLengths= {}
         indexColumns = []
         for col in self.COLUMNS: 
             name = col[0]
-            stringLength = col[1]
             index = col[2]
             source = col[3]
             
             if source=='gtfs' or source=='join': 
                 colnames.append(name)
-            if (stringLength>0): 
-                stringLengths[name] = stringLength
             if index==1: 
                 indexColumns.append(name)
-                        
-        # establish the feed
-        tfl = transitfeed.Loader(feed_path=gtfs_file)
-        schedule = tfl.Load()
+                
+        # create an empty list of dictionaries to store the data
+        data = []
         
         # determine the dates
         dateRange = schedule.GetDateRange()
         startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
-        endDate   = pd.to_datetime(dateRange[1], format='%Y%m%d')
         dateRangeString = str(dateRange[0]) + '-' + str(dateRange[1])
         
-        # only keep the service periods for the days of week specified in the input
-        servicePeriods = schedule.GetServicePeriodList()         
-        for period in servicePeriods:
-            if not (int(period.service_id) in dow):
-                servicePeriods.remove(period)
-        
-                                     
-        # create dictionary with one dataframe for each service period
-        dataframes = {}
-        for period in servicePeriods:
+        # create one record for each trip-stop, specific to the service
+        # on this day
+        tripList = schedule.GetTripList()            
+            
+        for trip in tripList:
+            if trip.service_id == period.service_id:          
+                # determine route attributes, and only keep bus trips
+                route = schedule.GetRoute(trip.route_id)
+                if (int(route.route_type) == self.BUS_ROUTE_TYPE):
                     
-            # create an empty list of dictionaries to store the data
-            data = []
-        
-            # create one record for each trip-stop, specific to the service
-            # on this day
-            tripList = schedule.GetTripList()            
-            
-            for trip in tripList:
-                if trip.service_id == period.service_id:          
-                    # determine route attributes, and only keep bus trips
-                    route = schedule.GetRoute(trip.route_id)
-                    if (int(route.route_type) == self.BUS_ROUTE_TYPE):
+                        
+                    # get shape attributes, converted to a line
+                    shape = schedule.GetShape(trip.shape_id)
+                    shapePoints = []
+                    for p in shape.points: 
+                        x, y = toUTM(p[1], p[0])
+                        shapePoints.append((x, y))
+                    shapeLine = LineString(shapePoints)
                         
                         
-                        # get shape attributes, converted to a line
-                        shape = schedule.GetShape(trip.shape_id)
-                        shapePoints = []
-                        for p in shape.points: 
-                            x, y = toUTM(p[1], p[0])
-                            shapePoints.append((x, y))
-                        shapeLine = LineString(shapePoints)
+                    # calculate fare--assume just based on route ID
+                    fare = 0
+                    fareAttributeList = schedule.GetFareAttributeList()
+                    for fareAttribute in fareAttributeList:
+                        fareRuleList = fareAttribute.GetFareRuleList()
+                        for fareRule in fareRuleList:
+                            if fareRule.route_id == trip.route_id: 
+                                fare = fareAttribute.price
                         
+                    # one record for each stop time
+                    stopTimeList = trip.GetStopTimes()    
                         
-                        # calculate fare--assume just based on route ID
-                        fare = 0
-                        fareAttributeList = schedule.GetFareAttributeList()
-                        for fareAttribute in fareAttributeList:
-                            fareRuleList = fareAttribute.GetFareRuleList()
-                            for fareRule in fareRuleList:
-                                if fareRule.route_id == trip.route_id: 
-                                    fare = fareAttribute.price
+                    # initialize for looping
+                    i = 0        
+                    lastDepartureTime = startDate
+                        
+                    for stopTime in stopTimeList:
+                        record = {}
                             
-                        # one record for each stop time
-                        stopTimeList = trip.GetStopTimes()    
-                        
-                        # initialize for looping
-                        i = 0        
-                        lastDepartureTime = startDate
-                        
-                        for stopTime in stopTimeList:
-                            record = {}
-                            
-                            # first stop, last stop and trip based on order
-                            if i==0: 
-                                startOfLine = 1
-                                hr, min, sec = stopTime.departure_time.split(':')
-                                firstDeparture = int(hr + min)
+                        # first stop, last stop and trip based on order
+                        if i==0: 
+                            startOfLine = 1
+                            hr, min, sec = stopTime.departure_time.split(':')
+                            firstDeparture = int(hr + min)
                 
-                                # compute TEP time periods -- need to iterate
-                                if (firstDeparture >= 300  and firstDeparture < 600):  
-                                    timeOfDay='0300-0559'
-                                elif (firstDeparture >= 600  and firstDeparture < 900):  
-                                    timeOfDay='0600-0859'
-                                elif (firstDeparture >= 900  and firstDeparture < 1400): 
-                                    timeOfDay='0900-1359'
-                                elif (firstDeparture >= 1400 and firstDeparture < 1600): 
-                                    timeOfDay='1400-1559'
-                                elif (firstDeparture >= 1600 and firstDeparture < 1900): 
-                                    timeOfDay='1600-1859'
-                                elif (firstDeparture >= 1900 and firstDeparture < 2200): 
-                                    timeOfDay='1900-2159'
-                                elif (firstDeparture >= 2200 and firstDeparture < 9999): 
-                                    timeOfDay='2200-0259'
-                                else:
-                                    timeOfDay=''
+                            # compute TEP time periods -- need to iterate
+                            if (firstDeparture >= 300  and firstDeparture < 600):  
+                                timeOfDay='0300-0559'
+                            elif (firstDeparture >= 600  and firstDeparture < 900):  
+                                timeOfDay='0600-0859'
+                            elif (firstDeparture >= 900  and firstDeparture < 1400): 
+                                timeOfDay='0900-1359'
+                            elif (firstDeparture >= 1400 and firstDeparture < 1600): 
+                                timeOfDay='1400-1559'
+                            elif (firstDeparture >= 1600 and firstDeparture < 1900): 
+                                timeOfDay='1600-1859'
+                            elif (firstDeparture >= 1900 and firstDeparture < 2200): 
+                                timeOfDay='1900-2159'
+                            elif (firstDeparture >= 2200 and firstDeparture < 9999): 
+                                timeOfDay='2200-0259'
+                            else:
+                                timeOfDay=''
                                     
-                                # distance traveled along shape for previous stop
-                                lastDistanceTraveled = 0
-                            else:
-                                startOfLine = 0
-                                
-                            if i==(len(stopTimeList)-1):
-                                endOfLine = 1
-                            else: 
-                                endOfLine = 0
+                            # distance traveled along shape for previous stop
+                            lastDistanceTraveled = 0
+                        else:
+                            startOfLine = 0
                             
-                            # calendar attributes
-                            record['MONTH'] = startDate
-                            record['DATE'] = startDate
-                            record['DOW']  = int(trip.service_id)
-                            record['TOD']  = timeOfDay
+                        if i==(len(stopTimeList)-1):
+                            endOfLine = 1
+                        else: 
+                            endOfLine = 0
                             
-                            # observations
-                            record['TRIP_STOPS'] = 1
-                            record['OBSERVED'] = 0
+                        # calendar attributes
+                        record['MONTH'] = startDate
+                        record['DATE'] = startDate
+                        record['DOW']  = int(trip.service_id)
+                        record['TOD']  = timeOfDay
+                            
+                        # observations
+                        record['TRIP_STOPS'] = 1
+                        record['OBSERVED'] = 0
             
-                            # For matching to AVL data
-                            record['AGENCY_ID']        = str(route.agency_id).strip().upper()
-                            record['ROUTE_SHORT_NAME'] = str(route.route_short_name).strip().upper()
-                            record['ROUTE_LONG_NAME']  = str(route.route_long_name).strip().upper()
-                            record['DIR']              = int(trip.direction_id)
-                            record['TRIP']             = firstDeparture    # contains HHMM of departure from first stop
-                            record['SEQ']              = int(stopTime.stop_sequence)                            
-                                
-                            # route/trip attributes
-                            record['ROUTE_TYPE']       = int(route.route_type)
-                            record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
-                            record['HEADWAY_S']        = np.NaN             # calculated below
-                            record['FARE']             = float(fare)  
+                        # For matching to AVL data
+                        record['AGENCY_ID']        = str(route.agency_id).strip().upper()
+                        record['ROUTE_SHORT_NAME'] = str(route.route_short_name).strip().upper()
+                        record['ROUTE_LONG_NAME']  = str(route.route_long_name).strip().upper()
+                        record['DIR']              = int(trip.direction_id)
+                        record['TRIP']             = firstDeparture    # contains HHMM of departure from first stop
+                        record['SEQ']              = int(stopTime.stop_sequence)                            
                             
-                            # stop attriutes
-                            record['STOPNAME']         = str(stopTime.stop.stop_name)
-                            record['STOP_LAT']         = float(stopTime.stop.stop_lat)
-                            record['STOP_LON']         = float(stopTime.stop.stop_lon)
-                            record['SOL']              = startOfLine
-                            record['EOL']              = endOfLine
+                        # route/trip attributes
+                        record['ROUTE_TYPE']       = int(route.route_type)
+                        record['TRIP_HEADSIGN']    = str(trip.trip_headsign)
+                        record['HEADWAY_S']        = np.NaN             # calculated below
+                        record['FARE']             = float(fare)  
+                        
+                        # stop attriutes
+                        record['STOPNAME']         = str(stopTime.stop.stop_name)
+                        record['STOP_LAT']         = float(stopTime.stop.stop_lat)
+                        record['STOP_LON']         = float(stopTime.stop.stop_lon)
+                        record['SOL']              = startOfLine
+                        record['EOL']              = endOfLine
                             
-                            # stop times        
-                            # deal with wrap-around aspect of time (past midnight >2400)
-                            arrivalTime = getWrapAroundTime(str(startDate.date()), stopTime.arrival_time)
-                            departureTime = getWrapAroundTime(str(startDate.date()), stopTime.departure_time)
-                            if startOfLine or endOfLine: 
-                                dwellTime = 0
-                            else: 
-                                timeDiff = departureTime - arrivalTime
-                                dwellTime = round(timeDiff.seconds / 60.0, 2)
+                        # stop times        
+                        # deal with wrap-around aspect of time (past midnight >2400)
+                        arrivalTime = getWrapAroundTime(str(startDate.date()), stopTime.arrival_time)
+                        departureTime = getWrapAroundTime(str(startDate.date()), stopTime.departure_time)
+                        if startOfLine or endOfLine: 
+                            dwellTime = 0
+                        else: 
+                            timeDiff = departureTime - arrivalTime
+                            dwellTime = round(timeDiff.seconds / 60.0, 2)
     
-                            record['ARRIVAL_TIME_S']   = arrivalTime
-                            record['DEPARTURE_TIME_S'] = departureTime
-                            record['DWELL_S']          = dwellTime
+                        record['ARRIVAL_TIME_S']   = arrivalTime
+                        record['DEPARTURE_TIME_S'] = departureTime
+                        record['DWELL_S']          = dwellTime
                             
-                            # runtimes
-                            if startOfLine: 
-                                runtime = 0
-                            else: 
-                                timeDiff = arrivalTime - lastDepartureTime
-                                runtime = max(0, round(timeDiff.total_seconds() / 60.0, 2))
-                            record['RUNTIME_S'] = runtime
+                        # runtimes
+                        if startOfLine: 
+                            runtime = 0
+                        else: 
+                            timeDiff = arrivalTime - lastDepartureTime
+                            runtime = max(0, round(timeDiff.total_seconds() / 60.0, 2))
+                        record['RUNTIME_S'] = runtime
                             
-                            # location along shape object (SFMTA uses meters)
-                            if stopTime.shape_dist_traveled > 0: 
-                                record['SHAPE_DIST'] = stopTime.shape_dist_traveled
-                            else: 
-                                x, y = toUTM(stopTime.stop.stop_lon, stopTime.stop.stop_lat)
-                                stopPoint = Point(x, y)
-                                projectedDist = shapeLine.project(stopPoint, normalized=True)
-                                distanceTraveled = shape.max_distance * projectedDist
-                                record['SHAPE_DIST'] = distanceTraveled
+                        # location along shape object (SFMTA uses meters)
+                        if stopTime.shape_dist_traveled > 0: 
+                            record['SHAPE_DIST'] = stopTime.shape_dist_traveled
+                        else: 
+                            x, y = toUTM(stopTime.stop.stop_lon, stopTime.stop.stop_lat)
+                            stopPoint = Point(x, y)
+                            projectedDist = shapeLine.project(stopPoint, normalized=True)
+                            distanceTraveled = shape.max_distance * projectedDist
+                            record['SHAPE_DIST'] = distanceTraveled
     
-                            # service miles
-                            if startOfLine: 
-                                serviceMiles = 0
-                            else: 
-                                serviceMiles = round((distanceTraveled - lastDistanceTraveled) / 1609.344, 3)
-                            record['SERVMILES_S'] = serviceMiles
+                        # service miles
+                        if startOfLine: 
+                            serviceMiles = 0
+                        else: 
+                            serviceMiles = round((distanceTraveled - lastDistanceTraveled) / 1609.344, 3)
+                        record['SERVMILES_S'] = serviceMiles
                                 
-                            # speed (mph)
-                            if runtime > 0: 
-                                record['RUNSPEED_S'] = round(serviceMiles / (runtime / 60.0), 2)
-                            else:
-                                record['RUNSPEED_S'] = 0
+                        # speed (mph)
+                        if runtime > 0: 
+                            record['RUNSPEED_S'] = round(serviceMiles / (runtime / 60.0), 2)
+                        else:
+                            record['RUNSPEED_S'] = 0
                                                     
     
-                            # Additional GTFS IDs.        
-                            record['ROUTE_ID']       = int(trip.route_id)
-                            record['TRIP_ID']        = int(trip.trip_id)
-                            record['STOP_ID']        = int(stopTime.stop.stop_id)
-                            record['BLOCK_ID']       = int(trip.block_id)
-                            record['SHAPE_ID']       = int(trip.shape_id)
+                        # Additional GTFS IDs.        
+                        record['ROUTE_ID']       = int(trip.route_id)
+                        record['TRIP_ID']        = int(trip.trip_id)
+                        record['STOP_ID']        = int(stopTime.stop.stop_id)
+                        record['BLOCK_ID']       = int(trip.block_id)
+                        record['SHAPE_ID']       = int(trip.shape_id)
                             
-                            # indicates range this schedule is in operation    
-                            record['SCHED_DATES'] = dateRangeString          # start and end date for this schedule
-                            
-                            # track from previous record
-                            lastDepartureTime = departureTime      
-                            lastDistanceTraveled = distanceTraveled                              
+                        # indicates range this schedule is in operation    
+                        record['SCHED_DATES'] = dateRangeString          # start and end date for this schedule
+                        
+                        # track from previous record
+                        lastDepartureTime = departureTime      
+                        lastDistanceTraveled = distanceTraveled                              
                                                                                                                                         
-                            data.append(record)                
-                            i += 1
+                        data.append(record)                
+                        i += 1
                                     
-            # convert to data frame and set unique index
-            print "service_id %s has %i trip-stop records" % (period.service_id, len(data))
-            df = pd.DataFrame(data)       
-            df.index = pd.Series(range(0,len(df)))
+        # convert to data frame and set unique index
+        print "service_id %s has %i trip-stop records" % (period.service_id, len(data))
+        df = pd.DataFrame(data)       
+        df.index = pd.Series(range(0,len(df)))
 
-            # calculate the headways, based on difference in previous bus on 
-            # this route stopping at the same stop
-            groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
-            df = df.groupby(groupby, as_index=False).apply(calculateHeadways)
+        # calculate the headways, based on difference in previous bus on 
+        # this route stopping at the same stop
+        groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
+        df = df.groupby(groupby, as_index=False).apply(calculateHeadways)
             
-            # keep only relevant columns, sorted
-            df.sort(indexColumns, inplace=True)                        
-            df = df[colnames]
-            
-            # keep one dataframe for each service period
-            dataframes[period.service_id] = df
-
-            
-        # loop through each date, and add the appropriate service to the database
-        print 'Writing data for periods from ', startDate, ' to ', endDate
-
-        # open the data stores
-        sfmuni_store = pd.HDFStore(sfmuni_file)
-        observedDates = sfmuni_store.select_column('sample', 'DATE').unique()
+        # keep only relevant columns, sorted
+        df.sort(indexColumns, inplace=True)                        
+        df = df[colnames]
         
-        servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate)        
-        for date, servicePeriodsForDate in servicePeriodsEachDate:
-                        
-            if date.to_datetime64() in observedDates:     
-                month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()   
-                for period in servicePeriodsForDate: 
-                    
-                    if not (period in servicePeriods): 
-                        continue
-                    
-                    df = dataframes[period.service_id]
-                        
-                    # update the dates
-                    df['ARRIVAL_TIME_S']   = date + (df['ARRIVAL_TIME_S'] - df['DATE'])
-                    df['DEPARTURE_TIME_S'] = date + (df['DEPARTURE_TIME_S'] - df['DATE'])
-
-                    df['DATE'] = date
-                    df['MONTH'] = month
-
-                    # get the corresponding MUNI data for this date
-                    sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')                    
-                    print 'Processing ', date, ' with ', len(sfmuni), ' observed records.' 
+        return df
         
-                    # calculate observed RUNTIME
-                    # happens here because the values in the AVL data look screwy.
-                    groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
-                    sfmuni = sfmuni.groupby(groupby, as_index=False).apply(calculateRuntime)
-                    
-                    # join the sfmuni data
-                    joined = self.joinSFMuniData(df, sfmuni)            
-        
-                    # write the output        
-                    # use a separate file for each year
-                    # and write a separate table for each month and DOW
-                    # format of the table name is YYYYMMDDdX, where X is the day of week
-                    outfile = getOutfile(expanded_file, month)
-                    outkey = getOutkey(month=month, dow=period.service_id, prefix='ts')                    
-                    outstore = pd.HDFStore(outfile)         
-                                                
-                    outstore.append(outkey, joined, data_columns=True, 
-                                min_itemsize=stringLengths)
-                        
-                    outstore.close()
-
-        sfmuni_store.close()
-
     
     def joinSFMuniData(self, gtfs, sfmuni):
         """
@@ -586,20 +606,16 @@ class GTFSHelper():
         
         # convert column specs 
         colnames = []   
-        stringLengths= {}
         indexColumns = []
         joinFields = []
         sources = {}
         for col in self.COLUMNS: 
             name = col[0]
-            stringLength = col[1]
             index = col[2]
             source = col[3]
             
             colnames.append(name)
             sources[name] = source
-            if (stringLength>0): 
-                stringLengths[name] = stringLength
             if index==1: 
                 indexColumns.append(name)
             if source=='join': 
@@ -688,14 +704,46 @@ class GTFSHelper():
             
         return joined
 
+
+    def weightTrips(self, trips):
+        """
+        Adds a series of weight columns to the trip df based on the ratio
+        of total to observed trips.        
+        """
+        
+        # start with all observations weighted equally
+        trips['TRIPS'] = 1
+        trips['TRIP_WEIGHT'] = trips['OBSERVED'].mask(trips['OBSERVED']==0, other=np.nan)
     
-    def weightExpandedData(self, expanded_file, weighted_file):
+        # add the weight columns, specific to the level of aggregation
+        # the weights build upon the lower-level weights, so we scale
+        # the low-weights up uniformly within the group.  
+                                        
+        # routes
+        trips['TOD_WEIGHT'] = calcWeights(trips, 
+                groupby=['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
+                oldWeight='TRIP_WEIGHT')
+    
+        trips['DAY_WEIGHT'] = calcWeights(trips, 
+                groupby=['DATE','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
+                oldWeight='TOD_WEIGHT')
+        
+        # system
+        trips['SYSTEM_WEIGHT'] = calcWeights(trips, 
+                groupby=['DATE','TOD','AGENCY_ID'], 
+                oldWeight='DAY_WEIGHT')
+                
+        return trips
+                        
+        
+    
+    def old_weightExpandedData(self, expanded_file, weighted_file):
         """
         Reads in the expanded sfmuni data, and adds a series of weight columns
         that will be used when aggregating the data.  
         
         """
-        
+                                
         # get all infiles matching the pattern
         pattern = expanded_file.replace('YYYY', '*')
         infiles = glob.glob(pattern)
@@ -741,12 +789,6 @@ class GTFSHelper():
                 # get a months worth of data for this day of week
                 trips = instore.select(trip_key)              
                 
-                # make sure we don't overflow the string lengths
-                stringLengths= {}
-                for col in trips.columns:
-                    if trips[col].dtype == 'object':
-                        stringLengths[col] = trips[col].map(len).max()
-                    
                 # start with all observations weighted equally
                 trips['TRIPS'] = 1
                 trips['TRIP_WEIGHT'] = trips['OBSERVED'].mask(trips['OBSERVED']==0, other=np.nan)
@@ -783,6 +825,7 @@ class GTFSHelper():
                 for date in dates:                                 
                     ts = instore.select(ts_key, where='DATE=Timestamp(date)')                         
                     ts = pd.merge(ts, tripWeights, how='left', on=mergeFields, sort=True)    
+                    stringLengths = self.getStringLengths()
                     outstore.append(ts_key, ts, data_columns=True, 
                         min_itemsize=stringLengths)
                 
@@ -791,4 +834,14 @@ class GTFSHelper():
             
             instore.close()
 
-
+    def getStringLengths(self):
+        
+        # convert column specs 
+        stringLengths= {}
+        for col in self.COLUMNS: 
+            name = col[0]
+            stringLength = col[1]
+            if (stringLength>0): 
+                stringLengths[name] = stringLength
+                
+        return stringLengths
