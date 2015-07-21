@@ -446,111 +446,6 @@ class SFMuniDataHelper():
         return aggdf
 
 
-    def old_aggregateFileToTrips(self, expanded_file):
-        """
-        Aggregates the expanded data from trip_stops to trip totals. 
-        
-        """
-                    
-        # specify 'none' as aggregation method if we want to include the 
-        #   output field, but it is calculated separately
-        #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
-        AGGREGATION_RULES = [              
-                ['MONTH'             ,'MONTH'             ,'first'   ,'trip' ,'datetime64', 0],          
-                ['SCHED_DATES'       ,'SCHED_DATES'       ,'first'   ,'trip' ,'object'    ,20],      
-                ['NUMDAYS'           ,'DATE'     ,self.countUnique   ,'trip' ,'int64'     , 0],         # stats for observations
-                ['TRIPS'             ,'TRIPS'             ,'max'     ,'trip' ,'int64'     , 0], 
-                ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'trip' ,'int64'     , 0], 
-                ['OBSERVED'          ,'OBSERVED'          ,'max'     ,'trip' ,'int64'     , 0], 
-                ['TRIP_ID'           ,'TRIP_ID'           ,'first'   ,'trip' ,'int64'     , 0],         # trip attributes  
-   	        ['SHAPE_ID'          ,'SHAPE_ID'          ,'first'   ,'trip' ,'int64'     , 0],  
-       	        ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'trip' ,'object'    ,32],         # route attributes    
-                ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'trip' ,'int64'     , 0], 
-                ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'trip' ,'object'    ,64],   
-                ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'trip' ,'float64'   , 0],   
-                ['FARE'              ,'FARE'              ,'mean'    ,'trip' ,'float64'   , 0],  
-                ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'last'    ,'trip' ,'float64'   , 0],         # times 
-                ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','first'   ,'trip' ,'float64'   , 0],   
-                ['DWELL_S'           ,'DWELL_S'           ,'sum'     ,'trip' ,'float64'   , 0],
-                ['DWELL'             ,'DWELL'             ,'sum'     ,'trip' ,'float64'   , 0],    
-                ['RUNTIME_S'         ,'RUNTIME_S'         ,'sum'     ,'trip' ,'float64'   , 0],
-                ['RUNTIME'           ,'RUNTIME'           ,'sum'     ,'trip' ,'float64'   , 0],   
-                ['SERVMILES_S'       ,'SERVMILES_S'       ,'sum'     ,'trip' ,'float64'   , 0],
-                ['SERVMILES'         ,'SERVMILES'         ,'sum'     ,'trip' ,'float64'   , 0],
-                ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'mean'    ,'trip' ,'float64'   , 0],
-                ['RUNSPEED'          ,'RUNSPEED'          ,'mean'    ,'trip' ,'float64'   , 0],                 
-                ['ONTIME5'           ,'ONTIME5'           ,'mean'    ,'trip' ,'float64'   , 0],              
-                ['ON'                ,'ON'                ,'sum'     ,'trip' ,'float64'   , 0],         # ridership   
-                ['OFF'               ,'OFF'               ,'sum'     ,'trip' ,'float64'   , 0],                           
-                ['PASSMILES'         ,'PASSMILES'         ,'sum'     ,'trip' ,'float64'   , 0],   
-                ['PASSHOURS'         ,'PASSHOURS'         ,'sum'     ,'trip' ,'float64'   , 0],  
-                ['WAITHOURS'         ,'WAITHOURS'         ,'sum'     ,'trip' ,'float64'   , 0],  
-                ['FULLFARE_REV'      ,'FULLFARE_REV'      ,'sum'     ,'trip' ,'float64'   , 0],               
-                ['PASSDELAY_DEP'     ,'PASSDELAY_DEP'     ,'sum'     ,'trip' ,'float64'   , 0],   
-                ['PASSDELAY_ARR'     ,'PASSDELAY_ARR'     ,'sum'     ,'trip' ,'float64'   , 0],  
-                ['RDBRDNGS'          ,'RDBRDNGS'          ,'sum'     ,'trip' ,'float64'   , 0],     
-                ['DOORCYCLES'        ,'DOORCYCLES'        ,'sum'     ,'trip' ,'float64'   , 0],   
-                ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'sum'     ,'trip' ,'float64'   , 0],  
-                ['BIKERACK'          ,'BIKERACK'          ,'sum'     ,'trip' ,'float64'   , 0],
-                ['VC'                ,'VC'                ,'max'     ,'trip' ,'float64'   , 0],         # crowding 
-                ['CROWDED'           ,'CROWDED'           ,'max'     ,'trip' ,'float64'   , 0],   
-                ['CROWDHOURS'        ,'CROWDHOURS'        ,'sum'     ,'trip' ,'float64'   , 0]  
-                ]
-        
-
-        # get all infiles matching the pattern
-        pattern = expanded_file.replace('YYYY', '*')
-        infiles = glob.glob(pattern)
-        print 'Retrieved a total of %i years to process' % len(infiles)
-        
-        for infile in infiles: 
-            
-            # open the data store 
-            store = pd.HDFStore(infile)            
-            
-            # get the input 'ts' keys, and delete the output tables
-            allKeys = store.keys()
-            inkeys = []
-            for key in allKeys: 
-                if key.startswith('/ts'):
-                    inkeys.append(key)
-                else: 
-                    store.remove(key)                    
-            
-            print 'Retrieved a total of %i inkeys to process' % len(inkeys)   
-    
-            # loop through the months, and days of week
-            for inkey in inkeys: 
-                outkey = inkey.replace('/ts', '/trip')                
-                dates = store.select_column(inkey, column='DATE').unique()
-                print 'Processing ', inkey, ' to write to ', outkey, ' with ', len(dates), ' days.'
-                
-                # count the number of rows in each table so our 
-                # indices are unique
-                trip_count     = 0
-
-                # process for each day
-                for date in dates: 
-
-                    df = store.select(inkey, where='DATE=Timestamp(date)')                   
-                    
-                    # initialize new terms
-                    df['TRIPS'] = 1                
-                            
-                    # routes
-                    aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                            groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP'], 
-                            columnSpecs=AGGREGATION_RULES, 
-                            level='trip', 
-                            weight=None)
-                    aggdf.index = trip_count + pd.Series(range(0,len(aggdf)))
-                    store.append(outkey, aggdf, data_columns=True, 
-                            min_itemsize=stringLengths)   
-                    trip_count += len(aggdf)
-    
-            store.close()
-
-
     def aggregateToDays(self, weighted_file, aggregate_file):
         """
         Aggregates weighted data to daily totals.  
@@ -1385,7 +1280,7 @@ class SFMuniDataHelper():
             time = pd.to_datetime(datetimeString, format="%m%d%y %H%M%S")
         except ValueError:
             print 'Count not convert ', datetimeString
-            raise
+            time = pd.NaT
             
         if nextDay: 
             time = time + pd.DateOffset(days=1)

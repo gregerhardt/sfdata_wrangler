@@ -285,7 +285,8 @@ class GTFSHelper():
         ]
                 
     
-    def expandAndWeight(self, gtfs_file, sfmuni_file, trip_outfile, ts_outfile, dow=[1,2,3]):
+    def expandAndWeight(self, gtfs_file, sfmuni_file, trip_outfile, ts_outfile, 
+                        dow=[1,2,3], startIndex=0, runFromDate='1900-01-01'):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
         This will be done for every individual day, so you get a list of 
@@ -296,10 +297,7 @@ class GTFSHelper():
         """
         
         print datetime.datetime.now(), 'Converting raw data in file: ', gtfs_file
-        
-        # from column specs
-        stringLengths = self.getStringLengths()         
-        
+              
         # establish the feed
         tfl = transitfeed.Loader(feed_path=gtfs_file)
         schedule = tfl.Load()
@@ -314,17 +312,20 @@ class GTFSHelper():
         # open the data stores
         sfmuni_store = pd.HDFStore(sfmuni_file)            
         
-        # loop through each date, and add the appropriate service to the database
-        observedDates = sfmuni_store.select_column('sample', 'DATE').unique()        
+        # loop through each date, and add the appropriate service to the database  
         dateRange = schedule.GetDateRange()
         startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
         endDate   = pd.to_datetime(dateRange[1], format='%Y%m%d')
         servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate) 
+        
+        # count the trips and trip-stops to ensure a unique index
+        tripCount = startIndex
+        tsCount = startIndex
            
         print 'Writing data for periods from ', startDate, ' to ', endDate
         for date, servicePeriodsForDate in servicePeriodsEachDate:           
                         
-            if date.to_datetime64() in observedDates:                
+            if pd.Timestamp(date) >= pd.Timestamp(runFromDate):           
                 print 'Processing ', date         
                 
                 # use a separate file for each year
@@ -337,54 +338,68 @@ class GTFSHelper():
                 for period in servicePeriodsForDate: 
                     if int(period.service_id) in dow:     
                         
-                        outkey = getOutkey(month=month, dow=period.service_id, prefix='m') 
-                                            
-                        df = dataframes[period.service_id]
-                            
-                        # update the dates
-                        df['ARRIVAL_TIME_S']   = date + (df['ARRIVAL_TIME_S'] - df['DATE'])
-                        df['DEPARTURE_TIME_S'] = date + (df['DEPARTURE_TIME_S'] - df['DATE'])
-    
-                        df['DATE'] = date
-                        df['MONTH'] = month
+                        outkey = getOutkey(month=month, dow=period.service_id, prefix='m')                                             
     
                         # get the corresponding MUNI data for this date
                         sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')   
-            
-                        # calculate observed RUNTIME
-                        # happens here because the values in the AVL data look screwy.
-                        groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
-                        sfmuni = sfmuni.groupby(groupby, as_index=False).apply(calculateRuntime)
                         
-                        # join the sfmuni data
-                        joined = self.joinSFMuniData(df, sfmuni)    
-                        
-                        # aggregate from trip-stops to trips
-                        sfmuniHelper = SFMuniDataHelper()
-                        trips = sfmuniHelper.aggregateToTrips(joined)
-                        
-                        # weight the trips
-                        trips = self.weightTrips(trips)
-                        
-                        # write the trips                                                                     
-                        trip_outstore.append(outkey, trips, data_columns=True, 
-                                    min_itemsize=stringLengths)
-                        
-                        # add weights to trip-stop df                          
-                        mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
-                        weightFields = ['TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
-                        tripWeights = trips[mergeFields + weightFields]            
-                        ts = pd.merge(joined, tripWeights, how='left', on=mergeFields, sort=True)  
-                        
-                        # write the trip-stops                                          
-                        ts_outstore.append(outkey, ts, data_columns=True, 
-                                    min_itemsize=stringLengths)
-                                            
+                        if len(sfmuni) > 0:
+                            
+                            # get the corresponding GTFS dataframe
+                            df = dataframes[period.service_id]
+                                
+                            # update the dates
+                            df['ARRIVAL_TIME_S']   = date + (df['ARRIVAL_TIME_S'] - df['DATE'])
+                            df['DEPARTURE_TIME_S'] = date + (df['DEPARTURE_TIME_S'] - df['DATE'])
+        
+                            df['DATE'] = date
+                            df['MONTH'] = month
+                
+                            # calculate observed RUNTIME
+                            # happens here because the values in the AVL data look screwy.
+                            groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
+                            sfmuni = sfmuni.groupby(groupby, as_index=False).apply(calculateRuntime)
+                            
+                            # join the sfmuni data
+                            joined = self.joinSFMuniData(df, sfmuni)    
+                            
+                            # aggregate from trip-stops to trips
+                            sfmuniHelper = SFMuniDataHelper()
+                            trips = sfmuniHelper.aggregateToTrips(joined)
+                            
+                            # set a unique trip index
+                            trips.index = tripCount + pd.Series(range(0,len(trips)))
+                            tripCount += len(trips)
+                
+                            # weight the trips
+                            trips = self.weightTrips(trips)
+                            
+                            # write the trips   
+                            stringLengths = self.getStringLengths(trips.columns)                                                                    
+                            trip_outstore.append(outkey, trips, data_columns=True, 
+                                        min_itemsize=stringLengths)
+                            
+                            # add weights to trip-stop df                          
+                            mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
+                            weightFields = ['TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
+                            tripWeights = trips[mergeFields + weightFields]            
+                            ts = pd.merge(joined, tripWeights, how='left', on=mergeFields, sort=True)  
+                            
+                            # set a unique trip-stop index
+                            ts.index = tsCount + pd.Series(range(0,len(ts)))
+                            tsCount += len(ts)
+                            
+                            # write the trip-stops        
+                            stringLengths = self.getStringLengths(ts.columns)                                                     
+                            ts_outstore.append(outkey, ts, data_columns=True, 
+                                        min_itemsize=stringLengths)
+                                                
                 trip_outstore.close()
                 ts_outstore.close()
 
         sfmuni_store.close()
 
+    
     def getGTFSDataFrame(self, schedule, period):
         """
         Converts the schedule into a dataframe for the given period
@@ -704,7 +719,7 @@ class GTFSHelper():
             
         return joined
 
-
+    
     def weightTrips(self, trips):
         """
         Adds a series of weight columns to the trip df based on the ratio
@@ -736,112 +751,15 @@ class GTFSHelper():
         return trips
                         
         
-    
-    def old_weightExpandedData(self, expanded_file, weighted_file):
-        """
-        Reads in the expanded sfmuni data, and adds a series of weight columns
-        that will be used when aggregating the data.  
-        
-        """
-                                
-        # get all infiles matching the pattern
-        pattern = expanded_file.replace('YYYY', '*')
-        infiles = glob.glob(pattern)
-        print 'Weighting expanded data'
-        print 'Retrieved a total of %i years to process' % len(infiles)
-        
-        for infile in infiles: 
-            
-            # open the file, and start with just the trip keys
-            instore = pd.HDFStore(infile)            
-            allKeys = instore.keys()
-            trip_keys = []
-            for allkey in allKeys: 
-                if allkey.startswith('/trip'): 
-                    trip_keys.append(allkey)                     
-            print 'Retrieved a total of %i trip_keys to process' % len(trip_keys)   
-    
-            # loop through the months, and days of week
-            for trip_key in trip_keys: 
-                print 'Processing ',trip_key
-                ts_key = trip_key.replace('trip', 'ts')
-                
-                # use a separate file for each year
-                # and write a separate table for each month and DOW
-                # format of the table name is tripYYYYMMDDdX, where X is the day of week
-                datestring = (trip_key.partition('trip')[2]).partition('d')[0]
-                month = pd.to_datetime(datestring, format='%Y%m%d')
-                outfile = getOutfile(weighted_file, pd.Timestamp(month))                    
-                outstore = pd.HDFStore(outfile)
-
-                # don't append the data, overwrite
-                try: 
-                    outstore.remove(trip_key)      
-                    print "  Replacing existing HDF table ", trip_key       
-                except KeyError: 
-                    pass
-                try: 
-                    outstore.remove(ts_key)      
-                    print "  Replacing existing HDF table ", trip_key       
-                except KeyError: 
-                    pass
-
-                # get a months worth of data for this day of week
-                trips = instore.select(trip_key)              
-                
-                # start with all observations weighted equally
-                trips['TRIPS'] = 1
-                trips['TRIP_WEIGHT'] = trips['OBSERVED'].mask(trips['OBSERVED']==0, other=np.nan)
-    
-                # add the weight columns, specific to the level of aggregation
-                # the weights build upon the lower-level weights, so we scale
-                # the low-weights up uniformly within the group.  
-                                        
-                # routes
-                trips['TOD_WEIGHT'] = calcWeights(trips, 
-                        groupby=['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                        oldWeight='TRIP_WEIGHT')
-    
-                trips['DAY_WEIGHT'] = calcWeights(trips, 
-                        groupby=['DATE','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                        oldWeight='TOD_WEIGHT')
-        
-                # system
-                trips['SYSTEM_WEIGHT'] = calcWeights(trips, 
-                        groupby=['DATE','TOD','AGENCY_ID'], 
-                        oldWeight='DAY_WEIGHT')
-                        
-                # write the trip data
-                outstore.append(trip_key, trips, data_columns=True)
-                        
-                # now merge the weights to the corresponding trip_stops table                    
-                mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
-                weightFields = ['TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
-                tripWeights = trips[mergeFields + weightFields]
-
-                # do this day-by-day to save memory
-                dates = trips['DATE'].unique()
-                print '  Merging to ', ts_key, ' with ', len(dates), ' days.'
-                for date in dates:                                 
-                    ts = instore.select(ts_key, where='DATE=Timestamp(date)')                         
-                    ts = pd.merge(ts, tripWeights, how='left', on=mergeFields, sort=True)    
-                    stringLengths = self.getStringLengths()
-                    outstore.append(ts_key, ts, data_columns=True, 
-                        min_itemsize=stringLengths)
-                
-                # close file--next one may be new year
-                outstore.close()
-            
-            instore.close()
-
-    def getStringLengths(self):
+    def getStringLengths(self, usedColumns):
         
         # convert column specs 
         stringLengths= {}
         for col in self.COLUMNS: 
             name = col[0]
-            stringLength = col[1]
-            if (stringLength>0): 
-                stringLengths[name] = stringLength
+            if name in usedColumns: 
+                stringLength = col[1]
+                if (stringLength>0): 
+                    stringLengths[name] = stringLength
                 
         return stringLengths
