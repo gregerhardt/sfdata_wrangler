@@ -672,7 +672,7 @@ class GTFSHelper():
         
         # ontime defined consistent with TCRP 165
         joined['ONTIME5'] = np.where((joined['DEPARTURE_TIME_DEV']>-1.0) & (joined['ARRIVAL_TIME_DEV']<5.0), 1, 0)
-        joined['ONTIME5'] = joined['OBSERVED'].mask(joined['OBSERVED']==0, other=np.nan)
+        joined['ONTIME5'] = joined['ONTIME5'].mask(joined['OBSERVED']==0, other=np.nan)
                                        
         # passenger miles traveled
         joined['PASSMILES'] = joined['LOAD_ARR'] * joined['SERVMILES']
@@ -690,12 +690,12 @@ class GTFSHelper():
         # passenger hours of delay at departure
         joined['PASSDELAY_DEP'] = np.where(joined['ONTIME5']==0, 
                                      joined['ON'] * joined['DEPARTURE_TIME_DEV'], 0)
-        joined['PASSDELAY_DEP'] = joined['OBSERVED'].mask(joined['OBSERVED']==0, other=np.nan)
+        joined['PASSDELAY_DEP'] = joined['PASSDELAY_DEP'].mask(joined['OBSERVED']==0, other=np.nan)
         
         # passenger hours of delay at arrival
         joined['PASSDELAY_ARR'] = np.where(joined['ONTIME5']==0, 
                                      joined['ON'] * joined['ARRIVAL_TIME_DEV'], 0)
-        joined['PASSDELAY_ARR'] = joined['OBSERVED'].mask(joined['OBSERVED']==0, other=np.nan)
+        joined['PASSDELAY_ARR'] = joined['PASSDELAY_ARR'].mask(joined['OBSERVED']==0, other=np.nan)
 
         # volume-capacity ratio
         joined['VC'] = (joined['LOAD_ARR']).values / (joined['CAPACITY']).values
@@ -707,7 +707,7 @@ class GTFSHelper():
         # the seated load, which is the maximum design load for
         # peak of the peak conditions. 
         joined['CROWDED'] = np.where(joined['VC'] > 0.85, 1.0, 0.0)
-        joined['CROWDED'] = joined['OBSERVED'].mask(joined['OBSERVED']==0, other=np.nan)
+        joined['CROWDED'] = joined['CROWDED'].mask(joined['OBSERVED']==0, other=np.nan)
 
         joined['CROWDHOURS'] = (joined['CROWDED'] * (
                                 joined['LOAD_ARR'] * joined['RUNTIME']
