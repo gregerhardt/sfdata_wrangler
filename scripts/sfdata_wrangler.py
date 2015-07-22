@@ -51,14 +51,14 @@ VALID_STEPS = [ 'clean',
 # INPUT FILES--change as needed
 ROUTE_EQUIV = "D:/Input/routeEquiv_20150626.csv"
 
-RAW_STP_FILES =["D:/Input/SFMTA Data/Raw STP Files/0803.stp",
-                "D:/Input/SFMTA Data/Raw STP Files/0906.stp",
-                "D:/Input/SFMTA Data/Raw STP Files/0912.stp",
-                "D:/Input/SFMTA Data/Raw STP Files/1001.stp",
-                "D:/Input/SFMTA Data/Raw STP Files/1005.stp",
-                "D:/Input/SFMTA Data/Raw STP Files/1009.stp"
-                "D:/Input/SFMTA Data/Raw STP Files/1101.stp",
-                "D:/Input/SFMTA Data/Raw STP Files/1110.stp",    
+RAW_STP_FILES =[#"D:/Input/SFMTA Data/Raw STP Files/0803.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/0906.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/0912.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1001.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1005.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1009.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1101.stp",
+                #"D:/Input/SFMTA Data/Raw STP Files/1110.stp",    
                 "D:/Input/SFMTA Data/Raw STP Files/1201.stp",
                 "D:/Input/SFMTA Data/Raw STP Files/1203.stp",
                 "D:/Input/SFMTA Data/Raw STP Files/1206.stp",
@@ -73,14 +73,14 @@ RAW_STP_FILES =["D:/Input/SFMTA Data/Raw STP Files/0803.stp",
     
 # these should be ordered from old to new, and avoid gaps or overlaps
 RAW_GTFS_FILES = [
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
                                                                                            # above file modified to avoid overlap of 13 days
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310.zip",  # 20090613 to 20091204
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223.zip",  # 20100508 to 20100903
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip"  # 20100904 to 20110102 (originally 20101231)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223.zip",  # 20100508 to 20100903
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
                                                                                            # above file modified to avoid gap of 2 days
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110420_0243_1.zip",  # 20110122 to 20110612 (originally 20110610)
                                                                                            # above file modified to avoid gap of 2 days
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110910_0449.zip",  # 20110613 to 20111014
@@ -104,10 +104,15 @@ RAW_CLIPPER_FILES =[#"D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
 
 # OUTPUT FILES--change as needed
 CLEANED_OUTFILE       = "D:/Output/sfmuni_cleaned.h5"    
+
 EXPANDED_TRIP_OUTFILE = "D:/Output/sfmuni_expanded_trip_YYYY.h5"    
 EXPANDED_TS_OUTFILE   = "D:/Output/sfmuni_expanded_ts_YYYY.h5" 
-DAILY_OUTFILE         = "D:/Output/sfmuni_daily.h5"
-MONTHLY_OUTFILE       = "D:/Output/sfmuni_monthly.h5"
+
+DAILY_TRIP_OUTFILE = "D:/Output/sfmuni_daily_trip.h5"
+DAILY_TS_OUTFILE   = "D:/Output/sfmuni_daily_ts.h5"
+
+MONTHLY_TRIP_OUTFILE = "D:/Output/sfmuni_monthly_trip.h5"
+MONTHLY_TS_OUTFILE   = "D:/Output/sfmuni_monthly_ts.h5"
 
 CLIPPER_OUTFILE = "D:/Output/clipper.h5"
 
@@ -147,14 +152,18 @@ if __name__ == "__main__":
                                       sfmuni_file=CLEANED_OUTFILE, 
                                       trip_outfile=EXPANDED_TRIP_OUTFILE, 
                                       ts_outfile=EXPANDED_TS_OUTFILE, 
-                                      dow=[1])   
+                                      dow=[1], 
+                                      runFromDate='2011-03-01')   
         print 'Finished expanding to GTFS in ', (datetime.datetime.now() - startTime)
 
     # aggregate to daily totals
     if 'aggregate' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        sfmuniHelper.aggregateToDays(WEIGHTED_OUTFILE, DAILY_OUTFILE)
-        sfmuniHelper.aggregateToMonths(DAILY_OUTFILE, MONTHLY_OUTFILE)
+        sfmuniHelper.aggregateTripsToDays(EXPANDED_TRIP_OUTFILE, DAILY_TRIP_OUTFILE)
+        sfmuniHelper.aggregateTripStopsToDays(EXPANDED_TS_OUTFILE, DAILY_TS_OUTFILE)
+        
+        sfmuniHelper.aggregateTripsToMonths(DAILY_TRIP_OUTFILE, MONTHLY_TRIP_OUTFILE)
+        sfmuniHelper.aggregateTripStopsToMonths(DAILY_TS_OUTFILE, MONTHLY_TS_OUTFILE)
         print 'Finished aggregations in ', (datetime.datetime.now() - startTime) 
 
     # process Clipper data.  
