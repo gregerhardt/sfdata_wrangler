@@ -392,10 +392,13 @@ class SFMuniDataHelper():
         AGGREGATION_RULES = [              
                 ['MONTH'             ,'MONTH'             ,'first'   ,'trip' ,'datetime64', 0],          
                 ['SCHED_DATES'       ,'SCHED_DATES'       ,'first'   ,'trip' ,'object'    ,20],      
-                ['NUMDAYS'           ,'DATE'     ,self.countUnique   ,'trip' ,'int64'     , 0],         # stats for observations
+                ['NUMDAYS'           ,'DATE'        ,self.countUnique,'trip' ,'int64'     , 0],         # stats for observations
                 ['TRIPS'             ,'TRIPS'             ,'max'     ,'trip' ,'int64'     , 0], 
                 ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'trip' ,'int64'     , 0], 
                 ['OBSERVED'          ,'OBSERVED'          ,'max'     ,'trip' ,'int64'     , 0], 
+                ['FIRST_SEQ'         ,'SEQ'               ,'min'     ,'trip' ,'int64'     , 0],         # for determining PATTERN
+                ['LAST_SEQ'          ,'SEQ'               ,'max'     ,'trip' ,'int64'     , 0], 
+                ['NUMSTOPS'          ,'SEQ'         ,self.countUnique,'trip' ,'int64'     , 0],                 
                 ['TRIP_ID'           ,'TRIP_ID'           ,'first'   ,'trip' ,'int64'     , 0],         # trip attributes  
    	        ['SHAPE_ID'          ,'SHAPE_ID'          ,'first'   ,'trip' ,'int64'     , 0],  
    	        ['PATTCODE'          ,'PATTCODE'          ,'first'   ,'trip' ,'int64'     , 0],  
@@ -409,11 +412,15 @@ class SFMuniDataHelper():
                 ['DWELL_S'           ,'DWELL_S'           ,'sum'     ,'trip' ,'float64'   , 0],
                 ['DWELL'             ,'DWELL'             ,'sum'     ,'trip' ,'float64'   , 0],    
                 ['RUNTIME_S'         ,'RUNTIME_S'         ,'sum'     ,'trip' ,'float64'   , 0],
-                ['RUNTIME'           ,'RUNTIME'           ,'sum'     ,'trip' ,'float64'   , 0],   
+                ['RUNTIME'           ,'RUNTIME'           ,'sum'     ,'trip' ,'float64'   , 0],     
+                ['TOTTIME_S'         ,'TOTTIME_S'         ,'sum'     ,'trip' ,'float64'   , 0],
+                ['TOTTIME'           ,'TOTTIME'           ,'sum'     ,'trip' ,'float64'   , 0],   
                 ['SERVMILES_S'       ,'SERVMILES_S'       ,'sum'     ,'trip' ,'float64'   , 0],
                 ['SERVMILES'         ,'SERVMILES'         ,'sum'     ,'trip' ,'float64'   , 0],
                 ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'mean'    ,'trip' ,'float64'   , 0],
-                ['RUNSPEED'          ,'RUNSPEED'          ,'mean'    ,'trip' ,'float64'   , 0],                 
+                ['RUNSPEED'          ,'RUNSPEED'          ,'mean'    ,'trip' ,'float64'   , 0],    
+                ['TOTSPEED_S'        ,'TOTSPEED_S'        ,'mean'    ,'trip' ,'float64'   , 0],
+                ['TOTSPEED'          ,'TOTSPEED'          ,'mean'    ,'trip' ,'float64'   , 0],                 
                 ['ONTIME5'           ,'ONTIME5'           ,'mean'    ,'trip' ,'float64'   , 0],              
                 ['ON'                ,'ON'                ,'sum'     ,'trip' ,'float64'   , 0],         # ridership   
                 ['OFF'               ,'OFF'               ,'sum'     ,'trip' ,'float64'   , 0],                           
@@ -442,6 +449,11 @@ class SFMuniDataHelper():
                 level='trip', 
                 weight=None)
         aggdf.index = pd.Series(range(0,len(aggdf)))
+        
+        # specify the PATTERN
+        aggdf['PATTERN'] = (aggdf['FIRST_SEQ'].astype(str) + 
+                     '_' + aggdf['LAST_SEQ'].astype(str) + 
+                     '_' + aggdf['NUMSTOPS'].astype(str))                     
     
         return aggdf
 
@@ -450,7 +462,7 @@ class SFMuniDataHelper():
         """
         Aggregates weighted data to daily totals.  
             Does this at different levels of aggregation for:
-            route_tod, route_day, system_tod, system_day
+            pattern_tod, pattern_day, route_tod, route_day, system_tod, system_day
         
         """
                     
@@ -474,11 +486,15 @@ class SFMuniDataHelper():
                 ['DWELL_S'           ,'DWELL_S'           ,'sum'     ,'system' ,'float64'   , 0],
                 ['DWELL'             ,'DWELL'             ,'wgtSum'  ,'system' ,'float64'   , 0],    
                 ['RUNTIME_S'         ,'RUNTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
-                ['RUNTIME'           ,'RUNTIME'           ,'wgtSum'  ,'system' ,'float64'   , 0],   
+                ['RUNTIME'           ,'RUNTIME'           ,'wgtSum'  ,'system' ,'float64'   , 0],       
+                ['TOTTIME_S'         ,'TOTTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['TOTTIME'           ,'TOTTIME'           ,'wgtSum'  ,'system' ,'float64'   , 0], 
                 ['SERVMILES_S'       ,'SERVMILES_S'       ,'sum'     ,'system' ,'float64'   , 0],
                 ['SERVMILES'         ,'SERVMILES'         ,'wgtSum'  ,'system' ,'float64'   , 0],
                 ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
-                ['RUNSPEED'          ,'RUNSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],                 
+                ['RUNSPEED'          ,'RUNSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],    
+                ['TOTSPEED_S'        ,'TOTSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
+                ['TOTSPEED'          ,'TOTSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],                 
                 ['ONTIME5'           ,'ONTIME5'           ,'wgtAvg'  ,'system' ,'float64'   , 0],              
                 ['ON'                ,'ON'                ,'wgtSum'  ,'system' ,'float64'   , 0],         # ridership   
                 ['OFF'               ,'OFF'               ,'wgtSum'  ,'system' ,'float64'   , 0],            
@@ -505,6 +521,8 @@ class SFMuniDataHelper():
         
         # count the number of rows in each table so our 
         # indices are unique
+        pattern_tod_count  = 0
+        pattern_day_count  = 0
         route_tod_count  = 0
         route_day_count  = 0
         system_tod_count = 0
@@ -532,6 +550,28 @@ class SFMuniDataHelper():
                 df = instore.select(key)                        
                 df.index = pd.Series(range(0,len(df)))   
                     
+                # patterns
+                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                        groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
+                        columnSpecs=TRIP_RULES, 
+                        level='route', 
+                        weight='TOD_WEIGHT')
+                aggdf.index = pattern_tod_count + pd.Series(range(0,len(aggdf)))
+                outstore.append('pattern_tod', aggdf, data_columns=True, 
+                        min_itemsize=stringLengths)   
+                pattern_tod_count += len(aggdf)
+    
+                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                        groupby=['DATE','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
+                        columnSpecs=TRIP_RULES, 
+                        level='route', 
+                        weight='DAY_WEIGHT')
+                aggdf.index = pattern_day_count + pd.Series(range(0,len(aggdf)))
+                outstore.append('pattern_day', aggdf, data_columns=True, 
+                        min_itemsize=stringLengths)  
+                pattern_day_count += len(aggdf) 
+
+
                 # routes
                 aggdf, stringLengths  = self.aggregateTransitRecords(df, 
                         groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
@@ -577,7 +617,7 @@ class SFMuniDataHelper():
             instore.close()
         outstore.close()
 
-
+    
     def aggregateTripStopsToDays(self, expanded_file, aggregate_file):
         """
         Aggregates weighted data to daily totals.  
@@ -614,11 +654,15 @@ class SFMuniDataHelper():
                 ['DWELL_S'           ,'DWELL_S'           ,'sum'     ,'system' ,'float64'   , 0],
                 ['DWELL'             ,'DWELL'             ,'wgtSum'  ,'system' ,'float64'   , 0],    
                 ['RUNTIME_S'         ,'RUNTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
-                ['RUNTIME'           ,'RUNTIME'           ,'wgtSum'  ,'system' ,'float64'   , 0],   
+                ['RUNTIME'           ,'RUNTIME'           ,'wgtSum'  ,'system' ,'float64'   , 0],     
+                ['TOTTIME_S'         ,'TOTTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['TOTTIME'           ,'TOTTIME'           ,'wgtSum'  ,'system' ,'float64'   , 0],   
                 ['SERVMILES_S'       ,'SERVMILES_S'       ,'sum'     ,'system' ,'float64'   , 0],
                 ['SERVMILES'         ,'SERVMILES'         ,'wgtSum'  ,'system' ,'float64'   , 0],
                 ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
-                ['RUNSPEED'          ,'RUNSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],                 
+                ['RUNSPEED'          ,'RUNSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],  
+                ['TOTSPEED_S'        ,'TOTSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
+                ['TOTSPEED'          ,'TOTSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],                 
                 ['ONTIME5'           ,'ONTIME5'           ,'wgtAvg'  ,'system' ,'float64'   , 0],              
                 ['ON'                ,'ON'                ,'wgtSum'  ,'system' ,'float64'   , 0],         # ridership   
                 ['OFF'               ,'OFF'               ,'wgtSum'  ,'system' ,'float64'   , 0],   
@@ -634,7 +678,7 @@ class SFMuniDataHelper():
                 ['DOORCYCLES'        ,'DOORCYCLES'        ,'wgtSum'  ,'system' ,'float64'   , 0],   
                 ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'wgtSum'  ,'system' ,'float64'   , 0],  
                 ['BIKERACK'          ,'BIKERACK'          ,'wgtSum'  ,'system' ,'float64'   , 0],   
-                ['CAPACITY'          ,'CAPACITY'          ,'sum'     ,'system' ,'float64'   , 0],        # crowding 
+                ['CAPACITY'          ,'CAPACITY'          ,'sum'     ,'route_stop','float64'   , 0],        # crowding 
                 ['VC'                ,'VC'                ,'wgtAvg'  ,'system' ,'float64'   , 0],
                 ['CROWDED'           ,'CROWDED'           ,'wgtAvg'  ,'system' ,'float64'   , 0],   
                 ['CROWDHOURS'        ,'CROWDHOURS'        ,'wgtSum'  ,'system' ,'float64'   , 0]  
@@ -668,7 +712,7 @@ class SFMuniDataHelper():
             
             # separate the keys into trip_stop keys and trip keys
             keys = instore.keys()               
-            
+                        
             print 'Retrieved a total of %i trip_stop keys to process' % len(keys)   
             for key in keys:
                 print 'Processing ', key
@@ -749,7 +793,7 @@ class SFMuniDataHelper():
         """
         Aggregates daily data to monthly totals for an average weekday/
         saturday/sunday.  Does this at different levels of aggregation for:
-            route_tod, route_day, system_tod, system_day
+            pattern_tod, pattern_day, route_tod, route_day, system_tod, system_day
         
         These are unweighted, because we've already applied weights when
         calculating the daily totals. 
@@ -774,11 +818,15 @@ class SFMuniDataHelper():
                 ['DWELL_S'           ,'DWELL_S'           ,'mean'    ,'system' ,'float64'   , 0],
                 ['DWELL'             ,'DWELL'             ,'mean'    ,'system' ,'float64'   , 0],    
                 ['RUNTIME_S'         ,'RUNTIME_S'         ,'mean'    ,'system' ,'float64'   , 0],
-                ['RUNTIME'           ,'RUNTIME'           ,'mean'    ,'system' ,'float64'   , 0],   
+                ['RUNTIME'           ,'RUNTIME'           ,'mean'    ,'system' ,'float64'   , 0],    
+                ['TOTTIME_S'         ,'TOTTIME_S'         ,'mean'    ,'system' ,'float64'   , 0],
+                ['TOTTIME'           ,'TOTTIME'           ,'mean'    ,'system' ,'float64'   , 0],   
                 ['SERVMILES_S'       ,'SERVMILES_S'       ,'mean'    ,'system' ,'float64'   , 0],
                 ['SERVMILES'         ,'SERVMILES'         ,'mean'    ,'system' ,'float64'   , 0],
                 ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
-                ['RUNSPEED'          ,'RUNSPEED'          ,'mean'    ,'system' ,'float64'   , 0],                 
+                ['RUNSPEED'          ,'RUNSPEED'          ,'mean'    ,'system' ,'float64'   , 0],  
+                ['TOTSPEED_S'        ,'TOTSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
+                ['TOTSPEED'          ,'TOTSPEED'          ,'mean'    ,'system' ,'float64'   , 0],                 
                 ['ONTIME5'           ,'ONTIME5'           ,'mean'    ,'system' ,'float64'   , 0],              
                 ['ON'                ,'ON'                ,'mean'    ,'system' ,'float64'   , 0],         # ridership   
                 ['OFF'               ,'OFF'               ,'mean'    ,'system' ,'float64'   , 0],            
@@ -806,6 +854,8 @@ class SFMuniDataHelper():
         
         # count the number of rows in each table so our 
         # indices are unique
+        pattern_tod_count  = 0
+        pattern_day_count  = 0
         route_tod_count  = 0
         route_day_count  = 0
         system_tod_count = 0
@@ -815,6 +865,38 @@ class SFMuniDataHelper():
         # open the output file
         instore = pd.HDFStore(daily_file)                      
     
+        # patterns
+        print 'Processing patterns by tod'                
+        df = instore.select('pattern_tod')                        
+        df.index = pd.Series(range(0,len(df)))                     
+                
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['MONTH','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
+                columnSpecs=TRIP_RULES, 
+                level='route', 
+                weight=None)      
+        aggdf.index = pattern_tod_count + pd.Series(range(0,len(aggdf)))
+
+        outstore.append('pattern_tod', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)   
+        pattern_tod_count += len(aggdf)    
+
+
+        print 'Processing daily patterns'                
+        df = instore.select('pattern_day')                        
+        df.index = pd.Series(range(0,len(df)))                     
+                
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['MONTH','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
+                columnSpecs=TRIP_RULES, 
+                level='route', 
+                weight=None)      
+        aggdf.index = pattern_day_count + pd.Series(range(0,len(aggdf)))
+
+        outstore.append('pattern_day', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)  
+        pattern_day_count += len(aggdf)     
+
         # routes
         print 'Processing routes by tod'                
         df = instore.select('route_tod')                        
@@ -883,7 +965,7 @@ class SFMuniDataHelper():
         instore.close()
         outstore.close()
 
-    @profile
+    
     def aggregateTripStopsToMonths(self, daily_file, monthly_file):
         """
         Aggregates daily data to monthly totals for an average weekday/
@@ -920,11 +1002,15 @@ class SFMuniDataHelper():
                 ['DWELL_S'           ,'DWELL_S'           ,'mean'    ,'system' ,'float64'   , 0],
                 ['DWELL'             ,'DWELL'             ,'mean'    ,'system' ,'float64'   , 0],    
                 ['RUNTIME_S'         ,'RUNTIME_S'         ,'mean'    ,'system' ,'float64'   , 0],
-                ['RUNTIME'           ,'RUNTIME'           ,'mean'    ,'system' ,'float64'   , 0],   
+                ['RUNTIME'           ,'RUNTIME'           ,'mean'    ,'system' ,'float64'   , 0],    
+                ['TOTTIME_S'         ,'TOTTIME_S'         ,'mean'    ,'system' ,'float64'   , 0],
+                ['TOTTIME'           ,'TOTTIME'           ,'mean'    ,'system' ,'float64'   , 0],   
                 ['SERVMILES_S'       ,'SERVMILES_S'       ,'mean'    ,'system' ,'float64'   , 0],
                 ['SERVMILES'         ,'SERVMILES'         ,'mean'    ,'system' ,'float64'   , 0],
                 ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
-                ['RUNSPEED'          ,'RUNSPEED'          ,'mean'    ,'system' ,'float64'   , 0],                 
+                ['RUNSPEED'          ,'RUNSPEED'          ,'mean'    ,'system' ,'float64'   , 0],  
+                ['TOTSPEED_S'        ,'TOTSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
+                ['TOTSPEED'          ,'TOTSPEED'          ,'mean'    ,'system' ,'float64'   , 0],                 
                 ['ONTIME5'           ,'ONTIME5'           ,'mean'    ,'system' ,'float64'   , 0],              
                 ['ON'                ,'ON'                ,'mean'    ,'system' ,'float64'   , 0],         # ridership   
                 ['OFF'               ,'OFF'               ,'mean'    ,'system' ,'float64'   , 0],   
@@ -1232,6 +1318,18 @@ class SFMuniDataHelper():
                                index=aggregated.index)            
         aggregated['RUNSPEED'] = speedInput.apply(self.updateSpeeds)
         
+        # update scheduled speed
+        speedInput = pd.Series(zip(aggregated['SERVMILES_S'], 
+                                   aggregated['TOTTIME_S']), 
+                               index=aggregated.index)     
+        aggregated['TOTSPEED_S'] = speedInput.apply(self.updateSpeeds)
+        
+        # update actual speed--based on scheduled service miles for consistency
+        speedInput = pd.Series(zip(aggregated['SERVMILES'], 
+                                   aggregated['TOTTIME']), 
+                               index=aggregated.index)            
+        aggregated['TOTSPEED'] = speedInput.apply(self.updateSpeeds)
+
         # force the data types
         # this doesn't work if there are missing values, hence the pass
         for col in coltypes: 

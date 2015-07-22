@@ -21,17 +21,39 @@ __license__     = """
 import pandas as pd
 import numpy as np
 import datetime
-import glob
 
 import transitfeed  
-import pyproj  
+from pyproj import Proj
 from shapely.geometry import Point, LineString  
 
 from SFMuniDataHelper import SFMuniDataHelper
             
+            
+def convertLongitudeLatitudeToXY(lon_lat):        
+    """
+    Converts longitude and latitude to an x,y coordinate pair in
+    NAD83 Datum (most of our GIS and CUBE files)
+    
+    Returns (x,y) in feet.
+    """
+    FEET_TO_METERS = 0.3048006096012192
+    
+    (longitude,latitude) = lon_lat
 
-#  define projection from LON, LAT to UTM zone 10
-toUTM = pyproj.Proj(proj='utm', zone=10, datum='WGS84', ellps='WGS84', units='m')            
+    p = Proj(proj  = 'lcc',
+            datum = "NAD83",
+            lon_0 = "-120.5",
+            lat_1 = "38.43333333333",
+            lat_2 = "37.066666666667",
+            lat_0 = "36.5",
+            ellps = "GRS80",
+            units = "m",
+            x_0   = 2000000,
+            y_0   = 500000) #use kwargs
+    x_meters,y_meters = p(longitude,latitude,inverse=False,errcheck=True)
+
+    return (x_meters/FEET_TO_METERS,y_meters/FEET_TO_METERS)
+        
     
                     
 def getWrapAroundTime(dateString, timeString):
@@ -249,10 +271,14 @@ class GTFSHelper():
 	['DWELL'     ,        0, 0, 'avl'], 
 	['RUNTIME_S' ,        0, 0, 'gtfs'], 
 	['RUNTIME'   ,        0, 0, 'avl'], 
+	['TOTTIME_S' ,        0, 0, 'gtfs'], 
+	['TOTTIME'   ,        0, 0, 'avl'], 
 	['SERVMILES_S' ,      0, 0, 'gtfs'], 
 	['SERVMILES',         0, 0, 'avl'],         # Distances and speeds
 	['RUNSPEED_S' ,       0, 0, 'gtfs'], 
 	['RUNSPEED'   ,       0, 0, 'calculated'], 
+	['TOTSPEED_S' ,       0, 0, 'gtfs'], 
+	['TOTSPEED'   ,       0, 0, 'calculated'], 
 	['ONTIME5'   ,        0, 0, 'calculated'], 
 	['ON'        ,        0, 0, 'avl'],           # ridership
 	['OFF'       ,        0, 0, 'avl'], 
@@ -359,6 +385,13 @@ class GTFSHelper():
                             # happens here because the values in the AVL data look screwy.
                             groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
                             sfmuni = sfmuni.groupby(groupby, as_index=False).apply(calculateRuntime)
+                            sfmuni['TOTTIME'] = sfmuni['RUNTIME'] + sfmuni['DWELL']                            
+                            
+                            # speed   
+                            speedInput = pd.Series(zip(sfmuni['SERVMILES'],  sfmuni['RUNTIME']), index=sfmuni.index)     
+                            sfmuni['RUNSPEED'] = speedInput.apply(updateSpeeds)                    
+                            speedInput = pd.Series(zip(sfmuni['SERVMILES'], sfmuni['TOTTIME']), index=sfmuni.index)     
+                            sfmuni['TOTSPEED'] = speedInput.apply(updateSpeeds)
                             
                             # join the sfmuni data
                             joined = self.joinSFMuniData(df, sfmuni)    
@@ -381,7 +414,7 @@ class GTFSHelper():
                             
                             # add weights to trip-stop df                          
                             mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
-                            weightFields = ['TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
+                            weightFields = ['PATTERN', 'TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
                             tripWeights = trips[mergeFields + weightFields]            
                             ts = pd.merge(joined, tripWeights, how='left', on=mergeFields, sort=True)  
                             
@@ -435,17 +468,7 @@ class GTFSHelper():
                 # determine route attributes, and only keep bus trips
                 route = schedule.GetRoute(trip.route_id)
                 if (int(route.route_type) == self.BUS_ROUTE_TYPE):
-                    
-                        
-                    # get shape attributes, converted to a line
-                    shape = schedule.GetShape(trip.shape_id)
-                    shapePoints = []
-                    for p in shape.points: 
-                        x, y = toUTM(p[1], p[0])
-                        shapePoints.append((x, y))
-                    shapeLine = LineString(shapePoints)
-                        
-                        
+                                            
                     # calculate fare--assume just based on route ID
                     fare = 0
                     fareAttributeList = schedule.GetFareAttributeList()
@@ -456,8 +479,13 @@ class GTFSHelper():
                                 fare = fareAttribute.price
                         
                     # one record for each stop time
-                    stopTimeList = trip.GetStopTimes()    
+                    stopTimeList = trip.GetStopTimes()                            
                         
+                    # get shape attributes, converted to a line
+                    # this is needed because they are sometimes out of order
+                    shape = schedule.GetShape(trip.shape_id)
+                    shapeLine = self.getShapeLine(shape, stopTimeList)
+                                                
                     # initialize for looping
                     i = 0        
                     lastDepartureTime = startDate
@@ -470,6 +498,8 @@ class GTFSHelper():
                             startOfLine = 1
                             hr, min, sec = stopTime.departure_time.split(':')
                             firstDeparture = int(hr + min)
+                            
+                            firstSeq = stopTime.stop_sequence
                 
                             # compute TEP time periods -- need to iterate
                             if (firstDeparture >= 300  and firstDeparture < 600):  
@@ -514,7 +544,7 @@ class GTFSHelper():
                         record['ROUTE_SHORT_NAME'] = str(route.route_short_name).strip().upper()
                         record['ROUTE_LONG_NAME']  = str(route.route_long_name).strip().upper()
                         record['DIR']              = int(trip.direction_id)
-                        record['TRIP']             = firstDeparture    # contains HHMM of departure from first stop
+                        record['TRIP']             = str(firstDeparture) + '_' + str(firstSeq)    # contains sequence and contains HHMM of departure from first stop
                         record['SEQ']              = int(stopTime.stop_sequence)                            
                             
                         # route/trip attributes
@@ -551,13 +581,17 @@ class GTFSHelper():
                             timeDiff = arrivalTime - lastDepartureTime
                             runtime = max(0, round(timeDiff.total_seconds() / 60.0, 2))
                         record['RUNTIME_S'] = runtime
+                        
+                        # total time is sum of runtime and dwell time
+                        tottime = runtime + dwellTime
+                        record['TOTTIME_S'] = tottime
                             
                         # location along shape object (SFMTA uses meters)
                         if stopTime.shape_dist_traveled > 0: 
                             record['SHAPE_DIST'] = stopTime.shape_dist_traveled
-                            distanceTraveled = stopTime.shape_dist_traveled
+                            distanceTraveled = stopTime.shape_dist_traveled * 3.2808399
                         else: 
-                            x, y = toUTM(stopTime.stop.stop_lon, stopTime.stop.stop_lat)
+                            x, y = convertLongitudeLatitudeToXY((stopTime.stop.stop_lon, stopTime.stop.stop_lat))
                             stopPoint = Point(x, y)
                             projectedDist = shapeLine.project(stopPoint, normalized=True)
                             distanceTraveled = shapeLine.length * projectedDist
@@ -567,7 +601,7 @@ class GTFSHelper():
                         if startOfLine: 
                             serviceMiles = 0
                         else: 
-                            serviceMiles = round((distanceTraveled - lastDistanceTraveled) / 1609.344, 3)
+                            serviceMiles = round((distanceTraveled - lastDistanceTraveled) / 5280.0, 3)
                         record['SERVMILES_S'] = serviceMiles
                                 
                         # speed (mph)
@@ -575,6 +609,11 @@ class GTFSHelper():
                             record['RUNSPEED_S'] = round(serviceMiles / (runtime / 60.0), 2)
                         else:
                             record['RUNSPEED_S'] = 0
+                            
+                        if tottime > 0: 
+                            record['TOTSPEED_S'] = round(serviceMiles / (tottime / 60.0), 2)
+                        else:
+                            record['TOTSPEED_S'] = 0
                                                     
     
                         # Additional GTFS IDs.        
@@ -658,12 +697,6 @@ class GTFSHelper():
 
         # normalize to consistent measure of service miles
         joined['SERVMILES'] = np.where(joined['OBSERVED']==1, joined['SERVMILES_S'], np.nan)
-        
-        # speed   
-        speedInput = pd.Series(zip(joined['SERVMILES'], 
-                                   joined['RUNTIME']), 
-                               index=joined.index)     
-        joined['RUNSPEED'] = speedInput.apply(updateSpeeds)
         
         # schedule deviation          
         arrTime = pd.Series(zip(joined['ARRIVAL_TIME'], joined['ARRIVAL_TIME_S']), index=joined.index)   
@@ -753,6 +786,9 @@ class GTFSHelper():
                         
         
     def getStringLengths(self, usedColumns):
+        """
+        gets the max string length for the columns that are in use
+        """
         
         # convert column specs 
         stringLengths= {}
@@ -764,3 +800,38 @@ class GTFSHelper():
                     stringLengths[name] = stringLength
                 
         return stringLengths
+
+    def getShapeLine(self, shape, stopTimeList):
+        """
+        Accepts a shape and a list of stop times in GTFS transit feed format.
+        
+        Returns a LineString object of the shape in the appropriate order.
+        
+        This is needed because the points in the shapes are sometimes in 
+        a scrambled order in the input files. 
+        """
+        
+        # first create a LineString from the stops, which are in the right order
+        stopPoints = []
+        for stopTime in stopTimeList:
+            x, y = convertLongitudeLatitudeToXY((stopTime.stop.stop_lon, stopTime.stop.stop_lat))
+            stopPoints.append((x, y))
+        stopLine = LineString(stopPoints)
+        
+        # then project each point onto that stopLine
+        shapePointDict = {}
+        for p in shape.points: 
+            x, y = convertLongitudeLatitudeToXY((p[1], p[0]))
+            projectedDist = stopLine.project(Point(x, y), normalized=True)
+            shapePointDict[projectedDist] = (x,y)
+        
+        # now order by the projected distance, and create the shape
+        shapePoints = []
+        for key in sorted(shapePointDict):
+            shapePoints.append(shapePointDict[key])
+        shapeLine = LineString(shapePoints)
+        
+        return shapeLine    
+        
+        
+        
