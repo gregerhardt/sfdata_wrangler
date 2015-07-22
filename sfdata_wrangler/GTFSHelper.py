@@ -555,11 +555,12 @@ class GTFSHelper():
                         # location along shape object (SFMTA uses meters)
                         if stopTime.shape_dist_traveled > 0: 
                             record['SHAPE_DIST'] = stopTime.shape_dist_traveled
+                            distanceTraveled = stopTime.shape_dist_traveled
                         else: 
                             x, y = toUTM(stopTime.stop.stop_lon, stopTime.stop.stop_lat)
                             stopPoint = Point(x, y)
                             projectedDist = shapeLine.project(stopPoint, normalized=True)
-                            distanceTraveled = shape.max_distance * projectedDist
+                            distanceTraveled = shapeLine.length * projectedDist
                             record['SHAPE_DIST'] = distanceTraveled
     
                         # service miles
