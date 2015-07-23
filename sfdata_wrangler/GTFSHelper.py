@@ -26,7 +26,7 @@ import transitfeed
 from pyproj import Proj
 from shapely.geometry import Point, LineString  
 
-from SFMuniDataHelper import SFMuniDataHelper
+from SFMuniDataAggregator import SFMuniDataAggregator
             
             
 def convertLongitudeLatitudeToXY(lon_lat):        
@@ -311,8 +311,44 @@ class GTFSHelper():
         ]
                 
     
-    def expandAndWeight(self, gtfs_file, sfmuni_file, trip_outfile, ts_outfile, 
-                        dow=[1,2,3], startIndex=0, runFromDate='1900-01-01'):
+
+    def __init__(self, sfmuni_file, trip_outfile, ts_outfile, 
+                 dow=[1,2,3], startDate='1900-01-01', endDate='2100-01-01'):
+        """
+        Constructor.                 
+        """        
+                
+        # set the relevant files
+        self.trip_outfile = trip_outfile
+        self.ts_outfile = ts_outfile
+
+        # open the data stores
+        self.sfmuni_store = pd.HDFStore(sfmuni_file) 
+        
+        # which days of week to run for
+        self.dow = dow
+        
+        # get the list of all observed dates
+        observedDates = self.sfmuni_store.select_column('sample', 'DATE').unique()
+        
+        self.dateList = []
+        for d in sorted(observedDates): 
+            date = pd.Timestamp(d)
+            if (date>=pd.Timestamp(startDate) and date<=pd.Timestamp(endDate)):
+                self.dateList.append(date)
+        
+        print 'GTFSHelper set up for ', len(self.dateList), ' observed dates between ', \
+               self.dateList[0], ' and ', self.dateList[len(self.dateList)-1]
+    
+    
+    def closeStores(self):  
+        """
+        Closes all datastores. 
+        """
+        self.sfmuni_store.close()
+        
+                
+    def expandAndWeight(self, gtfs_file, startingTripCount, startingTsCount):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
         This will be done for every individual day, so you get a list of 
@@ -332,105 +368,101 @@ class GTFSHelper():
         dataframes = {}
         servicePeriods = schedule.GetServicePeriodList()        
         for period in servicePeriods:   
-            if int(period.service_id) in dow:         
+            if int(period.service_id) in self.dow:         
                 dataframes[period.service_id]  = self.getGTFSDataFrame(schedule, period)
-
-        # open the data stores
-        sfmuni_store = pd.HDFStore(sfmuni_file)            
+           
         
         # loop through each date, and add the appropriate service to the database  
-        dateRange = schedule.GetDateRange()
-        startDate = pd.to_datetime(dateRange[0], format='%Y%m%d')
-        endDate   = pd.to_datetime(dateRange[1], format='%Y%m%d')
-        servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(startDate, endDate) 
+        gtfsDateRange = schedule.GetDateRange()
+        gtfsStartDate = pd.to_datetime(gtfsDateRange[0], format='%Y%m%d')
+        gtfsEndDate   = pd.to_datetime(gtfsDateRange[1], format='%Y%m%d')
+        servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate) 
         
         # count the trips and trip-stops to ensure a unique index
-        tripCount = startIndex
-        tsCount = startIndex
+        tripCount = startingTripCount
+        tsCount = startingTsCount
            
-        print 'Writing data for periods from ', startDate, ' to ', endDate
+        print 'Writing data for periods from ', gtfsStartDate, ' to ', gtfsEndDate
         for date, servicePeriodsForDate in servicePeriodsEachDate:           
                         
-            if pd.Timestamp(date) >= pd.Timestamp(runFromDate):           
+            if pd.Timestamp(date) in self.dateList:           
                 print 'Processing ', date         
                 
                 # use a separate file for each year
                 # and write a separate table for each month and DOW
                 # format of the table name is mYYYYMMDDdX, where X is the day of week
                 month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()    
-                trip_outstore = pd.HDFStore(getOutfile(trip_outfile, month))  
-                ts_outstore = pd.HDFStore(getOutfile(ts_outfile, month))  
+                trip_outstore = pd.HDFStore(getOutfile(self.trip_outfile, month))  
+                ts_outstore = pd.HDFStore(getOutfile(self.ts_outfile, month))  
                 
                 for period in servicePeriodsForDate: 
-                    if int(period.service_id) in dow:     
+                    if int(period.service_id) in self.dow:     
                         
                         outkey = getOutkey(month=month, dow=period.service_id, prefix='m')                                             
     
                         # get the corresponding MUNI data for this date
-                        sfmuni = sfmuni_store.select('sample', where='DATE==Timestamp(date)')   
-                        
-                        if len(sfmuni) > 0:
-                            
-                            # get the corresponding GTFS dataframe
-                            df = dataframes[period.service_id]
+                        sfmuni = self.sfmuni_store.select('sample', where='DATE==Timestamp(date)')   
+                                                    
+                        # get the corresponding GTFS dataframe
+                        df = dataframes[period.service_id]
                                 
-                            # update the dates
-                            df['ARRIVAL_TIME_S']   = date + (df['ARRIVAL_TIME_S'] - df['DATE'])
-                            df['DEPARTURE_TIME_S'] = date + (df['DEPARTURE_TIME_S'] - df['DATE'])
+                        # update the dates
+                        df['ARRIVAL_TIME_S']   = date + (df['ARRIVAL_TIME_S'] - df['DATE'])
+                        df['DEPARTURE_TIME_S'] = date + (df['DEPARTURE_TIME_S'] - df['DATE'])
         
-                            df['DATE'] = date
-                            df['MONTH'] = month
+                        df['DATE'] = date
+                        df['MONTH'] = month
                 
-                            # calculate observed RUNTIME
-                            # happens here because the values in the AVL data look screwy.
-                            groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
-                            sfmuni = sfmuni.groupby(groupby, as_index=False).apply(calculateRuntime)
-                            sfmuni['TOTTIME'] = sfmuni['RUNTIME'] + sfmuni['DWELL']                            
+                        # calculate observed RUNTIME
+                        # happens here because the values in the AVL data look screwy.
+                        groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
+                        sfmuni = sfmuni.groupby(groupby, as_index=False).apply(calculateRuntime)
+                        sfmuni['TOTTIME'] = sfmuni['RUNTIME'] + sfmuni['DWELL']                            
                             
-                            # speed   
-                            speedInput = pd.Series(zip(sfmuni['SERVMILES'],  sfmuni['RUNTIME']), index=sfmuni.index)     
-                            sfmuni['RUNSPEED'] = speedInput.apply(updateSpeeds)                    
-                            speedInput = pd.Series(zip(sfmuni['SERVMILES'], sfmuni['TOTTIME']), index=sfmuni.index)     
-                            sfmuni['TOTSPEED'] = speedInput.apply(updateSpeeds)
+                        # speed   
+                        speedInput = pd.Series(zip(sfmuni['SERVMILES'],  sfmuni['RUNTIME']), index=sfmuni.index)     
+                        sfmuni['RUNSPEED'] = speedInput.apply(updateSpeeds)                    
+                        speedInput = pd.Series(zip(sfmuni['SERVMILES'], sfmuni['TOTTIME']), index=sfmuni.index)     
+                        sfmuni['TOTSPEED'] = speedInput.apply(updateSpeeds)
                             
-                            # join the sfmuni data
-                            joined = self.joinSFMuniData(df, sfmuni)    
+                        # join the sfmuni data
+                        joined = self.joinSFMuniData(df, sfmuni)    
                             
-                            # aggregate from trip-stops to trips
-                            sfmuniHelper = SFMuniDataHelper()
-                            trips = sfmuniHelper.aggregateToTrips(joined)
+                        # aggregate from trip-stops to trips
+                        aggregator = SFMuniDataAggregator()
+                        trips = aggregator.aggregateToTrips(joined)
                             
-                            # set a unique trip index
-                            trips.index = tripCount + pd.Series(range(0,len(trips)))
-                            tripCount += len(trips)
+                        # set a unique trip index
+                        trips.index = tripCount + pd.Series(range(0,len(trips)))
+                        tripCount += len(trips)
                 
-                            # weight the trips
-                            trips = self.weightTrips(trips)
+                        # weight the trips
+                        trips = self.weightTrips(trips)
                             
-                            # write the trips   
-                            stringLengths = self.getStringLengths(trips.columns)                                                                    
-                            trip_outstore.append(outkey, trips, data_columns=True, 
-                                        min_itemsize=stringLengths)
+                        # write the trips   
+                        stringLengths = self.getStringLengths(trips.columns)                                                                    
+                        trip_outstore.append(outkey, trips, data_columns=True, 
+                                    min_itemsize=stringLengths)
                             
-                            # add weights to trip-stop df                          
-                            mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
-                            weightFields = ['PATTERN', 'TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
-                            tripWeights = trips[mergeFields + weightFields]            
-                            ts = pd.merge(joined, tripWeights, how='left', on=mergeFields, sort=True)  
+                        # add weights to trip-stop df                          
+                        mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
+                        weightFields = ['PATTERN', 'TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
+                        tripWeights = trips[mergeFields + weightFields]            
+                        ts = pd.merge(joined, tripWeights, how='left', on=mergeFields, sort=True)  
                             
-                            # set a unique trip-stop index
-                            ts.index = tsCount + pd.Series(range(0,len(ts)))
-                            tsCount += len(ts)
+                        # set a unique trip-stop index
+                        ts.index = tsCount + pd.Series(range(0,len(ts)))
+                        tsCount += len(ts)
                             
-                            # write the trip-stops        
-                            stringLengths = self.getStringLengths(ts.columns)                                                     
-                            ts_outstore.append(outkey, ts, data_columns=True, 
-                                        min_itemsize=stringLengths)
+                        # write the trip-stops        
+                        stringLengths = self.getStringLengths(ts.columns)                                                     
+                        ts_outstore.append(outkey, ts, data_columns=True, 
+                                    min_itemsize=stringLengths)
                                                 
                 trip_outstore.close()
                 ts_outstore.close()
 
-        sfmuni_store.close()
+        return tripCount, tsCount
 
     
     def getGTFSDataFrame(self, schedule, period):
