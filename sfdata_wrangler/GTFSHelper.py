@@ -816,13 +816,18 @@ class GTFSHelper():
         for stopTime in stopTimeList:
             x, y = convertLongitudeLatitudeToXY((stopTime.stop.stop_lon, stopTime.stop.stop_lat))
             stopPoints.append((x, y))
-        stopLine = LineString(stopPoints)
+        
+        if len(stopPoints)>1: 
+            stopLine = LineString(stopPoints)
         
         # then project each point onto that stopLine
         shapePointDict = {}
         for p in shape.points: 
             x, y = convertLongitudeLatitudeToXY((p[1], p[0]))
-            projectedDist = stopLine.project(Point(x, y), normalized=True)
+            if len(stopPoints)>1: 
+                projectedDist = stopLine.project(Point(x, y), normalized=True)
+            else:                
+                projectedDist = p[2]
             shapePointDict[projectedDist] = (x,y)
         
         # now order by the projected distance, and create the shape
