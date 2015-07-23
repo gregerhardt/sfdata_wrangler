@@ -678,7 +678,7 @@ class SFMuniDataHelper():
                 ['DOORCYCLES'        ,'DOORCYCLES'        ,'wgtSum'  ,'system' ,'float64'   , 0],   
                 ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'wgtSum'  ,'system' ,'float64'   , 0],  
                 ['BIKERACK'          ,'BIKERACK'          ,'wgtSum'  ,'system' ,'float64'   , 0],   
-                ['CAPACITY'          ,'CAPACITY'          ,'sum'     ,'route_stop','float64'   , 0],        # crowding 
+                ['CAPACITY'          ,'CAPACITY'          ,'sum'     ,'stop'   ,'float64'   , 0],        # crowding 
                 ['VC'                ,'VC'                ,'wgtAvg'  ,'system' ,'float64'   , 0],
                 ['CROWDED'           ,'CROWDED'           ,'wgtAvg'  ,'system' ,'float64'   , 0],   
                 ['CROWDHOURS'        ,'CROWDHOURS'        ,'wgtSum'  ,'system' ,'float64'   , 0]  
@@ -1026,7 +1026,7 @@ class SFMuniDataHelper():
                 ['DOORCYCLES'        ,'DOORCYCLES'        ,'mean'    ,'system' ,'float64'   , 0],   
                 ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'mean'    ,'system' ,'float64'   , 0],  
                 ['BIKERACK'          ,'BIKERACK'          ,'mean'    ,'system' ,'float64'   , 0],   
-                ['CAPACITY'          ,'CAPACITY'          ,'mean'    ,'system' ,'float64'   , 0],        # crowding 
+                ['CAPACITY'          ,'CAPACITY'          ,'mean'    ,'stop'   ,'float64'   , 0],        # crowding 
                 ['VC'                ,'VC'                ,'mean'    ,'system' ,'float64'   , 0],
                 ['CROWDED'           ,'CROWDED'           ,'mean'    ,'system' ,'float64'   , 0],   
                 ['CROWDHOURS'        ,'CROWDHOURS'        ,'mean'    ,'system' ,'float64'   , 0]  
