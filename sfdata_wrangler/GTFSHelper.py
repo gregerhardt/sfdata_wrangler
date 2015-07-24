@@ -118,6 +118,17 @@ def calculateRuntime(df):
     
     return df
     
+    
+def updateTripId(df):
+    """
+    Updates the trip id to include the first SEQ number. 
+    Assumes data are grouped by: 
+    ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','PATTCODE','TRIP']
+    """        
+    
+    df['TRIP'] = df['TRIP'].astype(str) + '_' + str(min(df['SEQ']))
+    return df
+                    
 
 def updateSpeeds(speedInputs):
     """
@@ -313,7 +324,9 @@ class GTFSHelper():
     
 
     def __init__(self, sfmuni_file, trip_outfile, ts_outfile, 
-                 dow=[1,2,3], startDate='1900-01-01', endDate='2100-01-01'):
+                 daily_trip_outfile, daily_ts_outfile,
+                 dow=[1,2,3], startDate='1900-01-01', endDate='2100-01-01', 
+                 startingTripCount=1, startingTsCount=0):
         """
         Constructor.                 
         """        
@@ -328,6 +341,14 @@ class GTFSHelper():
         # which days of week to run for
         self.dow = dow
         
+        # helper for creating data aggregations
+        self.aggregator = SFMuniDataAggregator(daily_trip_outfile=daily_trip_outfile, 
+                                               daily_ts_outfile=daily_ts_outfile)
+        
+        # count the trips and trip-stops to ensure a unique index
+        self.tripCount = startingTripCount
+        self.tsCount = startingTsCount
+
         # get the list of all observed dates
         observedDates = self.sfmuni_store.select_column('sample', 'DATE').unique()
         
@@ -346,9 +367,10 @@ class GTFSHelper():
         Closes all datastores. 
         """
         self.sfmuni_store.close()
+        self.aggregator.close()
         
                 
-    def expandAndWeight(self, gtfs_file, startingTripCount, startingTsCount):
+    def expandAndWeight(self, gtfs_file):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
         This will be done for every individual day, so you get a list of 
@@ -377,16 +399,12 @@ class GTFSHelper():
         gtfsStartDate = pd.to_datetime(gtfsDateRange[0], format='%Y%m%d')
         gtfsEndDate   = pd.to_datetime(gtfsDateRange[1], format='%Y%m%d')
         servicePeriodsEachDate = schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate) 
-        
-        # count the trips and trip-stops to ensure a unique index
-        tripCount = startingTripCount
-        tsCount = startingTsCount
-           
+                   
         print 'Writing data for periods from ', gtfsStartDate, ' to ', gtfsEndDate
         for date, servicePeriodsForDate in servicePeriodsEachDate:           
                         
             if pd.Timestamp(date) in self.dateList:           
-                print 'Processing ', date         
+                print datetime.datetime.now(), ' Processing ', date         
                 
                 # use a separate file for each year
                 # and write a separate table for each month and DOW
@@ -401,8 +419,8 @@ class GTFSHelper():
                         outkey = getOutkey(month=month, dow=period.service_id, prefix='m')                                             
     
                         # get the corresponding MUNI data for this date
-                        sfmuni = self.sfmuni_store.select('sample', where='DATE==Timestamp(date)')   
-                                                    
+                        sfmuni = self.getSFMuniData(date)
+                            
                         # get the corresponding GTFS dataframe
                         df = dataframes[period.service_id]
                                 
@@ -413,28 +431,15 @@ class GTFSHelper():
                         df['DATE'] = date
                         df['MONTH'] = month
                 
-                        # calculate observed RUNTIME
-                        # happens here because the values in the AVL data look screwy.
-                        groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
-                        sfmuni = sfmuni.groupby(groupby, as_index=False).apply(calculateRuntime)
-                        sfmuni['TOTTIME'] = sfmuni['RUNTIME'] + sfmuni['DWELL']                            
-                            
-                        # speed   
-                        speedInput = pd.Series(zip(sfmuni['SERVMILES'],  sfmuni['RUNTIME']), index=sfmuni.index)     
-                        sfmuni['RUNSPEED'] = speedInput.apply(updateSpeeds)                    
-                        speedInput = pd.Series(zip(sfmuni['SERVMILES'], sfmuni['TOTTIME']), index=sfmuni.index)     
-                        sfmuni['TOTSPEED'] = speedInput.apply(updateSpeeds)
-                            
                         # join the sfmuni data
                         joined = self.joinSFMuniData(df, sfmuni)    
                             
                         # aggregate from trip-stops to trips
-                        aggregator = SFMuniDataAggregator()
-                        trips = aggregator.aggregateToTrips(joined)
+                        trips = self.aggregator.aggregateToTrips(joined)
                             
                         # set a unique trip index
-                        trips.index = tripCount + pd.Series(range(0,len(trips)))
-                        tripCount += len(trips)
+                        trips.index = self.tripCount + pd.Series(range(0,len(trips)))
+                        self.tripCount += len(trips)
                 
                         # weight the trips
                         trips = self.weightTrips(trips)
@@ -451,19 +456,52 @@ class GTFSHelper():
                         ts = pd.merge(joined, tripWeights, how='left', on=mergeFields, sort=True)  
                             
                         # set a unique trip-stop index
-                        ts.index = tsCount + pd.Series(range(0,len(ts)))
-                        tsCount += len(ts)
+                        ts.index = self.tsCount + pd.Series(range(0,len(ts)))
+                        self.tsCount += len(ts)
                             
                         # write the trip-stops        
                         stringLengths = self.getStringLengths(ts.columns)                                                     
                         ts_outstore.append(outkey, ts, data_columns=True, 
                                     min_itemsize=stringLengths)
+
+                        # aggregate to TOD and daily totals, and write those
+                        self.aggregator.aggregateTripsToDays(trips)
+                        self.aggregator.aggregateTripStopsToDays(ts)
+                        
                                                 
                 trip_outstore.close()
                 ts_outstore.close()
 
-        return tripCount, tsCount
 
+    def getSFMuniData(self, date):
+        """
+        Returns a dataframe with the observed SFMuni records
+        and some processing of those
+        """
+
+        sfmuni = self.sfmuni_store.select('sample', where='DATE==Timestamp(date)')
+        
+        # update the TRIP id in case there are multiple trips with different 
+        # patterns leaving a different stop at the same time
+        groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','PATTCODE','TRIP']
+        sfmuni = sfmuni.groupby(groupby, as_index=False).apply(updateTripId)     
+         
+                                        
+        # calculate observed RUNTIME
+        # happens here because the values in the AVL data look screwy.
+        groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
+        sfmuni = sfmuni.groupby(groupby, as_index=False).apply(calculateRuntime)
+        sfmuni['TOTTIME'] = sfmuni['RUNTIME'] + sfmuni['DWELL']                            
+                            
+                            
+        # speed   
+        speedInput = pd.Series(zip(sfmuni['SERVMILES'],  sfmuni['RUNTIME']), index=sfmuni.index)     
+        sfmuni['RUNSPEED'] = speedInput.apply(updateSpeeds)                    
+        speedInput = pd.Series(zip(sfmuni['SERVMILES'], sfmuni['TOTTIME']), index=sfmuni.index)     
+        sfmuni['TOTSPEED'] = speedInput.apply(updateSpeeds)
+        
+        return sfmuni
+                    
     
     def getGTFSDataFrame(self, schedule, period):
         """
@@ -754,12 +792,12 @@ class GTFSHelper():
         joined['FULLFARE_REV'] = (joined['ON'] * joined['FARE']) 
                     
         # passenger hours of delay at departure
-        joined['PASSDELAY_DEP'] = np.where(joined['ONTIME5']==0, 
+        joined['PASSDELAY_DEP'] = np.where(joined['DEPARTURE_TIME_DEV']>0, 
                                      joined['ON'] * joined['DEPARTURE_TIME_DEV'], 0)
         joined['PASSDELAY_DEP'] = joined['PASSDELAY_DEP'].mask(joined['OBSERVED']==0, other=np.nan)
         
         # passenger hours of delay at arrival
-        joined['PASSDELAY_ARR'] = np.where(joined['ONTIME5']==0, 
+        joined['PASSDELAY_ARR'] = np.where(joined['ARRIVAL_TIME_DEV']>0, 
                                      joined['ON'] * joined['ARRIVAL_TIME_DEV'], 0)
         joined['PASSDELAY_ARR'] = joined['PASSDELAY_ARR'].mask(joined['OBSERVED']==0, other=np.nan)
 

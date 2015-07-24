@@ -24,6 +24,7 @@ sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 from SFMuniDataHelper import SFMuniDataHelper
 from GTFSHelper import GTFSHelper
 from SFMuniDataAggregator import SFMuniDataAggregator
+from TransitReporter import TransitReporter
 from ClipperHelper import ClipperHelper
 
 
@@ -45,6 +46,7 @@ USAGE = r"""
 VALID_STEPS = [ 'clean', 
                 'expand', 
                 'aggregate', 
+                'report', 
                 'cleanClipper'
                 ]    
                 
@@ -78,7 +80,7 @@ RAW_GTFS_FILES = [
                                                                                            # above file modified to avoid overlap of 13 days
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223.zip",  # 20100508 to 20100903
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
                                                                                            # above file modified to avoid gap of 2 days
   #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
@@ -110,15 +112,18 @@ EXPANDED_TRIP_OUTFILE = "D:/Output/sfmuni_expanded_trip_YYYY.h5"
 EXPANDED_TS_OUTFILE   = "D:/Output/sfmuni_expanded_ts_YYYY.h5" 
 
 DAILY_TRIP_OUTFILE = "D:/Output/sfmuni_daily_trip.h5"
-DAILY_TS_OUTFILE   = "D:/Output/sfmuni_daily_ts_test.h5"
+DAILY_TS_OUTFILE   = "D:/Output/sfmuni_daily_ts.h5"
 
 MONTHLY_TRIP_OUTFILE = "D:/Output/sfmuni_monthly_trip.h5"
 MONTHLY_TS_OUTFILE   = "D:/Output/sfmuni_monthly_ts.h5"
+
+REPORT_OUTFILE = "D:/Output/sfmuni_performance_report.h5"
 
 CLIPPER_OUTFILE = "D:/Output/clipper.h5"
 
 
 # main function call
+
 if __name__ == "__main__":
 
     if len(sys.argv) < 2:
@@ -148,23 +153,30 @@ if __name__ == "__main__":
         gtfsHelper = GTFSHelper(sfmuni_file=CLEANED_OUTFILE, 
                                 trip_outfile=EXPANDED_TRIP_OUTFILE, 
                                 ts_outfile=EXPANDED_TS_OUTFILE, 
+                                daily_trip_outfile=DAILY_TRIP_OUTFILE, 
+                                daily_ts_outfile=DAILY_TS_OUTFILE, 
                                 dow=[1])
         tripCount = 0
         tsCount = 0
         for infile in RAW_GTFS_FILES: 
-            tripCount, tsCount = gtfsHelper.expandAndWeight(infile, tripCount, tsCount)   
+            gtfsHelper.expandAndWeight(infile)   
         print 'Finished expanding to GTFS in ', (datetime.datetime.now() - startTime)
 
-    # aggregate to daily totals
+    # aggregate to monthly totals
     if 'aggregate' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         aggregator = SFMuniDataAggregator()
-        aggregator.aggregateTripsToDays(EXPANDED_TRIP_OUTFILE, DAILY_TRIP_OUTFILE)
-        aggregator.aggregateTripStopsToDays(EXPANDED_TS_OUTFILE, DAILY_TS_OUTFILE)
-        
         aggregator.aggregateTripsToMonths(DAILY_TRIP_OUTFILE, MONTHLY_TRIP_OUTFILE)
         aggregator.aggregateTripStopsToMonths(DAILY_TS_OUTFILE, MONTHLY_TS_OUTFILE)
         print 'Finished aggregations in ', (datetime.datetime.now() - startTime) 
+
+    # create performance reports
+    if 'report' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()   
+        reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, ts_file=MONTHLY_TS_OUTFILE)
+        reporter.createPerformanceReports(REPORT_OUTFILE)
+        print 'Finished performance reports in ', (datetime.datetime.now() - startTime) 
+
 
     # process Clipper data.  
     if 'cleanClipper' in STEPS_TO_RUN: 

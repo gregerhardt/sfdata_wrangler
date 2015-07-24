@@ -21,7 +21,6 @@ __license__     = """
 import pandas as pd
 import numpy as np
 import datetime
-import glob
 import os
               
                                     
@@ -29,6 +28,73 @@ class SFMuniDataAggregator():
     """ 
     Deals with aggregating MUNI data to daily and monthly totals.   
     """
+
+
+    def __init__(self, daily_trip_outfile=None, daily_ts_outfile=None):
+        """
+        Constructor.                 
+        """        
+        
+        # count the number of rows in each table so our 
+        # indices are unique
+        self.pattern_tod_count  = 0
+        self.pattern_day_count  = 0
+        self.route_tod_count  = 0
+        self.route_day_count  = 0
+        self.system_tod_count = 0
+        self.system_day_count = 0
+            
+        self.rs_tod_count     = 0
+        self.rs_day_count     = 0
+        self.stop_tod_count   = 0
+        self.stop_day_count   = 0
+        self.system_tod_count_s = 0
+        self.system_day_count_s = 0
+            
+        
+        self.daily_trip_outfile = daily_trip_outfile
+        self.daily_ts_outfile = daily_ts_outfile
+    
+        # open the output stores if specified
+        if not daily_trip_outfile==None:                     
+            self.trip_outstore = pd.HDFStore(daily_trip_outfile)
+            
+            keys = self.trip_outstore.keys()
+            
+            if 'pattern_tod' in keys:
+                self.pattern_tod_count = len(self.trip_outstore.select('pattern_tod'))
+            if 'pattern_day' in keys:
+                self.pattern_day_count = len(self.trip_outstore.select('pattern_day'))
+            if 'route_tod' in keys:
+                self.route_tod_count = len(self.trip_outstore.select('route_tod'))
+            if 'route_day' in keys:
+                self.route_day_count = len(self.trip_outstore.select('route_day'))
+            if 'system_tod' in keys:
+                self.system_tod_count = len(self.trip_outstore.select('system_tod'))
+            if 'system_day' in keys:
+                self.system_day_count = len(self.trip_outstore.select('system_day'))            
+
+        # open the output stores if specified
+        if not daily_ts_outfile==None:                     
+            self.ts_outstore = pd.HDFStore(daily_ts_outfile) 
+            
+            if 'rs_tod' in keys:
+                self.rs_tod_count = len(self.trip_outstore.select('rs_tod'))
+            if 'rs_day' in keys:
+                self.rs_day_count = len(self.trip_outstore.select('rs_day'))
+            if 'stop_tod' in keys:
+                self.stop_tod_count = len(self.trip_outstore.select('stop_tod'))
+            if 'stop_day' in keys:
+                self.stop_day_count = len(self.trip_outstore.select('stop_day'))
+            if 'system_tod_s' in keys:
+                self.system_tod_count_s = len(self.trip_outstore.select('system_tod_s'))
+            if 'system_day_s' in keys:
+                self.system_day_count_s = len(self.trip_outstore.select('system_day_s'))      
+                   
+    def close(self):
+        self.trip_outstore.close()
+        self.ts_outstore.close()
+
 
 
     def aggregateToTrips(self, df):
@@ -108,8 +174,8 @@ class SFMuniDataAggregator():
     
         return aggdf
 
-
-    def aggregateTripsToDays(self, expanded_file, aggregate_file):
+    
+    def aggregateTripsToDays(self, df):
         """
         Aggregates weighted data to daily totals.  
             Does this at different levels of aggregation for:
@@ -163,113 +229,74 @@ class SFMuniDataAggregator():
                 ['CROWDED'           ,'CROWDED'           ,'wgtAvg'  ,'system' ,'float64'   , 0],   
                 ['CROWDHOURS'        ,'CROWDHOURS'        ,'wgtSum'  ,'system' ,'float64'   , 0]  
                 ]
-
-        # delete the output file if it already exists
-        if os.path.isfile(aggregate_file):
-            print 'Deleting previous aggregate output'
-            os.remove(aggregate_file)                         
-        outstore = pd.HDFStore(aggregate_file)
-        
-        # count the number of rows in each table so our 
-        # indices are unique
-        pattern_tod_count  = 0
-        pattern_day_count  = 0
-        route_tod_count  = 0
-        route_day_count  = 0
-        system_tod_count = 0
-        system_day_count = 0
-
-
-        # get all infiles matching the pattern
-        pattern = expanded_file.replace('YYYY', '*')
-        infiles = glob.glob(pattern)
-        print 'Retrieved a total of %i years to process' % len(infiles)
-        
-        for infile in infiles: 
-            
-            # open the data store 
-            instore = pd.HDFStore(infile)    
-            
-            # separate the keys into trip_stop keys and trip keys
-            keys = instore.keys()           
-            print 'Retrieved a total of %i trip keys to process' % len(keys)   
-            for key in keys:
-                print 'Processing ', key
-                
-                # get a months worth of data for this day of week
-                # be sure we have a clean index
-                df = instore.select(key)                        
-                df.index = pd.Series(range(0,len(df)))   
                     
-                # patterns
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
-                        columnSpecs=TRIP_RULES, 
-                        level='route', 
-                        weight='TOD_WEIGHT')
-                aggdf.index = pattern_tod_count + pd.Series(range(0,len(aggdf)))
-                outstore.append('pattern_tod', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)   
-                pattern_tod_count += len(aggdf)
+        # patterns
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
+                columnSpecs=TRIP_RULES, 
+                level='route', 
+                weight='TOD_WEIGHT')
+        aggdf.index = self.pattern_tod_count + pd.Series(range(0,len(aggdf)))
+        self.trip_outstore.append('pattern_tod', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)   
+        self.pattern_tod_count += len(aggdf)
     
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
-                        columnSpecs=TRIP_RULES, 
-                        level='route', 
-                        weight='DAY_WEIGHT')
-                aggdf.index = pattern_day_count + pd.Series(range(0,len(aggdf)))
-                outstore.append('pattern_day', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)  
-                pattern_day_count += len(aggdf) 
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
+                columnSpecs=TRIP_RULES, 
+                level='route', 
+                weight='DAY_WEIGHT')
+        aggdf.index = self.pattern_day_count + pd.Series(range(0,len(aggdf)))
+        self.trip_outstore.append('pattern_day', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)  
+        self.pattern_day_count += len(aggdf) 
 
 
-                # routes
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                        columnSpecs=TRIP_RULES, 
-                        level='route', 
-                        weight='TOD_WEIGHT')
-                aggdf.index = route_tod_count + pd.Series(range(0,len(aggdf)))
-                outstore.append('route_tod', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)   
-                route_tod_count += len(aggdf)
+        # routes
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
+                columnSpecs=TRIP_RULES, 
+                level='route', 
+                weight='TOD_WEIGHT')
+        aggdf.index = self.route_tod_count + pd.Series(range(0,len(aggdf)))
+        self.trip_outstore.append('route_tod', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)   
+        self.route_tod_count += len(aggdf)
     
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                        columnSpecs=TRIP_RULES, 
-                        level='route', 
-                        weight='DAY_WEIGHT')
-                aggdf.index = route_day_count + pd.Series(range(0,len(aggdf)))
-                outstore.append('route_day', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)  
-                route_day_count += len(aggdf) 
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
+                columnSpecs=TRIP_RULES, 
+                level='route', 
+                weight='DAY_WEIGHT')
+        aggdf.index = self.route_day_count + pd.Series(range(0,len(aggdf)))
+        self.trip_outstore.append('route_day', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)  
+        self.route_day_count += len(aggdf) 
     
-                # system
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','TOD','AGENCY_ID'], 
-                        columnSpecs=TRIP_RULES, 
-                        level='system', 
-                        weight='SYSTEM_WEIGHT')      
-                aggdf.index = system_tod_count + pd.Series(range(0,len(aggdf))) 
-                outstore.append('system_tod', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)   
-                system_tod_count += len(aggdf)
+        # system
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','TOD','AGENCY_ID'], 
+                columnSpecs=TRIP_RULES, 
+                level='system', 
+                weight='SYSTEM_WEIGHT')      
+        aggdf.index = self.system_tod_count + pd.Series(range(0,len(aggdf))) 
+        self.trip_outstore.append('system_tod', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)   
+        self.system_tod_count += len(aggdf)
     
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','AGENCY_ID'], 
-                        columnSpecs=TRIP_RULES, 
-                        level='system', 
-                        weight='SYSTEM_WEIGHT')     
-                aggdf.index = system_day_count + pd.Series(range(0,len(aggdf)))                       
-                outstore.append('system_day', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)   
-                system_day_count += len(aggdf)
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','AGENCY_ID'], 
+                columnSpecs=TRIP_RULES, 
+                level='system', 
+                weight='SYSTEM_WEIGHT')     
+        aggdf.index = self.system_day_count + pd.Series(range(0,len(aggdf)))                       
+        self.trip_outstore.append('system_day', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)   
+        self.system_day_count += len(aggdf)
             
-            instore.close()
-        outstore.close()
 
     
-    def aggregateTripStopsToDays(self, expanded_file, aggregate_file):
+    def aggregateTripStopsToDays(self, df):
         """
         Aggregates weighted data to daily totals.  
             Does this at different levels of aggregation for:
@@ -335,111 +362,72 @@ class SFMuniDataAggregator():
                 ['CROWDHOURS'        ,'CROWDHOURS'        ,'wgtSum'  ,'system' ,'float64'   , 0]  
                 ]
 
-        # delete the output file if it already exists
-        if os.path.isfile(aggregate_file):
-            print 'Deleting previous aggregate output'
-            os.remove(aggregate_file)                         
-        outstore = pd.HDFStore(aggregate_file)
-        
-        # count the number of rows in each table so our 
-        # indices are unique
-        rs_tod_count     = 0
-        rs_day_count     = 0
-        stop_tod_count   = 0
-        stop_day_count   = 0
-        system_tod_count_s = 0
-        system_day_count_s = 0
 
-
-        # get all infiles matching the pattern
-        pattern = expanded_file.replace('YYYY', '*')
-        infiles = glob.glob(pattern)
-        print 'Retrieved a total of %i years to process' % len(infiles)
-        
-        for infile in infiles: 
-            
-            # open the data store 
-            instore = pd.HDFStore(infile)    
-            
-            # separate the keys into trip_stop keys and trip keys
-            keys = instore.keys()               
-                        
-            print 'Retrieved a total of %i trip_stop keys to process' % len(keys)   
-            for key in keys:
-                print 'Processing ', key
-                
-                # get a months worth of data for this day of week
-                # be sure we have a clean index
-                df = instore.select(key)                        
-                df.index = pd.Series(range(0,len(df)))   
-
-                # route_stops    
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
-                        columnSpecs=STOP_RULES, 
-                        level='route_stop', 
-                        weight='TOD_WEIGHT')      
-                aggdf.index = rs_tod_count + pd.Series(range(0,len(aggdf)))
-                outstore.append('rs_tod', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)          
-                rs_tod_count += len(aggdf)
+        # route_stops    
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
+                columnSpecs=STOP_RULES, 
+                level='route_stop', 
+                weight='TOD_WEIGHT')      
+        aggdf.index = self.rs_tod_count + pd.Series(range(0,len(aggdf)))
+        self.ts_outstore.append('rs_tod', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)          
+        self.rs_tod_count += len(aggdf)
                                                     
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
-                        columnSpecs=STOP_RULES, 
-                        level='route_stop', 
-                        weight='DAY_WEIGHT')
-                aggdf.index = rs_day_count + pd.Series(range(0,len(aggdf)))
-                outstore.append('rs_day', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)   
-                rs_day_count += len(aggdf)
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
+                columnSpecs=STOP_RULES, 
+                level='route_stop', 
+                weight='DAY_WEIGHT')
+        aggdf.index = self.rs_day_count + pd.Series(range(0,len(aggdf)))
+        self.ts_outstore.append('rs_day', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)   
+        self.rs_day_count += len(aggdf)
     
-                # stops
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','TOD','AGENCY_ID','STOP_ID'], 
-                        columnSpecs=STOP_RULES, 
-                        level='stop', 
-                        weight='TOD_WEIGHT')
-                aggdf.index = stop_tod_count + pd.Series(range(0,len(aggdf)))
-                outstore.append('stop_tod', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)   
-                stop_tod_count += len(aggdf)
+        # stops
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','TOD','AGENCY_ID','STOP_ID'], 
+                columnSpecs=STOP_RULES, 
+                level='stop', 
+                weight='TOD_WEIGHT')
+        aggdf.index = self.stop_tod_count + pd.Series(range(0,len(aggdf)))
+        self.ts_outstore.append('stop_tod', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)   
+        self.stop_tod_count += len(aggdf)
     
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','AGENCY_ID','STOP_ID'], 
-                        columnSpecs=STOP_RULES, 
-                        level='stop', 
-                        weight='DAY_WEIGHT')
-                aggdf.index = stop_day_count + pd.Series(range(0,len(aggdf)))
-                outstore.append('stop_day', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)  
-                stop_day_count += len(aggdf)
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','AGENCY_ID','STOP_ID'], 
+                columnSpecs=STOP_RULES, 
+                level='stop', 
+                weight='DAY_WEIGHT')
+        aggdf.index = self.stop_day_count + pd.Series(range(0,len(aggdf)))
+        self.ts_outstore.append('stop_day', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)  
+        self.stop_day_count += len(aggdf)
 
-                # system
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','TOD','AGENCY_ID'], 
-                        columnSpecs=STOP_RULES, 
-                        level='system', 
-                        weight='SYSTEM_WEIGHT')      
-                aggdf.index = system_tod_count_s + pd.Series(range(0,len(aggdf))) 
-                outstore.append('system_tod_s', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)   
-                system_tod_count_s += len(aggdf)
+        # system
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','TOD','AGENCY_ID'], 
+                columnSpecs=STOP_RULES, 
+                level='system', 
+                weight='SYSTEM_WEIGHT')      
+        aggdf.index = self.system_tod_count_s + pd.Series(range(0,len(aggdf))) 
+        self.ts_outstore.append('system_tod_s', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)   
+        self.system_tod_count_s += len(aggdf)
     
-                aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                        groupby=['DATE','DOW','AGENCY_ID'], 
-                        columnSpecs=STOP_RULES, 
-                        level='system', 
-                        weight='SYSTEM_WEIGHT')     
-                aggdf.index = system_day_count_s + pd.Series(range(0,len(aggdf)))                       
-                outstore.append('system_day_s', aggdf, data_columns=True, 
-                        min_itemsize=stringLengths)   
-                system_day_count_s += len(aggdf)
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['DATE','DOW','AGENCY_ID'], 
+                columnSpecs=STOP_RULES, 
+                level='system', 
+                weight='SYSTEM_WEIGHT')     
+        aggdf.index = self.system_day_count_s + pd.Series(range(0,len(aggdf)))                       
+        self.ts_outstore.append('system_day_s', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)   
+        self.system_day_count_s += len(aggdf)
                         
-            instore.close()
-        outstore.close()
 
-
+    
     def aggregateTripsToMonths(self, daily_file, monthly_file):
         """
         Aggregates daily data to monthly totals for an average weekday/
@@ -496,7 +484,8 @@ class SFMuniDataAggregator():
                 ['CROWDHOURS'        ,'CROWDHOURS'        ,'mean'    ,'system' ,'float64'   , 0]  
                 ]
 
-
+        print 'Aggregating trips to month'        
+        
         # delete the output file if it already exists
         if os.path.isfile(monthly_file):
             print 'Deleting previous aggregate output'
@@ -683,6 +672,8 @@ class SFMuniDataAggregator():
                 ['CROWDHOURS'        ,'CROWDHOURS'        ,'mean'    ,'system' ,'float64'   , 0]  
                 ]
 
+        print 'Aggregating trip-stops to month' 
+
         # delete the output file if it already exists
         if os.path.isfile(monthly_file):
             print 'Deleting previous aggregate output'
@@ -709,8 +700,7 @@ class SFMuniDataAggregator():
             print 'Processing month ', month
         
             # route_stops
-        
-            print '  Processing route_stops by tod'                
+                  
             df = instore.select('rs_tod', where='MONTH=Timestamp(month)')                        
             df.index = pd.Series(range(0,len(df)))                   
                     
@@ -725,8 +715,7 @@ class SFMuniDataAggregator():
                     min_itemsize=stringLengths)          
             rs_tod_count += len(aggdf)
     
-                                                    
-            print '  Processing daily route_stops'                
+                                                               
             df = instore.select('rs_day', where='MONTH=Timestamp(month)')                        
             df.index = pd.Series(range(0,len(df)))                     
                     
@@ -741,8 +730,7 @@ class SFMuniDataAggregator():
                     min_itemsize=stringLengths)   
             rs_day_count += len(aggdf)                    
     
-            # stops
-            print '  Processing stops by tod'                
+            # stops         
             df = instore.select('stop_tod', where='MONTH=Timestamp(month)')                        
             df.index = pd.Series(range(0,len(df)))                     
                 
@@ -758,7 +746,6 @@ class SFMuniDataAggregator():
             stop_tod_count += len(aggdf)    
     
     
-            print '  Processing daily stops'                
             df = instore.select('stop_day', where='MONTH=Timestamp(month)')                        
             df.index = pd.Series(range(0,len(df)))                     
                     
@@ -773,8 +760,7 @@ class SFMuniDataAggregator():
                     min_itemsize=stringLengths)  
             stop_day_count += len(aggdf)    
     
-            # system
-            print '  Processing system by tod'                
+            # system         
             df = instore.select('system_tod_s', where='MONTH=Timestamp(month)')                        
             df.index = pd.Series(range(0,len(df)))                     
                     
@@ -789,8 +775,7 @@ class SFMuniDataAggregator():
                     min_itemsize=stringLengths)   
             system_tod_count_s += len(aggdf)    
     
-    
-            print '  Processing daily system'                
+          
             df = instore.select('system_day_s', where='MONTH=Timestamp(month)')                        
             df.index = pd.Series(range(0,len(df)))                     
                     
