@@ -117,7 +117,9 @@ DAILY_TS_OUTFILE   = "D:/Output/sfmuni_daily_ts.h5"
 MONTHLY_TRIP_OUTFILE = "D:/Output/sfmuni_monthly_trip.h5"
 MONTHLY_TS_OUTFILE   = "D:/Output/sfmuni_monthly_ts.h5"
 
-REPORT_OUTFILE = "D:/Output/sfmuni_performance_report.h5"
+REPORT_DAY_XLSFILE = "C:/CASA/DataExploration/PerfReport_SystemDay.xlsx"
+REPORT_AM_XLSFILE = "C:/CASA/DataExploration/PerfReport_SystemAMPeak.xlsx"
+REPORT_PM_XLSFILE = "C:/CASA/DataExploration/PerfReport_SystemPMPeak.xlsx"
 
 CLIPPER_OUTFILE = "D:/Output/clipper.h5"
 
@@ -173,7 +175,9 @@ if __name__ == "__main__":
     if 'report' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, ts_file=MONTHLY_TS_OUTFILE)
-        reporter.createPerformanceReports(REPORT_OUTFILE)
+        reporter.writeSystemReport(REPORT_DAY_XLSFILE, dow=1, tod='Daily')
+        reporter.writeSystemReport(REPORT_AM_XLSFILE, dow=1, tod='0600-0859')
+        reporter.writeSystemReport(REPORT_PM_XLSFILE, dow=1, tod='1600-1859')
         print 'Finished performance reports in ', (datetime.datetime.now() - startTime) 
 
 
