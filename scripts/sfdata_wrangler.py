@@ -78,10 +78,10 @@ RAW_STP_FILES =["D:/Input/SFMTA Data/Raw STP Files/0803.stp",
 RAW_GTFS_FILES = [
   #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
                                                                                            # above file modified to avoid overlap of 13 days
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
                                                                                            # above file modified to avoid gap of 2 days
   #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
   #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110420_0243_1.zip",  # 20110122 to 20110612 (originally 20110610)
@@ -94,8 +94,8 @@ RAW_GTFS_FILES = [
   #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130302_0432_1.zip",  # 20120929 to 20130329 (originally 20130322)
                                                                                            # above file modified to avoid gap of 8 days
   #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip"   # 20131026 to 20140131  
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip"   # 20131026 to 20140131  
   ]
 
 
@@ -155,9 +155,8 @@ if __name__ == "__main__":
                                 ts_outfile=EXPANDED_TS_OUTFILE, 
                                 daily_trip_outfile=DAILY_TRIP_OUTFILE, 
                                 daily_ts_outfile=DAILY_TS_OUTFILE, 
-                                dow=[1])
-        tripCount = 0
-        tsCount = 0
+                                dow=[1], 
+                                startDate='2013-10-09')
         for infile in RAW_GTFS_FILES: 
             gtfsHelper.expandAndWeight(infile)   
         print 'Finished expanding to GTFS in ', (datetime.datetime.now() - startTime)

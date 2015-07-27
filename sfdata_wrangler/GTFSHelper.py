@@ -480,6 +480,8 @@ class GTFSHelper():
         """
 
         sfmuni = self.sfmuni_store.select('sample', where='DATE==Timestamp(date)')
+        sfmuni.index = pd.Series(range(0,len(sfmuni)))
+        
         
         # update the TRIP id in case there are multiple trips with different 
         # patterns leaving a different stop at the same time
