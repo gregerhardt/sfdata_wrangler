@@ -114,8 +114,8 @@ EXPANDED_TS_OUTFILE   = "D:/Output/sfmuni_expanded_ts_YYYY.h5"
 DAILY_TRIP_OUTFILE = "D:/Output/sfmuni_daily_trip.h5"
 DAILY_TS_OUTFILE   = "D:/Output/sfmuni_daily_ts.h5"
 
-MONTHLY_TRIP_OUTFILE = "D:/Output/sfmuni_monthly_trip.h5"
-MONTHLY_TS_OUTFILE   = "D:/Output/sfmuni_monthly_ts.h5"
+MONTHLY_TRIP_OUTFILE = "C:/CASA/DataExploration/sfmuni_monthly_trip.h5"
+MONTHLY_TS_OUTFILE   = "C:/CASA/DataExploration/sfmuni_monthly_ts.h5"
 
 REPORT_DAY_XLSFILE = "C:/CASA/DataExploration/PerfReport_SystemDay.xlsx"
 REPORT_AM_XLSFILE = "C:/CASA/DataExploration/PerfReport_SystemAMPeak.xlsx"

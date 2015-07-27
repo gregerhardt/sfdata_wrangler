@@ -18,10 +18,9 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import os
-
 import pandas as pd
 import datetime
+from xlsxwriter.utility import xl_rowcol_to_cell
 
     
 class TransitReporter():
@@ -252,7 +251,7 @@ class TransitReporter():
         worksheet.write(8, 2, 'Comments: ')      
         worksheet.write(8, 3, comments)        
         
-        worksheet.write(10, 3, 'Period', bold)
+        worksheet.write(10, 3, 'Values', bold)
        
         
         # and the remaining data, with labels
@@ -355,7 +354,225 @@ class TransitReporter():
 
         selected = df[['NUMDAYS', 'OBSDAYS', 'OBSERVED_PCT', 'MEASURE_ERR', 'WEIGHT_ERR']]
         selected.T.to_excel(writer, sheet_name='Values', 
-                            startrow=39, startcol=3, header=False, index=False)             
+                            startrow=39, startcol=3, header=False, index=False)  
+        
+        
+        # Use formulas to calculate the differences
+        months = df[['MONTH']]
+        self.writeSystemDifferenceFormulas(writer, months)
+        self.writeSystemPercentDifferenceFormulas(writer, months)    
         
         writer.save()
+        
+    
+    def writeSystemDifferenceFormulas(self, writer, months): 
+        '''
+        Adds formulas to the system worksheet to calculate differences
+        from 12 months earlier. 
+        '''
+        # which cells to look at
+        ROW_OFFSET = 36
+        COL_OFFSET = 12
+        max_col = 2+len(months)+1
+        
+        # get the worksheet
+        workbook  = writer.book
+        worksheet = writer.sheets['Values']        
+        
+        # set up the formatting, with defaults
+        bold = workbook.add_format({'bold': 1})
+        int_format = workbook.add_format({'num_format': '#,##0'})
+        dec_format = workbook.add_format({'num_format': '#,##0.00'})
+        money_format = workbook.add_format({'num_format': '$#,##0.00'})
+        percent_format = workbook.add_format({'num_format': '0.0%'})
+        
+        # the header and labels
+        worksheet.write(46,3, 'Difference from 12 Months Before', bold)
+        months.T.to_excel(writer, sheet_name='Values', 
+                            startrow=47, startcol=3, header=False, index=False)   
+        
+        # SERVICE
+        worksheet.write(48, 1, 'Service Provided', bold)        
+        
+        for r in range(49,51):
+            cell = xl_rowcol_to_cell(r, 2)
+            label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
+            worksheet.write_formula(cell, '='+label)
+            worksheet.set_row(r, None, int_format) 
+            
+            for c in range(3+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '='+new+'-'+old)
+        
+        # RIDERSHIP
+        worksheet.write(51, 1, 'Ridership', bold)      
+            
+        for r in range(52,58):
+            cell = xl_rowcol_to_cell(r, 2)
+            label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
+            worksheet.write_formula(cell, '='+label)
+            worksheet.set_row(r, None, int_format) 
+            
+            for c in range(3+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '='+new+'-'+old)
+        
+        # LEVEL-OF-SERVICE
+        worksheet.write(58, 1, 'Level-of-Service', bold)      
+        
+        for r in range(59,66):
+            cell = xl_rowcol_to_cell(r, 2)
+            label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
+            worksheet.write_formula(cell, '='+label)
+            worksheet.set_row(r, None, dec_format) 
+            
+            for c in range(3+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '='+new+'-'+old)  
+                           
+        worksheet.set_row(62, None, money_format) 
+        
+        # RELIABILITY
+        worksheet.write(66, 1, 'Reliability', bold)    
+        
+        for r in range(67,70):
+            cell = xl_rowcol_to_cell(r, 2)
+            label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
+            worksheet.write_formula(cell, '='+label)
+            worksheet.set_row(r, None, dec_format) 
+            
+            for c in range(3+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '='+new+'-'+old)  
+                        
+        worksheet.set_row(67, None, percent_format)      
+        
+        # CROWDING
+        worksheet.write(70, 1, 'Crowding', bold)   
+        
+        for r in range(71,74):
+            cell = xl_rowcol_to_cell(r, 2)
+            label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
+            worksheet.write_formula(cell, '='+label)
+            worksheet.set_row(r, None, int_format) 
+            
+            for c in range(3+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '='+new+'-'+old)
+                          
+        worksheet.set_row(71, None, dec_format)              
+        worksheet.set_row(72, None, percent_format) 
+        
+        
+    def writeSystemPercentDifferenceFormulas(self, writer, months): 
+        '''
+        Adds formulas to the system worksheet to calculate percent differences
+        from 12 months earlier. 
+        '''
+        # which cells to look at
+        ROW_OFFSET = 66
+        COL_OFFSET = 12
+        max_col = 2+len(months)+1
+        
+        # get the worksheet
+        workbook  = writer.book
+        worksheet = writer.sheets['Values']        
+        
+        # set up the formatting, with defaults
+        bold = workbook.add_format({'bold': 1})
+        percent_format = workbook.add_format({'num_format': '0.0%'})
+        
+        # the header and labels
+        worksheet.write(76,3, 'Difference from 12 Months Before', bold)
+        months.T.to_excel(writer, sheet_name='Values', 
+                            startrow=77, startcol=3, header=False, index=False)   
+        
+        # SERVICE
+        worksheet.write(78, 1, 'Service Provided', bold)        
+        
+        for r in range(79,81):
+            cell = xl_rowcol_to_cell(r, 2)
+            label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
+            worksheet.write_formula(cell, '='+label)
+            worksheet.set_row(r, None, percent_format) 
+            
+            for c in range(3+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '='+new+'/'+old+'-1')
+        
+        # RIDERSHIP
+        worksheet.write(81, 1, 'Ridership', bold)      
+            
+        for r in range(82,88):
+            cell = xl_rowcol_to_cell(r, 2)
+            label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
+            worksheet.write_formula(cell, '='+label)
+            worksheet.set_row(r, None, percent_format) 
+            
+            for c in range(3+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '='+new+'/'+old+'-1')
+        
+        # LEVEL-OF-SERVICE
+        worksheet.write(88, 1, 'Level-of-Service', bold)      
+        
+        for r in range(89,96):
+            cell = xl_rowcol_to_cell(r, 2)
+            label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
+            worksheet.write_formula(cell, '='+label)
+            worksheet.set_row(r, None, percent_format) 
+            
+            for c in range(3+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '='+new+'/'+old+'-1')
+                           
+        
+        # RELIABILITY
+        worksheet.write(96, 1, 'Reliability', bold)    
+        
+        for r in range(97,100):
+            cell = xl_rowcol_to_cell(r, 2)
+            label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
+            worksheet.write_formula(cell, '='+label)
+            worksheet.set_row(r, None, percent_format) 
+            
+            for c in range(3+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '='+new+'/'+old+'-1')
+                        
+        
+        # CROWDING
+        worksheet.write(100, 1, 'Crowding', bold)   
+        
+        for r in range(101,104):
+            cell = xl_rowcol_to_cell(r, 2)
+            label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
+            worksheet.write_formula(cell, '='+label)
+            worksheet.set_row(r, None, percent_format) 
+            
+            for c in range(3+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '='+new+'/'+old+'-1')
+                
+        
         
