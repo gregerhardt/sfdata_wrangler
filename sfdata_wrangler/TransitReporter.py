@@ -38,94 +38,6 @@ class TransitReporter():
         self.ts_file = ts_file
 
 
-    """
-    def assemblePerformanceData(self, outfile): 
-        '''
-        Calculates the fields used in the system performance reports
-        and stores them in an HDF datastore. 
-        '''   
-        
-        # delete the output file if it already exists
-        if os.path.isfile(outfile):
-            print 'Deleting previous reporting output'
-            os.remove(outfile)                         
-        outstore = pd.HDFStore(outfile)
-
-
-        # route data by time-of-day
-        joinFields = ['MONTH','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR']
-        df = self.assembleRoutePerformanceData(joinFields)
-        outstore.append('route_tod', df, data_columns=True)   
-
-        # route data by day
-        joinFields = ['MONTH','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR']
-        df = self.assembleRoutePerformanceData(joinFields)
-        outstore.append('route_day', df, data_columns=True)   
-
-
-        # system data by time-of-day
-        joinFields = ['MONTH','DOW','TOD','AGENCY_ID']
-        df = self.assembleSystemPerformanceData(joinFields)
-        outstore.append('system_tod', df, data_columns=True)   
-
-        # system data by day
-        joinFields = ['MONTH','DOW','AGENCY_ID']
-        df = self.assembleSystemPerformanceData(joinFields)
-        outstore.append('system_day', df, data_columns=True)   
-        
-        outstore.close()
-    """
-
-    """
-    def assembleRoutePerformanceData(self, joinFields):
-        '''
-        Calculates the fields used in the system performance reports
-        and stores them in an HDF datastore. 
-        '''   
-        # open and join the input fields
-        trip_store = pd.HDFStore(self.trip_file)
-        
-        if 'TOD' in joinFields: 
-            trips = trip_store.select('route_tod')     
-        else:
-            trips = trip_store.select('route_day')
-
-        trip_store.close()
-        
-        # now keep the fields we want from each
-        df = trips[joinFields].copy()
-        
-        df['TRIPS']          = trips['TRIPS']  
-        df['SERVMILES_S']    = trips['SERVMILES_S']  
-        df['ON']             = trips['ON']
-        df['RDBRDNGS']       = trips['RDBRDNGS']
-        df['PASSMILES']      = trips['PASSMILES']
-        df['PASSHOURS']      = trips['PASSHOURS']
-        df['WHEELCHAIR']     = trips['WHEELCHAIR']
-        df['BIKERACK']       = trips['BIKERACK']
-        df['RUNSPEED'] 	     = trips['RUNSPEED']
-        df['DWELL_PER_STOP'] = trips['DWELL'] / trips['TRIP_STOPS']
-        df['HEADWAY_S']      = trips['HEADWAY_S']
-        df['FARE_PER_PASS']  = trips['FULLFARE_REV'] / trips['ON']
-        df['MILES_PER_PASS'] = trips['PASSMILES'] / trips['ON']
-        df['IVT_PER_PAS']    = trips['PASSHOURS'] / trips['ON']
-        df['WAIT_PER_PAS']   = trips['WAITHOURS'] / trips['ON']
-        df['ONTIME5']        = trips['ONTIME5']	
-        df['DELAY_DEP_PER_PASS'] = trips['PASSDELAY_DEP'] / trips['ON']
-        df['DELAY_ARR_PER_PASS'] = trips['PASSDELAY_ARR'] / trips['ON']
-        df['VC']             = trips['VC']        
-        df['CROWDED']        = trips['CROWDED']   
-        df['CROWDHOURS']     = trips['CROWDHOURS']
-        df['NUMDAYS']        = trips['NUMDAYS']
-        df['OBSDAYS']        = trips['OBSDAYS']
-        df['OBSERVED_PCT']   = trips['OBS_TRIPS'] / trips['TRIPS']
-        df['MEASURE_ERR']    = trips['OFF'] / trips['ON'] - 1.0
-        df['WEIGHT_ERR']     = trips['SERVMILES'] / trips['SERVMILES_S'] - 1.0
-        
-        return df
-    """
-        
-
     def assembleSystemPerformanceData(self, dow=1, tod='Daily'):
         '''
         Calculates the fields used in the system performance reports
@@ -258,6 +170,9 @@ class TransitReporter():
             self.writeSystemValues(df, writer, months, tod)
             self.writeSystemDifferenceFormulas(writer, months, tod)
             self.writeSystemPercentDifferenceFormulas(writer, months, tod)    
+            
+            # freeze so we can see what's happening
+            worksheet.freeze_panes(0, 4)
             
         writer.save()
     
