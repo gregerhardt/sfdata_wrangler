@@ -18,9 +18,12 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import numpy as np
 import pandas as pd
 import datetime
 from xlsxwriter.utility import xl_rowcol_to_cell
+import bokeh.plotting as bk
+from bokeh.models import LinearAxis, Range1d
 
     
 class TransitReporter():
@@ -590,5 +593,149 @@ class TransitReporter():
                                            'type': 'column', 
                                            'negative_points': True})      
                 
+    def createRoutePlot(self, outfile, months, dow, tod, route_short_name, dir):
+        '''
+        Creates a plot of route load/performance, and writes to the specified
+        HTML file. 
+        '''
+        
+        (month1, month2) = months
+        
+        # format dates for printing
+        ctime1  = pd.Timestamp(month1).to_datetime().ctime()
+        ctime2  = pd.Timestamp(month2).to_datetime().ctime()        
+        
+        cmonth1 = ctime1[4:7] + ' ' + ctime1[20:]
+        cmonth2 = ctime2[4:7] + ' ' + ctime2[20:]       
+        
+        # format title
+        if (dir==1): 
+            dir_string = ', Inbound'
+        else: 
+            dir_string = ', Outbound'
+            
+        if (dow==1):
+            dow_string = ', Average Weekday'
+        elif(dow==2): 
+            dow_string = ', Average Saturday'
+        elif(dow==3):
+            dow_string = ', Average Sunday/Holiday'
+            
+        if (tod=='Daily'): 
+            tod_string = ', Daily'
+        else: 
+            tod_string = ', Time Period ' + tod
+        
+        title='Route Profile: Route ' \
+              + str(route_short_name) \
+              + dir_string \
+              + dow_string \
+              + tod_string
+        
+        # get the data
+        ts_store = pd.HDFStore(self.ts_file) 
+        if tod=='Daily': 
+            before = ts_store.select('rs_day', where="MONTH=Timestamp(month1) & DOW=dow & ROUTE_SHORT_NAME=route_short_name & DIR=dir") 
+            after  = ts_store.select('rs_day', where="MONTH=Timestamp(month2) & DOW=dow & ROUTE_SHORT_NAME=route_short_name & DIR=dir") 
+        else:
+            before = ts_store.select('rs_tod', where="MONTH=Timestamp(month1) & DOW=dow & TOD=tod & ROUTE_SHORT_NAME=route_short_name & DIR=dir") 
+            after  = ts_store.select('rs_tod', where="MONTH=Timestamp(month2) & DOW=dow & TOD=tod & ROUTE_SHORT_NAME=route_short_name & DIR=dir")  
+        ts_store.close()
+        
+        # re-calculate the load after averaging
+        load = 0.0
+        for i, row in before.iterrows():
+            load -= row['OFF']
+            load += row['ON']
+            before.at[i, 'LOAD_DEP'] = load
+            
+        load = 0.0
+        for i, row in after.iterrows():
+            load -= row['OFF']
+            load += row['ON']
+            after.at[i, 'LOAD_DEP'] = load
+            
+                                        
+        #create the plot
+        bk.output_file(outfile)        
+        stop_labels = before['STOPNAME'].tolist()     
+        p = bk.figure(plot_width=1000, # in units of px
+                      plot_height=650,  
+                      title=title, 
+                      title_text_font_size='12pt', 
+                      x_range = stop_labels                 
+                      )    
+               
+        
+        # plot the boardings and alightings as bar charts
+        # y is the bottom of the rectangle, so adjust height accordingly
+        
+        #before 
+        p.rect(x=before['SEQ']+0.1, 
+               y=0.5*before['ON'], 
+               width=0.2, 
+               height=before['ON'], 
+               color='steelblue', 
+               legend=cmonth1 + ' Boardings')
+               
+        p.rect(x=before['SEQ']-0.4, 
+               y=-0.5*before['OFF'], 
+               width=0.2, 
+               height=before['OFF'], 
+               color='steelblue', 
+               alpha=0.4, 
+               legend=cmonth1 + ' Alightings')
+               
+        #after
+        p.rect(x=after['SEQ']+0.3, 
+               y=0.5*after['ON'], 
+               width=0.2, 
+               height=after['ON'], 
+               color='crimson', 
+               legend=cmonth2 + ' Boardings')
+               
+        p.rect(x=after['SEQ']-0.2, 
+               y=-0.5*after['OFF'], 
+               width=0.2, 
+               height=after['OFF'], 
+               color='crimson', 
+               alpha=0.4, 
+               legend=cmonth2 + ' Alightings')
+               
+               
+        
+        # plot the load as a line
+        
+        # before
+        p.line(before['SEQ'], 
+               before['LOAD_DEP'], 
+               line_width=2, 
+               line_color='steelblue', 
+               legend=cmonth1 + ' Load')
+               
+        # after
+        p.line(after['SEQ'], 
+               after['LOAD_DEP'], 
+               line_width=2, 
+               line_color='crimson', 
+               legend=cmonth2 + ' Load')
+               
+               
+        
+        # do some formatting
+        p.yaxis.axis_label = "Passengers"
+        p.yaxis.axis_label_text_font_size='12pt'
+        
+        p.xaxis.axis_label = "Stop"
+        p.xaxis.axis_label_text_font_size='12pt'
+        
+        p.xaxis.major_label_orientation = np.pi / 2.0
+        p.xaxis.major_label_text_font_size = '8pt'
+        
+        p.legend.orientation = "top_left"
+        
+        
+        # and write the output
+        bk.show(p)
         
         

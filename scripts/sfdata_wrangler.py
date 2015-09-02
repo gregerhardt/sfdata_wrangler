@@ -76,33 +76,48 @@ RAW_STP_FILES =["D:/Input/SFMTA Data/Raw STP Files/0803.stp",
     
 # these should be ordered from old to new, and avoid gaps or overlaps
 RAW_GTFS_FILES = [
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
                                                                                            # above file modified to avoid overlap of 13 days
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
                                                                                            # above file modified to avoid gap of 2 days
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110420_0243_1.zip",  # 20110122 to 20110612 (originally 20110610)
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110420_0243_1.zip",  # 20110122 to 20110612 (originally 20110610)
                                                                                            # above file modified to avoid gap of 2 days
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110910_0449.zip",  # 20110613 to 20111014
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20111210_0410.zip",  # 20111015 to 20120120
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120319_0337_1.zip",  # 20120121 to 20120608 (originally 20120615)
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110910_0449.zip",  # 20110613 to 20111014
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20111210_0410.zip",  # 20111015 to 20120120
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120319_0337_1.zip",  # 20120121 to 20120608 (originally 20120615)
                                                                                            # above file modified to avoid overlap of 6 days
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130302_0432_1.zip",  # 20120929 to 20130329 (originally 20130322)
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130302_0432_1.zip",  # 20120929 to 20130329 (originally 20130322)
                                                                                            # above file modified to avoid gap of 8 days
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip"   # 20131026 to 20140131  
   ]
 
 
-RAW_CLIPPER_FILES =[#"D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
+RAW_CLIPPER_FILES =["D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
                     "D:/Input/Clipper/2013_-_5_Anonymous_Clipper.csv",
                     "D:/Input/Clipper/2013_-_6_Anonymous_Clipper.csv",
-                   # "D:/Input/Clipper/2013_-_7_Anonymous_Clipper.csv"
+                    "D:/Input/Clipper/2013_-_7_Anonymous_Clipper.csv",
+                    "D:/Input/Clipper/2013_-_8_Anonymous_Clipper.csv",
+                    "D:/Input/Clipper/2013_-_9_Anonymous_Clipper.csv",
+                    "D:/Input/Clipper/2013_-_10_Anonymous_Clipper.csv",
+                    "D:/Input/Clipper/2013_-_11_Anonymous_Clipper.csv",                    
+                    "D:/Input/Clipper/2013_-_12_Anonymous_Clipper.csv",  
+                                      
+                    "D:/Input/Clipper/2014_-_1_Anonymous_Clipper.csv",
+                    "D:/Input/Clipper/2014_-_2_Anonymous_Clipper.csv", 
+                    "D:/Input/Clipper/2014_-_3_Anonymous_Clipper.csv", 
+                    "D:/Input/Clipper/2014_-_4_Anonymous_Clipper.csv", 
+                    "D:/Input/Clipper/2014_-_5_Anonymous_Clipper.csv", 
+                    "D:/Input/Clipper/2014_-_6_Anonymous_Clipper.csv", 
+                    "D:/Input/Clipper/2014_-_7_Anonymous_Clipper.csv", 
+                    "D:/Input/Clipper/2014_-_8_Anonymous_Clipper.csv", 
+                    "D:/Input/Clipper/2014_-_9_Anonymous_Clipper.csv"                    
                    ]
 
 # OUTPUT FILES--change as needed
@@ -118,8 +133,9 @@ MONTHLY_TRIP_OUTFILE = "D:/Output/sfmuni_monthly_trip.h5"
 MONTHLY_TS_OUTFILE   = "D:/Output/sfmuni_monthly_ts.h5"
 
 REPORT_XLSFILE = "D:/Output/TransitPerformanceReport.xlsx"
+REPORT_ROUTEPLOTS = "D:/Output/RoutePlots.html"
 
-CLIPPER_OUTFILE = "D:/Output/clipper.h5"
+CLIPPER_OUTFILE = "D:/Output/clipper3.h5"
 
 
 # main function call
@@ -174,8 +190,14 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, ts_file=MONTHLY_TS_OUTFILE)
         reporter.writeSystemReport(REPORT_XLSFILE, dow=1)
+        reporter.createRoutePlot(REPORT_ROUTEPLOTS, 
+                                 months=('2009-07-01', '2010-07-01'), 
+                                 dow=1, 
+                                 tod='0600-0859', 
+                                 route_short_name=1, 
+                                 dir=1)
+        
         print 'Finished performance reports in ', (datetime.datetime.now() - startTime) 
-
 
     # process Clipper data.  
     if 'cleanClipper' in STEPS_TO_RUN: 

@@ -22,7 +22,8 @@ import pandas as pd
 import numpy as np
 import datetime
 import os
-              
+
+#TODO - re-calculate LOAD_ARR and LOAD_DEP after aggregating
                                     
 class SFMuniDataAggregator():
     """ 
