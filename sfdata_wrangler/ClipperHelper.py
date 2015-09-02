@@ -132,7 +132,7 @@ class ClipperHelper():
         Constructor.                 
         """        
         
-    
+
     def processRawData(self, infile, outfile):
         """
         Read SFMuniData, cleans it, processes it, and writes it to an HDF5 file.
@@ -145,7 +145,12 @@ class ClipperHelper():
         
         # read the input data
         df = pd.read_csv(infile)
-                
+        
+        print datetime.datetime.now(), '  calculate'
+        
+        # make the tables format nicer in terms of the strings used
+        df['AgencyName'] = df['AgencyName'].apply(str.strip)
+
         # convert times into pandas datetime formats
         # assume that there is only one year and one month in this file
         year  = df.at[0,'Year']
@@ -168,14 +173,38 @@ class ClipperHelper():
         df['DOW'] = np.where(df['CircadianDayOfWeek'] == 7, 2, df['DOW'])   # Saturday
         df['DOW'] = np.where(df['CircadianDayOfWeek'] == 1, 3, df['DOW'])   # Sunday       
                 
+        # infer the mode
+        df['MODE'] = 'Bus'
+        df['MODE'] = np.where(df['AgencyName'] == 'BART', 'Rapid Transit', df['MODE'])
+        df['MODE'] = np.where(df['AgencyName'] == 'Caltrain', 'Commuter Rail', df['MODE'])
+        df['MODE'] = np.where(df['AgencyName'] == 'Golden Gate Ferry', 'Ferry', df['MODE'])
+        df['MODE'] = np.where(df['AgencyName'] == 'WETA', 'Ferry', df['MODE'])
+        
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='VTA', df['RouteName']=='LRV'), 'Light Rail', df['MODE'])
+        
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='SF Muni', df['RouteName']=='CC59'), 'Cable Car', df['MODE'])
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='SF Muni', df['RouteName']=='CC60'), 'Cable Car', df['MODE'])
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='SF Muni', df['RouteName']=='CC61'), 'Cable Car', df['MODE'])
+        
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='SF Muni', df['TagOnLocationName']!='SFM bus'), 'Light Rail', df['MODE'])
+        
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='SF Muni', df['RouteName']=='F'), 'Light Rail', df['MODE'])
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='SF Muni', df['RouteName']=='J'), 'Light Rail', df['MODE'])
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='SF Muni', df['RouteName']=='K'), 'Light Rail', df['MODE'])
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='SF Muni', df['RouteName']=='L'), 'Light Rail', df['MODE'])
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='SF Muni', df['RouteName']=='M'), 'Light Rail', df['MODE'])
+        df['MODE'] = np.where(np.logical_and(df['AgencyName']=='SF Muni', df['RouteName']=='N'), 'Light Rail', df['MODE'])
+        
         # sort 
         sortColumns = ['ClipperCardID', 'TripSequenceID']
         df.sort(sortColumns, inplace=True)               
                         
         # identify transfers
+        print datetime.datetime.now(), '  loop'
         df['TIMEDIFF_TAGON']  = 9999
         df['TIMEDIFF_TAGOFF'] = 9999
         df['TRANSFER'] = 0
+        df['LINKED_TRIP_ID'] = 1
         
         last_row = None 
         firstRow = True
@@ -183,49 +212,51 @@ class ClipperHelper():
             
             if firstRow: 
                 firstRow = False
+                linkedTripId = 1
             
-            elif row['ClipperCardID'] == last_row['ClipperCardID']: 
-                                
+            # keep track of the ID for linked trips
+            elif row['ClipperCardID'] != last_row['ClipperCardID']: 
+                linkedTripId = 1
+                
+            else:                                 
                 # calculate time from last tag on or off
                 timeDiff_tagOn = ((row['TagOnTime_Time'] - 
                     last_row['TagOnTime_Time']).total_seconds()) / 60.0
                     
-                if not pd.isnull(last_row['TagOffTime_Time']): 
-                    timeDiff_tagOff = ((row['TagOnTime_Time'] - 
-                        last_row['TagOffTime_Time']).total_seconds()) / 60.0
-                    # make sure to avoid illogical results
-                    if timeDiff_tagOff < 0: 
-                        timeDiff_tagOff = 0
-                else: 
-                    timeDiff_tagOff = 9999
-                
                 # its a transfer if it's less than the threshold
                 if timeDiff_tagOn < self.TRANSFER_THRESHOLD_TAGON: 
-                    transfer = 1
-                else:
-                    transfer = 0
-                
-                # only fill in data values if a transfer
-                if transfer == 1: 
-                    df.at[i, 'TRANSFER']        = transfer
+                    df.at[i, 'TRANSFER']        = 1
                     df.at[i, 'TIMEDIFF_TAGON']  = timeDiff_tagOn
-                    df.at[i, 'TIMEDIFF_TAGOFF'] = timeDiff_tagOff
                     df.at[i, 'From_AgencyID']   = last_row['AgencyID'] 
+                    df.at[i, 'From_MODE']       = last_row['MODE'] 
                     df.at[i, 'From_RouteID']    = last_row['RouteID']
                     df.at[i, 'From_TagOnLocationID']  = last_row['TagOnLocationID']
                     df.at[i, 'From_TagOffLocationID'] = last_row['TagOffLocationID']
-                
+                else:
+                    df.at[i, 'TRANSFER']        = 0                
+                    linkedTripId += 1
+                    
+                df.at[i,'LINKED_TRIP_ID'] = linkedTripId
+                                
             last_row = row
         
-        # calculate weights
+        # determine how many transfers are on each linked trip
+        #print datetime.datetime.now(), '  transform'
+        selected = df[['ClipperCardID', 'LINKED_TRIP_ID','TRANSFER']]
+        transformed = selected.groupby(['ClipperCardID', 'LINKED_TRIP_ID']).transform(sum)
+        df['LINKED_TRANSFERS'] = transformed['TRANSFER']
+        
+        print datetime.datetime.now(), '  calculate weights' 
         # these will represent average ridership by DOW (weekday, saturday, sunday)
         #TODO - update to match external boarding counts...        
         df['WEIGHT'] = df['DOW'].apply(clipperWeights)
-        
+        df['LINKED_WEIGHT'] = df['WEIGHT'] / (1.0+df['LINKED_TRANSFERS'])
         
         # write it to an HDF file
+        print datetime.datetime.now(), '  write'
+        key = 'm' + str(100*year + month) + '01'
         store = pd.HDFStore(outfile)
-        store.append('df', df, data_columns=True)
+        store.append(key, df, data_columns=True)
         store.close()
     
         
