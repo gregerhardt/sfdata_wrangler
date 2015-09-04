@@ -172,7 +172,7 @@ if __name__ == "__main__":
                                 daily_trip_outfile=DAILY_TRIP_OUTFILE, 
                                 daily_ts_outfile=DAILY_TS_OUTFILE, 
                                 dow=[1], 
-                                startDate='2013-10-09')
+                                startDate='2009-06-01')
         for infile in RAW_GTFS_FILES: 
             gtfsHelper.expandAndWeight(infile)   
         print 'Finished expanding to GTFS in ', (datetime.datetime.now() - startTime)

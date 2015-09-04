@@ -482,13 +482,15 @@ class GTFSHelper():
         sfmuni = self.sfmuni_store.select('sample', where='DATE==Timestamp(date)')
         sfmuni.index = pd.Series(range(0,len(sfmuni)))
         
+        # drop duplicates, which would get double-counted
+        sfmuni = sfmuni.drop_duplicates(subset=['AGENCY_ID','ROUTE_SHORT_NAME','DIR','PATTCODE','TRIP', 'SEQ'])
+                                        
         
         # update the TRIP id in case there are multiple trips with different 
         # patterns leaving a different stop at the same time
         groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','PATTCODE','TRIP']
         sfmuni = sfmuni.groupby(groupby, as_index=False).apply(updateTripId)     
-         
-                                        
+        
         # calculate observed RUNTIME
         # happens here because the values in the AVL data look screwy.
         groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
@@ -768,7 +770,7 @@ class GTFSHelper():
         joined['OBSERVED'] = np.where(joined['OBSERVED_AVL'] == 1, 1, 0)
 
         # normalize to consistent measure of service miles
-        joined['SERVMILES'] = np.where(joined['OBSERVED']==1, joined['SERVMILES_S'], np.nan)
+        joined['SERVMILES'] = joined['SERVMILES_S']
         
         # schedule deviation          
         arrTime = pd.Series(zip(joined['ARRIVAL_TIME'], joined['ARRIVAL_TIME_S']), index=joined.index)   
