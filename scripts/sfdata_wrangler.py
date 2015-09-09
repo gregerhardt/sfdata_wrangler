@@ -21,11 +21,13 @@ import sys
 import datetime
 
 sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
+
 from SFMuniDataHelper import SFMuniDataHelper
 from GTFSHelper import GTFSHelper
 from SFMuniDataAggregator import SFMuniDataAggregator
 from TransitReporter import TransitReporter
 from ClipperHelper import ClipperHelper
+from DemandHelper import DemandHelper
 
 
 USAGE = r"""
@@ -46,8 +48,9 @@ USAGE = r"""
 VALID_STEPS = [ 'clean', 
                 'expand', 
                 'aggregate', 
-                'report', 
-                'cleanClipper'
+                'cleanClipper', 
+                'demandDrivers', 
+                'report'
                 ]    
                 
 
@@ -76,25 +79,25 @@ RAW_STP_FILES =["D:/Input/SFMTA Data/Raw STP Files/0803.stp",
     
 # these should be ordered from old to new, and avoid gaps or overlaps
 RAW_GTFS_FILES = [
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
                                                                                            # above file modified to avoid overlap of 13 days
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
                                                                                            # above file modified to avoid gap of 2 days
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110420_0243_1.zip",  # 20110122 to 20110612 (originally 20110610)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110420_0243_1.zip",  # 20110122 to 20110612 (originally 20110610)
                                                                                            # above file modified to avoid gap of 2 days
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110910_0449.zip",  # 20110613 to 20111014
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20111210_0410.zip",  # 20111015 to 20120120
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120319_0337_1.zip",  # 20120121 to 20120608 (originally 20120615)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20110910_0449.zip",  # 20110613 to 20111014
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20111210_0410.zip",  # 20111015 to 20120120
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120319_0337_1.zip",  # 20120121 to 20120608 (originally 20120615)
                                                                                            # above file modified to avoid overlap of 6 days
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130302_0432_1.zip",  # 20120929 to 20130329 (originally 20130322)
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130302_0432_1.zip",  # 20120929 to 20130329 (originally 20130322)
                                                                                            # above file modified to avoid gap of 8 days
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
-  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
+  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20130910_2349.zip",  # 20130629 to 20131025
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip"   # 20131026 to 20140131  
   ]
 
@@ -120,6 +123,16 @@ RAW_CLIPPER_FILES =["D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
                     "D:/Input/Clipper/2014_-_9_Anonymous_Clipper.csv"                    
                    ]
 
+QCEW_DIR = "D:/Input/QCEW/"
+
+CENSUS_POPEST_PRE2010_FILE  = "D:/Input/Census/AnnualPopulationEstimates/2000to2010/CO-EST00INT-TOT.csv"
+CENSUS_POPEST_POST2010_FILE = "D:/Input/Census/AnnualPopulationEstimates/post2010/PEP_2014_PEPANNRES_with_ann.csv"
+
+FUEL_COST_FILE = "D:/Input/FuelCost/PET_PRI_GND_A_EPM0_PTE_DPGAL_M.xls"
+CPI_FILE       = "D:/Input/CPI/SeriesReport-20150908105105_8887b6.xlsx"
+
+FIPS = '06075'
+
 # OUTPUT FILES--change as needed
 CLEANED_OUTFILE       = "D:/Output/sfmuni_cleaned.h5"    
 
@@ -136,6 +149,8 @@ REPORT_XLSFILE = "D:/Output/TransitPerformanceReport.xlsx"
 REPORT_ROUTEPLOTS = "D:/Output/RoutePlots.html"
 
 CLIPPER_OUTFILE = "D:/Output/clipper3.h5"
+
+DEMAND_OUTFILE = "D:/Output/drivers_of_demand.h5"
 
 
 # main function call
@@ -172,7 +187,7 @@ if __name__ == "__main__":
                                 daily_trip_outfile=DAILY_TRIP_OUTFILE, 
                                 daily_ts_outfile=DAILY_TS_OUTFILE, 
                                 dow=[1], 
-                                startDate='2009-06-01')
+                                startDate='2013-11-01')
         for infile in RAW_GTFS_FILES: 
             gtfsHelper.expandAndWeight(infile)   
         print 'Finished expanding to GTFS in ', (datetime.datetime.now() - startTime)
@@ -185,10 +200,34 @@ if __name__ == "__main__":
         aggregator.aggregateTripStopsToMonths(DAILY_TS_OUTFILE, MONTHLY_TS_OUTFILE)
         print 'Finished aggregations in ', (datetime.datetime.now() - startTime) 
 
+    # process Clipper data.  
+    if 'cleanClipper' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()   
+        clipperHelper = ClipperHelper()
+        for infile in RAW_CLIPPER_FILES: 
+            clipperHelper.processRawData(infile, CLIPPER_OUTFILE)   
+        print 'Finished processing Clipper data ', (datetime.datetime.now() - startTime) 
+        
+
+    # process drivers of demand data.  
+    if 'demandDrivers' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()   
+        demandHelper = DemandHelper()
+        demandHelper.processQCEWData(QCEW_DIR, FIPS, DEMAND_OUTFILE)              
+        demandHelper.processCensusPopulationEstimates(CENSUS_POPEST_PRE2010_FILE, 
+                                                      CENSUS_POPEST_POST2010_FILE, 
+                                                      FIPS, 
+                                                      DEMAND_OUTFILE)             
+        demandHelper.processFuelPriceData(FUEL_COST_FILE, CPI_FILE, DEMAND_OUTFILE)
+        print 'Finished processing drivers of demand data ', (datetime.datetime.now() - startTime) 
+        
+        
     # create performance reports
     if 'report' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, ts_file=MONTHLY_TS_OUTFILE)
+        reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, 
+                                   ts_file=MONTHLY_TS_OUTFILE, 
+                                   demand_file=DEMAND_OUTFILE)
         reporter.writeSystemReport(REPORT_XLSFILE, dow=1)
         reporter.createRoutePlot(REPORT_ROUTEPLOTS, 
                                  months=('2009-07-01', '2010-07-01'), 
@@ -199,15 +238,6 @@ if __name__ == "__main__":
         
         print 'Finished performance reports in ', (datetime.datetime.now() - startTime) 
 
-    # process Clipper data.  
-    if 'cleanClipper' in STEPS_TO_RUN: 
-        startTime = datetime.datetime.now()   
-        clipperHelper = ClipperHelper()
-        for infile in RAW_CLIPPER_FILES: 
-            clipperHelper.processRawData(infile, CLIPPER_OUTFILE)   
-        print 'Finished processing Clipper data ', (datetime.datetime.now() - startTime) 
-        
-        
     print 'Run complete!  Time for a pint!'
     
     
