@@ -197,8 +197,8 @@ def calcGroupWeights(df, oldWeight):
     
     """
     
-    obs = float((df[oldWeight] * df['TRIPS']).sum())
-    tot = float(df['TRIPS'].sum())    
+    obs = float((df[oldWeight] * df['TRIP_STOPS']).sum())
+    tot = float(df['TRIP_STOPS'].sum())    
     if obs>0:
         factor = tot / obs
     else: 
