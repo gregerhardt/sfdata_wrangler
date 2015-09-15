@@ -125,9 +125,7 @@ RAW_CLIPPER_FILES =["D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
 
 QCEW_DIR = "D:/Input/QCEW/"
 
-LODES_RAC_DIR = "D:/Input/Census/LEHD/LODES/CA/RAC/"
-LODES_WAC_DIR = "D:/Input/Census/LEHD/LODES/CA/WAC/"
-LODES_OD_DIR  = "D:/Input/Census/LEHD/LODES/CA/OD/"
+LODES_DIR = "D:/Input/Census/LEHD/LODES/CA/"
 LODES_XWALK_FILE= "D:/Input/Census/LEHD/LODES/CA/ca_xwalk.csv"
 
 CENSUS_POPEST_PRE2010_FILE  = "D:/Input/Census/AnnualPopulationEstimates/2000to2010/CO-EST00INT-TOT.csv"
@@ -219,7 +217,9 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         demandHelper = DemandHelper()
         
-        demandHelper.processLODESRAC(LODES_RAC_DIR, LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
         
         demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
                     

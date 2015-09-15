@@ -275,25 +275,45 @@ class DemandHelper():
         outstore.close()
         
         
-    def processLODESRAC(self, inputDir, xwalkFile, fips, outfile): 
+    def processLODES(self, inputDir, lodesType, xwalkFile, fips, outfile): 
         '''
         Processes data from the LODES (LEHD Origin-Destination Employment Statistics)
-        RAC (Resident Area Characteristics) files.  This gives us information
-        on workers at their home location.  Processed for SF county as a whole.
+        files.  Processed for SF county as a whole.
         
         inputDir - directory containing input CSV files
+        lodesType - RAC, WAC or OD
+                    OD file processed specifically for intra-county flows
         xwalkFile - file containing the geography crosswalk from LODES
         fips - fips code for SF county
         outfile - HDF file to write to
         '''
         
+        # set characteristics for later
         fips = int(fips)
+        key = 'lodes' + lodesType
+        
+        if lodesType=='RAC': 
+            geoCol = 'h_geocode'
+            wrkemp = 'WORKERS'
+            filePattern = inputDir + '/RAC/ca_rac_S000_JT00_'
+            
+        elif lodesType=='WAC':
+            geoCol = 'w_geocode'
+            wrkemp = 'EMP'
+            filePattern = inputDir + '/WAC/ca_wac_S000_JT00_'
+            
+        elif lodesType=='OD':
+            hgeoCol = 'h_geocode'
+            wgeoCol = 'w_geocode'
+            wrkemp = 'WORKERS'
+            filePattern = inputDir + '/OD/ca_od_main_JT00_'
+            
         
         # remove the existing key so we don't overwrite
         outstore = pd.HDFStore(outfile)
         keys = outstore.keys()
-        if '/lodesRAC' in keys: 
-            outstore.remove('lodesRAC')
+        if '/' + key in keys: 
+            outstore.remove(key)
             
         # read the geography crosswalk
         xwalk = pd.read_csv(xwalkFile)
@@ -304,46 +324,66 @@ class DemandHelper():
         annual = pd.DataFrame({'YEAR': years})
         annual.index = years
         
-        annual['WORKERS'] = np.NaN          # total workers
+        annual[wrkemp] = np.NaN          # total workers
         
-        annual['WORKERS_LOWINC'] = np.NaN  # Number of workers with earnings $1250/month or less
-        annual['WORKERS_MIDINC'] = np.NaN  # Number of workers with earnings $1251/month to $3333/month
-        annual['WORKERS_HIGHINC']= np.NaN  # Number of workers with earnings greater than $3333/month
+        annual[wrkemp+'_LOWINC'] = np.NaN  # Number of workers with earnings $1250/month or less
+        annual[wrkemp+'_MIDINC'] = np.NaN  # Number of workers with earnings $1251/month to $3333/month
+        annual[wrkemp+'_HIGHINC']= np.NaN  # Number of workers with earnings greater than $3333/month
         
-        annual['WORKERS_RETAIL']   = np.NaN  # Number of workers in retail sector
-        annual['WORKERS_EDHEALTH'] = np.NaN  # Number of workers in education and health sector
-        annual['WORKERS_LEISURE']  = np.NaN  # Number of workers in leisure and hospitality sector
-        annual['WORKERS_OTHER']    = np.NaN  # Number of workers in other sectors
+        if lodesType=='RAC' or lodesType=='WAC': 
+            annual[wrkemp+'_RETAIL']   = np.NaN  # Number of workers in retail sector
+            annual[wrkemp+'_EDHEALTH'] = np.NaN  # Number of workers in education and health sector
+            annual[wrkemp+'_LEISURE']  = np.NaN  # Number of workers in leisure and hospitality sector
+            annual[wrkemp+'_OTHER']    = np.NaN  # Number of workers in other sectors
         
         
         # get the data for each year
         for year in years: 
             
             # read the data and aggregate to county level
-            infile = inputDir + '/ca_rac_S000_JT00_' + str(year) + '.csv' 
+            infile = filePattern + str(year) + '.csv' 
             if os.path.isfile(infile):
                     
-                print 'Reading LODES RAC data in ' + infile            
+                print 'Reading LODES data in ' + infile            
                 df = pd.read_csv(infile)            
-                df = pd.merge(df, xwalk, how='left', left_on='h_geocode', right_on='tabblk2010')            
-                df = df[df['cty']==fips]            
-                agg = df.groupby('cty').agg('sum')
                 
-                # copy over the appropriate fields
-                annual.at[year, 'WORKERS'] = agg.at[fips, 'C000']        
+                # one dimensional processing for RAC and WAC
+                if lodesType=='RAC' or lodesType=='WAC': 
+                    df = pd.merge(df, xwalk, how='left', left_on=geoCol, right_on='tabblk2010')            
+                    df = df[df['cty']==fips]            
+                    agg = df.groupby('cty').agg('sum')
+                    
+                    # copy over the appropriate fields
+                    annual.at[year, wrkemp] = agg.at[fips, 'C000']        
+                    
+                    annual.at[year, wrkemp+'_LOWINC'] = agg.at[fips, 'CE01']
+                    annual.at[year, wrkemp+'_MIDINC'] = agg.at[fips, 'CE02'] 
+                    annual.at[year, wrkemp+'_HIGHINC']= agg.at[fips, 'CE03'] 
+                    
+                    annual.at[year, wrkemp+'_RETAIL']   = agg.at[fips, 'CNS07'] 
+                    annual.at[year, wrkemp+'_EDHEALTH'] = agg.at[fips, 'CNS15'] + agg.at[fips, 'CNS16'] 
+                    annual.at[year, wrkemp+'_LEISURE']  = agg.at[fips, 'CNS17'] + agg.at[fips, 'CNS18'] 
+                    annual.at[year, wrkemp+'_OTHER']    = (annual.at[year, wrkemp] 
+                                                        -annual.at[year, wrkemp+'_RETAIL']
+                                                        -annual.at[year, wrkemp+'_EDHEALTH']
+                                                        -annual.at[year, wrkemp+'_LEISURE']
+                                                        )
                 
-                annual.at[year, 'WORKERS_LOWINC'] = agg.at[fips, 'CE01']
-                annual.at[year, 'WORKERS_MIDINC'] = agg.at[fips, 'CE02'] 
-                annual.at[year, 'WORKERS_HIGHINC']= agg.at[fips, 'CE03'] 
-                
-                annual.at[year, 'WORKERS_RETAIL']   = agg.at[fips, 'CNS07'] 
-                annual.at[year, 'WORKERS_EDHEALTH'] = agg.at[fips, 'CNS15'] + agg.at[fips, 'CNS16'] 
-                annual.at[year, 'WORKERS_LEISURE']  = agg.at[fips, 'CNS17'] + agg.at[fips, 'CNS18'] 
-                annual.at[year, 'WORKERS_OTHER']    = (annual.at[year, 'WORKERS'] 
-                                                    -annual.at[year, 'WORKERS_RETAIL']
-                                                    -annual.at[year, 'WORKERS_EDHEALTH']
-                                                    -annual.at[year, 'WORKERS_LEISURE']
-                                                    )
+                # for OD, keep only intra-county flows
+                elif lodesType=='OD': 
+                    df = pd.merge(df, xwalk, how='left', left_on=hgeoCol, right_on='tabblk2010')   
+                    df = pd.merge(df, xwalk, how='left', left_on=wgeoCol, right_on='tabblk2010', suffixes=('_h', '_w'))           
+                    df = df[(df['cty_h']==fips) & (df['cty_w']==fips)]     
+                           
+                    agg = df.groupby('cty_h').agg('sum')
+                    
+                    # copy over the appropriate fields
+                    annual.at[year, wrkemp] = agg.at[fips, 'S000']        
+                    
+                    annual.at[year, wrkemp+'_LOWINC'] = agg.at[fips, 'SE01']
+                    annual.at[year, wrkemp+'_MIDINC'] = agg.at[fips, 'SE02'] 
+                    annual.at[year, wrkemp+'_HIGHINC']= agg.at[fips, 'SE03'] 
+                    
                                                     
         # extrapolate the final year to get the last 6 months of data
         extraYear = self.LODES_YEARS[1] + 1
@@ -377,9 +417,9 @@ class DemandHelper():
         # set a unique index
         monthly.index = pd.Series(range(0,len(monthly)))
         
-        monthly.to_csv('c:/temp/rac.csv')
+        monthly.to_csv('c:/temp/lodes' + lodesType + '.csv')
         
         # append to the output store
-        outstore.append('lodesRAC', monthly, data_columns=True)
+        outstore.append(key, monthly, data_columns=True)
         outstore.close()
         
