@@ -69,6 +69,74 @@ class DemandHelper():
         return dfcpi
 
     
+    def processCensusPopulationEstimates(self, pre2010File, post2010File, fips, outfile): 
+        """ 
+        Reads the Census annual population estimates, which are published
+        at a county level, interpolates them to monthly values, and writes
+        them into a consolidated file.  
+        
+        pre2010File - file containing intercensal (retrospective) population 
+                      estimates between 2000 and 2010
+        post2010File - file containing postcensal population estimates
+        fips     - the  FIPS codes to process, as string
+        outfile - the HDF output file to write to
+        
+        """
+                
+        # remove the existing key so we don't overwrite
+        outstore = pd.HDFStore(outfile)
+        keys = outstore.keys()
+        if '/countyPop' in keys: 
+            outstore.remove('countyPop')
+
+        # create the output file for annual data
+        annual = pd.DataFrame({'YEAR': range(self.POP_EST_YEARS[0], self.POP_EST_YEARS[1]+1)})
+        annual['POP'] = 0
+        annual.index = range(self.POP_EST_YEARS[0], self.POP_EST_YEARS[1]+1)
+        
+        # get raw data, pre-2010, and copy to annual file
+        pre2010_raw = pd.read_csv(pre2010File)
+        fips_state = fips[:2]
+        fips_county = fips[2:]
+        pre2010_raw = pre2010_raw[(pre2010_raw['STATE']==int(fips_state)) 
+                                & (pre2010_raw['COUNTY']==int(fips_county))]
+        pre2010_raw.index = range(0, len(pre2010_raw))
+        
+        for year in range(2000, 2010): 
+            annual.at[year,'POP'] = pre2010_raw.at[0, 'POPESTIMATE' + str(year)]
+            
+        
+        # get raw data, post-2010
+        post2010_raw = pd.read_csv(post2010File, skiprows=1)
+        post2010_raw = post2010_raw[post2010_raw['Id2']==int(fips)]
+        post2010_raw.index = range(0, len(post2010_raw))
+        
+        for year in range(2010, self.POP_EST_YEARS[1]+1): 
+            annual.at[year,'POP'] = post2010_raw.at[0, 'Population Estimate (as of July 1) - ' + str(year)]
+
+        
+        # expand to monthly, and interpolate values
+        annual['MONTH'] = annual['YEAR'].apply(lambda x: pd.Timestamp(str(x) + '-07-01'))
+        annual = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
+        
+        monthly = annual[['MONTH']].resample('M')
+        monthly['MONTH'] = monthly.index
+        monthly['MONTH'] = monthly['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
+                
+        monthly = pd.merge(monthly, annual, how='left', on=['MONTH'], sort=True)  
+        monthly = monthly[['MONTH', 'POP']]
+        monthly = monthly.set_index(pd.DatetimeIndex(monthly['MONTH']))     
+        
+        monthly = monthly.interpolate()
+        
+        # set a unique index
+        monthly.index = pd.Series(range(0,len(monthly)))
+                
+        # append to the output store
+        outstore.append('countyPop', monthly, data_columns=True)
+        outstore.close()
+
+
     def processQCEWData(self, inputDir, fips, cpiFile, outfile): 
         """ 
         Reads raw QCEW data and converts it to a clean list format. 
@@ -160,120 +228,13 @@ class DemandHelper():
         dfcpi  = self.getCPIFactors(cpiFile)
         dfjoin = pd.merge(dfout, dfcpi, how='left', on=['MONTH'], sort=True)  
         dfout['AVG_MONTHLY_EARNINGS_USD2010'] = dfjoin['AVG_MONTHLY_EARNINGS'] * dfjoin['CPI_FACTOR']
-        
-        dfout.to_csv('c:/temp/qcew2.csv')
-        
+                
         # write the output
         outstore.append('countyEmp', dfout, data_columns=True)        
         outstore.close()
         
 
-    def processCensusPopulationEstimates(self, pre2010File, post2010File, fips, outfile): 
-        """ 
-        Reads the Census annual population estimates, which are published
-        at a county level, interpolates them to monthly values, and writes
-        them into a consolidated file.  
-        
-        pre2010File - file containing intercensal (retrospective) population 
-                      estimates between 2000 and 2010
-        post2010File - file containing postcensal population estimates
-        fips     - the  FIPS codes to process, as string
-        outfile - the HDF output file to write to
-        
-        """
-                
-        # remove the existing key so we don't overwrite
-        outstore = pd.HDFStore(outfile)
-        keys = outstore.keys()
-        if '/countyPop' in keys: 
-            outstore.remove('countyPop')
 
-        # create the output file for annual data
-        annual = pd.DataFrame({'YEAR': range(self.POP_EST_YEARS[0], self.POP_EST_YEARS[1]+1)})
-        annual['POP'] = 0
-        annual.index = range(self.POP_EST_YEARS[0], self.POP_EST_YEARS[1]+1)
-        
-        # get raw data, pre-2010, and copy to annual file
-        pre2010_raw = pd.read_csv(pre2010File)
-        fips_state = fips[:2]
-        fips_county = fips[2:]
-        pre2010_raw = pre2010_raw[(pre2010_raw['STATE']==int(fips_state)) 
-                                & (pre2010_raw['COUNTY']==int(fips_county))]
-        pre2010_raw.index = range(0, len(pre2010_raw))
-        
-        for year in range(2000, 2010): 
-            annual.at[year,'POP'] = pre2010_raw.at[0, 'POPESTIMATE' + str(year)]
-            
-        
-        # get raw data, post-2010
-        post2010_raw = pd.read_csv(post2010File, skiprows=1)
-        post2010_raw = post2010_raw[post2010_raw['Id2']==int(fips)]
-        post2010_raw.index = range(0, len(post2010_raw))
-        
-        for year in range(2010, self.POP_EST_YEARS[1]+1): 
-            annual.at[year,'POP'] = post2010_raw.at[0, 'Population Estimate (as of July 1) - ' + str(year)]
-
-        
-        # expand to monthly, and interpolate values
-        annual['MONTH'] = annual['YEAR'].apply(lambda x: pd.Timestamp(str(x) + '-07-01'))
-        annual = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
-        
-        monthly = annual[['MONTH']].resample('M')
-        monthly['MONTH'] = monthly.index
-        monthly['MONTH'] = monthly['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
-                
-        monthly = pd.merge(monthly, annual, how='left', on=['MONTH'], sort=True)  
-        monthly = monthly[['MONTH', 'POP']]
-        monthly = monthly.set_index(pd.DatetimeIndex(monthly['MONTH']))     
-        
-        monthly = monthly.interpolate()
-        
-        # set a unique index
-        monthly.index = pd.Series(range(0,len(monthly)))
-                
-        # append to the output store
-        outstore.append('countyPop', monthly, data_columns=True)
-        outstore.close()
-
-
-    def processFuelPriceData(self, fuelFile, cpiFile, outfile): 
-        """ 
-        Reads raw QCEW data and converts it to a clean list format. 
-        
-        fuelFile - file containing data from EIA
-        outfile  - the HDF output file to write to
-        
-        """
-        
-        # remove the existing key so we don't overwrite
-        outstore = pd.HDFStore(outfile)
-        keys = outstore.keys()
-        if '/fuelPrice' in keys: 
-            outstore.remove('fuelPrice')
-        
-        # get raw data
-        df = pd.read_excel(fuelFile, sheetname='Data 4', skiprows=2)
-        df = df.rename(columns={
-                       'Date': 'MONTH', 
-                       'San Francisco All Grades All Formulations Retail Gasoline Prices (Dollars per Gallon)': 'FUEL_PRICE'
-                       })
-        df = df[['MONTH', 'FUEL_PRICE']]
-        
-        # normalize to the first day of the month
-        df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=-14))
-                
-        # adjust the fuel price for inflation
-        dfcpi = self.getCPIFactors(cpiFile)
-        df = pd.merge(df, dfcpi, how='left', on=['MONTH'], sort=True)  
-        df['FUEL_PRICE_2010USD'] = df['FUEL_PRICE'] * df['CPI_FACTOR']
-        
-        # keep only the relevant columns
-        df = df[['MONTH', 'FUEL_PRICE', 'FUEL_PRICE_2010USD', 'CPI']]        
-        
-        # append to the output store
-        outstore.append('fuelPrice', df, data_columns=True)
-        outstore.close()
-        
         
     def processLODES(self, inputDir, lodesType, xwalkFile, fips, outfile): 
         '''
@@ -417,9 +378,46 @@ class DemandHelper():
         # set a unique index
         monthly.index = pd.Series(range(0,len(monthly)))
         
-        monthly.to_csv('c:/temp/lodes' + lodesType + '.csv')
-        
         # append to the output store
         outstore.append(key, monthly, data_columns=True)
+        outstore.close()
+        
+
+    def processFuelPriceData(self, fuelFile, cpiFile, outfile): 
+        """ 
+        Reads raw QCEW data and converts it to a clean list format. 
+        
+        fuelFile - file containing data from EIA
+        outfile  - the HDF output file to write to
+        
+        """
+        
+        # remove the existing key so we don't overwrite
+        outstore = pd.HDFStore(outfile)
+        keys = outstore.keys()
+        if '/fuelPrice' in keys: 
+            outstore.remove('fuelPrice')
+        
+        # get raw data
+        df = pd.read_excel(fuelFile, sheetname='Data 4', skiprows=2)
+        df = df.rename(columns={
+                       'Date': 'MONTH', 
+                       'San Francisco All Grades All Formulations Retail Gasoline Prices (Dollars per Gallon)': 'FUEL_PRICE'
+                       })
+        df = df[['MONTH', 'FUEL_PRICE']]
+        
+        # normalize to the first day of the month
+        df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=-14))
+                
+        # adjust the fuel price for inflation
+        dfcpi = self.getCPIFactors(cpiFile)
+        df = pd.merge(df, dfcpi, how='left', on=['MONTH'], sort=True)  
+        df['FUEL_PRICE_2010USD'] = df['FUEL_PRICE'] * df['CPI_FACTOR']
+        
+        # keep only the relevant columns
+        df = df[['MONTH', 'FUEL_PRICE', 'FUEL_PRICE_2010USD', 'CPI']]        
+        
+        # append to the output store
+        outstore.append('fuelPrice', df, data_columns=True)
         outstore.close()
         
