@@ -123,15 +123,18 @@ RAW_CLIPPER_FILES =["D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
                     "D:/Input/Clipper/2014_-_9_Anonymous_Clipper.csv"                    
                    ]
 
+CENSUS_POPEST_PRE2010_FILE  = "D:/Input/Census/AnnualPopulationEstimates/2000to2010/CO-EST00INT-TOT.csv"
+CENSUS_POPEST_POST2010_FILE = "D:/Input/Census/AnnualPopulationEstimates/post2010/PEP_2014_PEPANNRES_with_ann.csv"
+
+ACS_DIR = "D:/Input/Census/ACS/Tables/"
+
 QCEW_DIR = "D:/Input/QCEW/"
 
 LODES_DIR = "D:/Input/Census/LEHD/LODES/CA/"
 LODES_XWALK_FILE= "D:/Input/Census/LEHD/LODES/CA/ca_xwalk.csv"
 
-CENSUS_POPEST_PRE2010_FILE  = "D:/Input/Census/AnnualPopulationEstimates/2000to2010/CO-EST00INT-TOT.csv"
-CENSUS_POPEST_POST2010_FILE = "D:/Input/Census/AnnualPopulationEstimates/post2010/PEP_2014_PEPANNRES_with_ann.csv"
-
 FUEL_COST_FILE = "D:/Input/FuelCost/PET_PRI_GND_A_EPM0_PTE_DPGAL_M.xls"
+
 CPI_FILE       = "D:/Input/CPI/SeriesReport-20150908105105_8887b6.xlsx"
 
 FIPS = '06075'
@@ -153,8 +156,8 @@ REPORT_ROUTEPLOTS = "D:/Output/RoutePlots.html"
 
 CLIPPER_OUTFILE = "D:/Output/clipper3.h5"
 
+#DEMAND_OUTFILE = "D:/Output/drivers_of_demand.h5"
 DEMAND_OUTFILE = "D:/Output/drivers_of_demand.h5"
-
 
 # main function call
 
@@ -216,19 +219,22 @@ if __name__ == "__main__":
     if 'demandDrivers' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         demandHelper = DemandHelper()
-        
-        demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        
-        demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
-                    
+
         demandHelper.processCensusPopulationEstimates(CENSUS_POPEST_PRE2010_FILE, 
                                                       CENSUS_POPEST_POST2010_FILE, 
                                                       FIPS, 
                                                       DEMAND_OUTFILE)      
+        
+        demandHelper.processACSData(ACS_DIR, FIPS, DEMAND_OUTFILE)  
+
+        demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+
+        demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
                                                              
         demandHelper.processFuelPriceData(FUEL_COST_FILE, CPI_FILE, DEMAND_OUTFILE)
+
         print 'Finished processing drivers of demand data ', (datetime.datetime.now() - startTime) 
         
         

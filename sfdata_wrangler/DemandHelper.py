@@ -32,9 +32,9 @@ class DemandHelper():
 
     # the range of years for these data files
     POP_EST_YEARS = [2000,2014]
+    ACS_YEARS     = [2005,2013]
     LODES_YEARS   = [2002,2013]
     
-
     def __init__(self):
         '''
         Constructor. 
@@ -114,28 +114,223 @@ class DemandHelper():
         for year in range(2010, self.POP_EST_YEARS[1]+1): 
             annual.at[year,'POP'] = post2010_raw.at[0, 'Population Estimate (as of July 1) - ' + str(year)]
 
-        
-        # expand to monthly, and interpolate values
-        annual['MONTH'] = annual['YEAR'].apply(lambda x: pd.Timestamp(str(x) + '-07-01'))
-        annual = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
-        
-        monthly = annual[['MONTH']].resample('M')
-        monthly['MONTH'] = monthly.index
-        monthly['MONTH'] = monthly['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
-                
-        monthly = pd.merge(monthly, annual, how='left', on=['MONTH'], sort=True)  
-        monthly = monthly[['MONTH', 'POP']]
-        monthly = monthly.set_index(pd.DatetimeIndex(monthly['MONTH']))     
-        
-        monthly = monthly.interpolate()
-        
-        # set a unique index
-        monthly.index = pd.Series(range(0,len(monthly)))
-                
+        # convert data to monthly
+        monthly = self.convertAnnualToMonthly(annual)
+                        
         # append to the output store
         outstore.append('countyPop', monthly, data_columns=True)
         outstore.close()
 
+
+
+    # a list of output field and inputfield tuples for each table
+    ACS_EQUIV = {'B01003' : [('POP', 'Estimate; Total')
+                            ], 
+                 'DP03'   : [('HH',           'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Total households'),
+                             ('WORKERS',      'Estimate; EMPLOYMENT STATUS - In labor force - Civilian labor force - Employed'), 
+                             ('MEDIAN_HHINC', 'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Median household income (dollars)'), 
+                             ('MEAN_HHINC',   'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Mean household income (dollars)'), 
+                             ('HH_INC0_15',  ['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Less than $10,000',
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $10,000 to $14,999']), 
+                             ('HH_INC15_50', ['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $15,000 to $24,999',
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $25,000 to $34,999', 
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $35,000 to $49,999']), 
+                             ('HH_INC50_100',['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $50,000 to $74,999',
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $75,000 to $99,999']), 
+                             ('HH_INC100P',  ['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $100,000 to $149,999',
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $150,000 to $199,999', 
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $200,000 or more'])
+                            ], 
+                 'B08203' : [('HH_0VEH',      'Estimate; No vehicle available'),
+                             ('HH_1VEH',      'Estimate; 1 vehicle available'), 
+                             ('HH_2PVEH',    ['Estimate; 2 vehicles available',
+                                              'Estimate; 3 vehicles available', 
+                                              'Estimate; 4 vehicles available'])
+                            ],
+                 'B08119' : [('JTW_DA',       'Estimate; Car, truck, or van - drove alone:'),
+                             ('JTW_SR',       'Estimate; Car, truck, or van - carpooled:'), 
+                             ('JTW_TRANSIT',  'Estimate; Public transportation (excluding taxicab):'), 
+                             ('JTW_WALK',     'Estimate; Walked:'), 
+                             ('JTW_OTHER',    'Estimate; Taxicab, motorcycle, bicycle, or other means:'), 
+                             ('JTW_HOME',     'Estimate; Worked at home:'),                              
+                             
+                             ('JTW_EARN0_15_DA',      ['Estimate; Car, truck, or van - drove alone: - $1 to $9,999 or loss', 
+                                                       'Estimate; Car, truck, or van - drove alone: - $10,000 to $14,999']),
+                             ('JTW_EARN0_15_SR',      ['Estimate; Car, truck, or van - carpooled: - $1 to $9,999 or loss', 
+                                                       'Estimate; Car, truck, or van - carpooled: - $10,000 to $14,999']),
+                             ('JTW_EARN0_15_TRANSIT', ['Estimate; Public transportation (excluding taxicab): - $1 to $9,999 or loss', 
+                                                       'Estimate; Public transportation (excluding taxicab): - $10,000 to $14,999']),
+                             ('JTW_EARN0_15_WALK',    ['Estimate; Walked: - $1 to $9,999 or loss', 
+                                                       'Estimate; Walked: - $10,000 to $14,999']),
+                             ('JTW_EARN0_15_OTHER',   ['Estimate; Taxicab, motorcycle, bicycle, or other means: - $1 to $9,999 or loss', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $10,000 to $14,999']),
+                             ('JTW_EARN0_15_HOME',    ['Estimate; Worked at home: - $1 to $9,999 or loss', 
+                                                       'Estimate; Worked at home: - $10,000 to $14,999']),
+                             
+                             ('JTW_EARN15_50_DA',     ['Estimate; Car, truck, or van - drove alone: - $15,000 to $24,999', 
+                                                       'Estimate; Car, truck, or van - drove alone: - $25,000 to $34,999',
+                                                       'Estimate; Car, truck, or van - drove alone: - $35,000 to $49,999']),
+                             ('JTW_EARN15_50_SR',     ['Estimate; Car, truck, or van - carpooled: - $15,000 to $24,999', 
+                                                       'Estimate; Car, truck, or van - carpooled: - $25,000 to $34,999',
+                                                       'Estimate; Car, truck, or van - carpooled: - $35,000 to $49,999']),
+                             ('JTW_EARN15_50_TRANSIT',['Estimate; Public transportation (excluding taxicab): - $15,000 to $24,999', 
+                                                       'Estimate; Public transportation (excluding taxicab): - $25,000 to $34,999',
+                                                       'Estimate; Public transportation (excluding taxicab): - $35,000 to $49,999']),
+                             ('JTW_EARN15_50_WALK',   ['Estimate; Walked: - $15,000 to $24,999', 
+                                                       'Estimate; Walked: - $25,000 to $34,999',
+                                                       'Estimate; Walked: - $35,000 to $49,999']),
+                             ('JTW_EARN15_50_OTHER',  ['Estimate; Taxicab, motorcycle, bicycle, or other means: - $15,000 to $24,999', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $25,000 to $34,999',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $35,000 to $49,999']),
+                             ('JTW_EARN15_50_HOME',   ['Estimate; Worked at home: - $15,000 to $24,999', 
+                                                       'Estimate; Worked at home: - $25,000 to $34,999',
+                                                       'Estimate; Worked at home: - $35,000 to $49,999']),
+                             
+                             ('JTW_EARN50P_DA',       ['Estimate; Car, truck, or van - drove alone: - $50,000 to $64,999', 
+                                                       'Estimate; Car, truck, or van - drove alone: - $65,000 to $74,999',
+                                                       'Estimate; Car, truck, or van - drove alone: - $75,000 or more']),
+                             ('JTW_EARN50P_SR',       ['Estimate; Car, truck, or van - carpooled: - $50,000 to $64,999', 
+                                                       'Estimate; Car, truck, or van - carpooled: - $65,000 to $74,999',
+                                                       'Estimate; Car, truck, or van - carpooled: - $75,000 or more']),
+                             ('JTW_EARN50P_TRANSIT',  ['Estimate; Public transportation (excluding taxicab): - $50,000 to $64,999', 
+                                                       'Estimate; Public transportation (excluding taxicab): - $65,000 to $74,999',
+                                                       'Estimate; Public transportation (excluding taxicab): - $75,000 or more']),
+                             ('JTW_EARN50P_WALK',     ['Estimate; Walked: - $50,000 to $64,999', 
+                                                       'Estimate; Walked: - $65,000 to $74,999',
+                                                       'Estimate; Walked: - $75,000 or more']),
+                             ('JTW_EARN50P_OTHER',    ['Estimate; Taxicab, motorcycle, bicycle, or other means: - $50,000 to $64,999', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $65,000 to $74,999',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $75,000 or more']),
+                             ('JTW_EARN50P_HOME',     ['Estimate; Worked at home: - $50,000 to $64,999', 
+                                                       'Estimate; Worked at home: - $65,000 to $74,999',
+                                                       'Estimate; Worked at home: - $75,000 or more']),
+                            ],
+                 'B08141' : [('JTW_0VEH_DA',           'Estimate; Car, truck, or van - drove alone: - No vehicle available'),
+                             ('JTW_0VEH_SR',           'Estimate; Car, truck, or van - carpooled: - No vehicle available'),
+                             ('JTW_0VEH_TRANSIT',      'Estimate; Public transportation (excluding taxicab): - No vehicle available'),
+                             ('JTW_0VEH_WALK',         'Estimate; Walked: - No vehicle available'),
+                             ('JTW_0VEH_OTHER',        'Estimate; Taxicab, motorcycle, bicycle, or other means: - No vehicle available'),
+                             ('JTW_0VEH_HOME',         'Estimate; Worked at home: - No vehicle available'),
+                             
+                             ('JTW_1VEH_DA',           'Estimate; Car, truck, or van - drove alone: - 1 vehicle available'),
+                             ('JTW_1VEH_SR',           'Estimate; Car, truck, or van - carpooled: - 1 vehicle available'),
+                             ('JTW_1VEH_TRANSIT',      'Estimate; Public transportation (excluding taxicab): - 1 vehicle available'),
+                             ('JTW_1VEH_WALK',         'Estimate; Walked: - 1 vehicle available'),
+                             ('JTW_1VEH_OTHER',        'Estimate; Taxicab, motorcycle, bicycle, or other means: - 1 vehicle available'),
+                             ('JTW_1VEH_HOME',         'Estimate; Worked at home: - 1 vehicle available'),
+                             
+                             ('JTW_2PVEH_DA',         ['Estimate; Car, truck, or van - drove alone: - 2 vehicles available', 
+                                                       'Estimate; Car, truck, or van - drove alone: - 3 vehicles available',
+                                                       'Estimate; Car, truck, or van - drove alone: - 4 vehicles available',
+                                                       'Estimate; Car, truck, or van - drove alone: - 5 vehicles available']),
+                             ('JTW_2PVEH_SR',         ['Estimate; Car, truck, or van - carpooled: - 2 vehicles available', 
+                                                       'Estimate; Car, truck, or van - carpooled: - 3 vehicles available',
+                                                       'Estimate; Car, truck, or van - carpooled: - 4 vehicles available',
+                                                       'Estimate; Car, truck, or van - carpooled: - 5 vehicles available']),
+                             ('JTW_2PVEH_TRANSIT',    ['Estimate; Public transportation (excluding taxicab): - 2 vehicles available', 
+                                                       'Estimate; Public transportation (excluding taxicab): - 3 vehicles available',
+                                                       'Estimate; Public transportation (excluding taxicab): - 4 vehicles available',
+                                                       'Estimate; Public transportation (excluding taxicab): - 5 vehicles available']),
+                             ('JTW_2PVEH_WALK',       ['Estimate; Walked: - 2 vehicles available', 
+                                                       'Estimate; Walked: - 3 vehicles available',
+                                                       'Estimate; Walked: - 4 vehicles available',
+                                                       'Estimate; Walked: - 5 vehicles available']),
+                             ('JTW_2PVEH_OTHER',      ['Estimate; Taxicab, motorcycle, bicycle, or other means: - 2 vehicles available', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 3 vehicles available',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 4 vehicles available',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 5 vehicles available']),
+                             ('JTW_2PVEH_HOME',       ['Estimate; Worked at home: - 2 vehicles available', 
+                                                       'Estimate; Worked at home: - 3 vehicles available',
+                                                       'Estimate; Worked at home: - 4 vehicles available',
+                                                       'Estimate; Worked at home: - 5 vehicles available']),
+                            ]
+                }
+
+
+    def processACSData(self, inputDir, fips, outfile): 
+        """ 
+        Reads raw ACS data and converts it to a clean list format. 
+        
+        inputDir - directory containing raw data files
+        fips     - the  FIPS codes to process, as string
+        outfile  - the HDF output file to write to
+        
+        """
+        fips = int(fips)
+        
+        # remove the existing key so we don't overwrite
+        outstore = pd.HDFStore(outfile)
+        keys = outstore.keys()
+        if '/countyACS' in keys: 
+            outstore.remove('countyACS')
+        
+        # create the output file for annual data
+        years = range(self.ACS_YEARS[0], self.ACS_YEARS[1]+1)
+        annual = pd.DataFrame({'YEAR': years})
+        annual.index = years
+        
+        # loop through the tables and get the data
+        for table, fields in self.ACS_EQUIV.iteritems():
+            
+            # initialize the output container
+            for outfield, infields in fields: 
+                annual[outfield] = np.NaN
+                
+            # open the table specific to each year
+            for year in years: 
+                pattern = inputDir + '/' + table + '/ACS_' + str(year)[2:] + '*_with_ann.csv'
+                infiles = glob.glob(pattern)
+                
+                if len(infiles)!=1: 
+                    raise IOError('Wrong number of files matching pattern: ' + pattern)
+                else: 
+                    print infiles[0]
+                    df = pd.read_csv(infiles[0], skiprows=1)
+
+                    # get the data relevant to this county
+                    # and set the index equal to the fips code
+                    df = df[df['Id2']==fips]
+                    if 'Population Group' in df.columns: 
+                        df = df[df['Population Group']=='Total population']
+                    df.index = df['Id2']
+                    
+                    # normalize the column names
+                    colNames = {}
+                    for oldName in df.columns: 
+                        newName = oldName.replace(str(year), 'YYYY')   
+                        newName = newName.replace('Number; ', '')
+                        newName = newName.replace('Population 16 years and over - ', '')
+                        newName = newName.replace('(IN YYYY INFLATION-ADJUSTED DOLLARS) - Total households -', '(IN YYYY INFLATION-ADJUSTED DOLLARS) -')
+                        newName = newName.replace('Total: - ', '')
+                        newName = newName.replace('or more vehicles available', 'vehicles available')
+                        colNames[oldName] = newName
+                    df = df.rename(columns=colNames) 
+                    
+                    # copy the data over
+                    for outfield, infields in fields: 
+                        if isinstance(infields, list):  
+                            
+                            annual.at[year, outfield] = df.at[fips, infields[0]]   
+                            for infield in infields[1:]:                                
+                            
+                                # special case for one problematic table
+                                if table=='B08141': 
+                                    if not infield in df.columns: 
+                                        continue                                
+                                
+                                annual.at[year, outfield] += float(df.at[fips, infield])
+                                
+                        else: 
+                            annual.at[year, outfield] = df.at[fips, infields]
+        
+        # convert data to monthly
+        monthly = self.convertAnnualToMonthly(annual)
+        
+        # append to the output store
+        outstore.append('countyACS', monthly, data_columns=True)
+        outstore.close()
+        
+        
 
     def processQCEWData(self, inputDir, fips, cpiFile, outfile): 
         """ 
@@ -281,15 +476,15 @@ class DemandHelper():
         xwalk['cty'] = xwalk['cty'].astype(int)
         
         # create the output file for annual data
-        years = range(self.LODES_YEARS[0], self.LODES_YEARS[1]+2)
+        years = range(self.LODES_YEARS[0], self.LODES_YEARS[1]+1)
         annual = pd.DataFrame({'YEAR': years})
         annual.index = years
         
         annual[wrkemp] = np.NaN          # total workers
         
-        annual[wrkemp+'_LOWINC'] = np.NaN  # Number of workers with earnings $1250/month or less
-        annual[wrkemp+'_MIDINC'] = np.NaN  # Number of workers with earnings $1251/month to $3333/month
-        annual[wrkemp+'_HIGHINC']= np.NaN  # Number of workers with earnings greater than $3333/month
+        annual[wrkemp+'_EARN0_15'] = np.NaN  # Number of workers with earnings $1250/month or less
+        annual[wrkemp+'_EARN15_40']= np.NaN  # Number of workers with earnings $1251/month to $3333/month
+        annual[wrkemp+'_EARN40P']  = np.NaN  # Number of workers with earnings greater than $3333/month
         
         if lodesType=='RAC' or lodesType=='WAC': 
             annual[wrkemp+'_RETAIL']   = np.NaN  # Number of workers in retail sector
@@ -317,9 +512,9 @@ class DemandHelper():
                     # copy over the appropriate fields
                     annual.at[year, wrkemp] = agg.at[fips, 'C000']        
                     
-                    annual.at[year, wrkemp+'_LOWINC'] = agg.at[fips, 'CE01']
-                    annual.at[year, wrkemp+'_MIDINC'] = agg.at[fips, 'CE02'] 
-                    annual.at[year, wrkemp+'_HIGHINC']= agg.at[fips, 'CE03'] 
+                    annual.at[year, wrkemp+'_EARN0_15'] = agg.at[fips, 'CE01']
+                    annual.at[year, wrkemp+'_EARN15_40']= agg.at[fips, 'CE02'] 
+                    annual.at[year, wrkemp+'_EARN40P']  = agg.at[fips, 'CE03'] 
                     
                     annual.at[year, wrkemp+'_RETAIL']   = agg.at[fips, 'CNS07'] 
                     annual.at[year, wrkemp+'_EDHEALTH'] = agg.at[fips, 'CNS15'] + agg.at[fips, 'CNS16'] 
@@ -341,42 +536,12 @@ class DemandHelper():
                     # copy over the appropriate fields
                     annual.at[year, wrkemp] = agg.at[fips, 'S000']        
                     
-                    annual.at[year, wrkemp+'_LOWINC'] = agg.at[fips, 'SE01']
-                    annual.at[year, wrkemp+'_MIDINC'] = agg.at[fips, 'SE02'] 
-                    annual.at[year, wrkemp+'_HIGHINC']= agg.at[fips, 'SE03'] 
-                    
-                                                    
-        # extrapolate the final year to get the last 6 months of data
-        extraYear = self.LODES_YEARS[1] + 1
-        for col in annual.columns:
-            annual.at[extraYear, col] =(annual.at[extraYear-1, col] + 
-                                       (annual.at[extraYear-1, col] 
-                                       -annual.at[extraYear-2, col]))
-                        
-        # expand to monthly, and interpolate values
-        annual['MONTH'] = annual['YEAR'].apply(lambda x: pd.Timestamp(str(x) + '-07-01'))
-        annual = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
+                    annual.at[year, wrkemp+'_EARN0_15'] = agg.at[fips, 'SE01']
+                    annual.at[year, wrkemp+'_EARN15_40']= agg.at[fips, 'SE02'] 
+                    annual.at[year, wrkemp+'_EARN40P']  = agg.at[fips, 'SE03'] 
         
-        monthly = annual[['MONTH']].resample('M')
-        monthly['MONTH'] = monthly.index
-        monthly['MONTH'] = monthly['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
-                
-        monthly = pd.merge(monthly, annual, how='left', on=['MONTH'], sort=True)  
-        monthly = monthly.set_index(pd.DatetimeIndex(monthly['MONTH']))   
-        
-        monthly = monthly.interpolate()
-        
-        # drop the extraYear, which was just used to get to the end of the last year
-        monthly = monthly[monthly['YEAR']<extraYear-0.5]
-        monthly = monthly.drop('YEAR', 1)
-        
-        # convert to integers
-        for col in monthly.columns:  
-            if monthly[col].dtype == float: 
-                monthly[col] = monthly[col].astype(int)
-        
-        # set a unique index
-        monthly.index = pd.Series(range(0,len(monthly)))
+        # convert data to monthly
+        monthly = self.convertAnnualToMonthly(annual)
         
         # append to the output store
         outstore.append(key, monthly, data_columns=True)
@@ -420,4 +585,53 @@ class DemandHelper():
         # append to the output store
         outstore.append('fuelPrice', df, data_columns=True)
         outstore.close()
+    
+    
+    def convertAnnualToMonthly(self, annual): 
+        '''
+        Convert annual dataframe to monthly dataframe. 
+        Use linear interpolation to interpolate values, and extend to end
+        of year.  
         
+        '''        
+
+        # extrapolate the final year to get the last 6 months of data
+        extraYear = annual['YEAR'].max() + 1
+        annual.loc[extraYear] = np.NaN
+        annual.at[extraYear, 'YEAR'] = extraYear
+        for col in annual.columns:
+            annual.at[extraYear, col] =(annual.at[extraYear-1, col] + 
+                                       (annual.at[extraYear-1, col] 
+                                       -annual.at[extraYear-2, col]))
+        
+        # expand to monthly, and interpolate values
+        annual['MONTH'] = annual['YEAR'].apply(lambda x: pd.Timestamp(str(int(x)) + '-07-01'))
+        annual = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
+        
+        monthly = annual[['MONTH']].resample('M')
+        monthly['MONTH'] = monthly.index
+        monthly['MONTH'] = monthly['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
+                
+        monthly = pd.merge(monthly, annual, how='left', on=['MONTH'], sort=True)  
+        monthly = monthly.set_index(pd.DatetimeIndex(monthly['MONTH']))   
+        
+        monthly = monthly.interpolate()
+        
+        # drop the extraYear, which was just used to get to the end of the last year
+        monthly = monthly[monthly['YEAR']<extraYear-0.5]
+        monthly = monthly.drop('YEAR', 1)
+        
+        # convert to integers
+        for col in monthly.columns:  
+            if monthly[col].dtype == float: 
+                try: 
+                    monthly[col] = monthly[col].astype(int)
+                except ValueError: 
+                    print 'Cannot convert NA values to int for column ', col
+        
+        # set a unique index
+        monthly.index = pd.Series(range(0,len(monthly)))
+                
+        return monthly
+
+    
