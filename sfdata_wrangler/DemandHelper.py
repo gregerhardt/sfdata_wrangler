@@ -41,33 +41,6 @@ class DemandHelper():
 
         '''   
     
-    def getCPIFactors(self, cpiFile):
-        """ 
-        Reads CPI numbers and returns a dataframe with the CPI_FACTOR field
-        that can be joined by month and used to adjust monetary values by 
-        inflation to 2010 US dollars.  
-        
-        """
-        
-        # get the CPI and convert to monthly format
-        dfcpi = pd.read_excel(cpiFile, sheetname='BLS Data Series', skiprows=10, index_col=0)
-        base = dfcpi.at[2010, 'Annual']
-        
-        dfcpi = dfcpi.drop(['Annual', 'HALF1', 'HALF2'], axis=1)
-        dfcpi = dfcpi.stack()
-        dfcpi = dfcpi.reset_index()
-        dfcpi = dfcpi.rename(columns={
-                             'level_1' : 'monthString', 
-                             0 : 'CPI'
-                             })
-                             
-        dfcpi['MONTH'] = '01-' + dfcpi['monthString'] + '-' + dfcpi['Year'].astype('string')
-        dfcpi['MONTH'] = dfcpi['MONTH'].apply(pd.Timestamp)
-        
-        dfcpi['CPI_FACTOR'] = base / dfcpi['CPI']
-        
-        return dfcpi
-
     
     def processCensusPopulationEstimates(self, pre2010File, post2010File, fips, outfile): 
         """ 
@@ -124,7 +97,7 @@ class DemandHelper():
 
 
     # a list of output field and inputfield tuples for each table
-    ACS_EQUIV = {'B01003' : [('POP', 'Estimate; Total')
+    ACS_EQUIV = {'B01003' : [('POP_ACS', 'Estimate; Total')
                             ], 
                  'DP03'   : [('HH',           'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Total households'),
                              ('WORKERS',      'Estimate; EMPLOYMENT STATUS - In labor force - Civilian labor force - Employed'), 
@@ -247,7 +220,7 @@ class DemandHelper():
                 }
 
 
-    def processACSData(self, inputDir, fips, outfile): 
+    def processACSData(self, inputDir, fips, cpiFile, outfile): 
         """ 
         Reads raw ACS data and converts it to a clean list format. 
         
@@ -326,6 +299,23 @@ class DemandHelper():
         # convert data to monthly
         monthly = self.convertAnnualToMonthly(annual)
         
+        # adjust household incomes for inflation
+        dfcpi = self.getCPIFactors(cpiFile)
+        monthly = pd.merge(monthly, dfcpi, how='left', on=['MONTH'], sort=True)  
+        monthly['MEDIAN_HHINC_2010USD'] = monthly['MEDIAN_HHINC'] * monthly['CPI_FACTOR']
+        monthly['MEAN_HHINC_2010USD'] = monthly['MEAN_HHINC'] * monthly['CPI_FACTOR']
+        
+        # calculate mode shares for journey to work data
+        prefixes = ['JTW_', 'JTW_0VEH_', 'JTW_1VEH_', 'JTW_2PVEH_', 'JTW_EARN0_15_', 'JTW_EARN15_50_', 'JTW_EARN50P_']
+        modes    = ['DA', 'SR', 'TRANSIT', 'WALK', 'OTHER', 'HOME']
+        for prefix in prefixes:
+            monthly['total'] = 0.0
+            for mode in modes: 
+                monthly['total'] = monthly['total'] + monthly[prefix + mode]
+            for mode in modes: 
+                monthly[prefix + mode + '_SHARE'] = monthly[prefix + mode] / monthly['total']
+            monthly.drop('total', axis=1)
+
         # append to the output store
         outstore.append('countyACS', monthly, data_columns=True)
         outstore.close()
@@ -422,7 +412,7 @@ class DemandHelper():
         # adjust for inflation
         dfcpi  = self.getCPIFactors(cpiFile)
         dfjoin = pd.merge(dfout, dfcpi, how='left', on=['MONTH'], sort=True)  
-        dfout['AVG_MONTHLY_EARNINGS_USD2010'] = dfjoin['AVG_MONTHLY_EARNINGS'] * dfjoin['CPI_FACTOR']
+        dfout['AVG_MONTHLY_EARNINGS_2010USD'] = dfjoin['AVG_MONTHLY_EARNINGS'] * dfjoin['CPI_FACTOR']
                 
         # write the output
         outstore.append('countyEmp', dfout, data_columns=True)        
@@ -461,7 +451,7 @@ class DemandHelper():
         elif lodesType=='OD':
             hgeoCol = 'h_geocode'
             wgeoCol = 'w_geocode'
-            wrkemp = 'WORKERS'
+            wrkemp = 'SFWORKERS'
             filePattern = inputDir + '/OD/ca_od_main_JT00_'
             
         
@@ -587,6 +577,36 @@ class DemandHelper():
         outstore.close()
     
     
+    def getCPIFactors(self, cpiFile):
+        """ 
+        Reads CPI numbers and returns a dataframe with the CPI_FACTOR field
+        that can be joined by month and used to adjust monetary values by 
+        inflation to 2010 US dollars.  
+        
+        """
+        
+        # get the CPI and convert to monthly format
+        dfcpi = pd.read_excel(cpiFile, sheetname='BLS Data Series', skiprows=10, index_col=0)
+        base = dfcpi.at[2010, 'Annual']
+        
+        dfcpi = dfcpi.drop(['Annual', 'HALF1', 'HALF2'], axis=1)
+        dfcpi = dfcpi.stack()
+        dfcpi = dfcpi.reset_index()
+        dfcpi = dfcpi.rename(columns={
+                             'level_1' : 'monthString', 
+                             0 : 'CPI'
+                             })
+                             
+        dfcpi['MONTH'] = '01-' + dfcpi['monthString'] + '-' + dfcpi['Year'].astype('string')
+        dfcpi['MONTH'] = dfcpi['MONTH'].apply(pd.Timestamp)
+        
+        dfcpi['CPI_FACTOR'] = base / dfcpi['CPI']
+        
+        dfcpi = dfcpi[['MONTH', 'CPI', 'CPI_FACTOR']]
+        
+        return dfcpi
+
+
     def convertAnnualToMonthly(self, annual): 
         '''
         Convert annual dataframe to monthly dataframe. 
