@@ -23,6 +23,27 @@ import numpy as np
 import glob
 import os
 
+
+def convertToDate(dateString):
+    '''
+    Converts a string to a date.  
+    '''
+    date = pd.to_datetime(dateString)
+    if date < pd.to_datetime('1990-01-01'): 
+        date = pd.NaT
+    return date
+
+
+def convertDateToMonth(date):
+    '''
+    Given a date, returns the month
+    '''
+    if pd.isnull(date): 
+        return pd.NaT
+    else: 
+        month = ((pd.to_datetime(date)).to_period('month')).to_timestamp() 
+        return month
+
     
 class DemandHelper():
     """ 
@@ -32,6 +53,7 @@ class DemandHelper():
 
     # the range of years for these data files
     POP_EST_YEARS = [2000,2014]
+    HU_YEARS      = [2001,2012]
     ACS_YEARS     = [2005,2013]
     LODES_YEARS   = [2002,2013]
     
@@ -318,6 +340,63 @@ class DemandHelper():
 
         # append to the output store
         outstore.append('countyACS', monthly, data_columns=True)
+        outstore.close()
+        
+        
+
+    def processHousingCompletionsData(self, infile, outfile): 
+        """ 
+        Reads raw housing completions data and converts it to a clean list format. 
+        
+        infile   - input csv file
+        outfile  - the HDF output file to write to
+        
+        """
+        
+        # remove the existing key so we don't overwrite
+        outstore = pd.HDFStore(outfile)
+        keys = outstore.keys()
+        if '/countyHousingCompletions' in keys: 
+            outstore.remove('countyHousingCompletions')
+        
+        # read the data, and convert the dates
+        df = pd.read_csv(infile)
+        df['ACTUAL_DATE'] = df['ACTDT'].apply(convertToDate)
+        df['MONTH'] = df['ACTUAL_DATE'].apply(convertDateToMonth)
+        
+        # split the records between those with an exact date, and 
+        # those that only have a year
+        dfExact = df[df['MONTH'].apply(pd.notnull)]
+        dfNotExact = df[df['MONTH'].apply(pd.isnull)]        
+        
+        #group and resample to monthly
+        dfExact['MONTH'] = dfExact['ACTUAL_DATE'].apply(convertDateToMonth)
+        monthlyAgg = dfExact.groupby('MONTH').aggregate(sum)
+        monthlyAgg = monthlyAgg.reset_index()
+        annualAgg = dfNotExact.groupby('YEAR').aggregate(sum)
+        annualAgg = annualAgg.reset_index()
+        
+        # create the output container
+        numYears = self.HU_YEARS[1] - self.HU_YEARS[0] + 1
+        months = pd.date_range(str(self.HU_YEARS[0]-1) + '-12-31', 
+                periods=12*numYears, freq='M') + pd.DateOffset(days=1)
+        dfout = pd.DataFrame({'YEAR': months.year, 'MONTH': months, 'NETUNITS':0})
+
+        # merge the data.  If missing on RHS, then they are zeros. 
+        dfout = pd.merge(dfout, monthlyAgg, how='left', on=['MONTH'], sort=True, suffixes=('', '_MONTHLY')) 
+        dfout = pd.merge(dfout, annualAgg, how='left', on=['YEAR'], sort=True, suffixes=('', '_ANNUAL')) 
+        dfout = dfout.fillna(0)
+        
+        # accumulate the totals, distributing annual data throughout the year
+        dfout['NETUNITS'] += dfout['NETUNITS_MONTHLY']
+        dfout['NETUNITS'] += dfout['NETUNITS_ANNUAL'] / 12
+        
+        dfout = dfout[['YEAR', 'MONTH', 'NETUNITS']]
+
+        dfout.to_csv('c:/temp/housing.csv')
+
+        # write the output
+        outstore.append('countyHousingCompletions', dfout, data_columns=True)        
         outstore.close()
         
         

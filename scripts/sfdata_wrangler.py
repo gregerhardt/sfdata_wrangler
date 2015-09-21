@@ -26,6 +26,7 @@ from SFMuniDataHelper import SFMuniDataHelper
 from GTFSHelper import GTFSHelper
 from SFMuniDataAggregator import SFMuniDataAggregator
 from TransitReporter import TransitReporter
+from DemandReporter import DemandReporter
 from ClipperHelper import ClipperHelper
 from DemandHelper import DemandHelper
 
@@ -49,7 +50,7 @@ VALID_STEPS = [ 'clean',
                 'expand', 
                 'aggregate', 
                 'cleanClipper', 
-                'demandDrivers', 
+                'demand', 
                 'report'
                 ]    
                 
@@ -123,10 +124,12 @@ RAW_CLIPPER_FILES =["D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
                     "D:/Input/Clipper/2014_-_9_Anonymous_Clipper.csv"                    
                    ]
 
-CENSUS_POPEST_PRE2010_FILE  = "D:/Input/Census/AnnualPopulationEstimates/2000to2010/CO-EST00INT-TOT.csv"
-CENSUS_POPEST_POST2010_FILE = "D:/Input/Census/AnnualPopulationEstimates/post2010/PEP_2014_PEPANNRES_with_ann.csv"
+CENSUS_POPEST_PRE2010_FILE  = "C:/CASA/Data/Census/AnnualPopulationEstimates/2000to2010/CO-EST00INT-TOT.csv"
+CENSUS_POPEST_POST2010_FILE = "C:/CASA/Data/Census/AnnualPopulationEstimates/post2010/PEP_2014_PEPANNRES_with_ann.csv"
 
-ACS_DIR = "D:/Input/Census/ACS/Tables/"
+ACS_DIR = "C:/CASA/Data/Census/ACS/Tables/"
+
+HOUSING_COMPLETIONS_FILE = "C:/CASA/Data/BuildingCompletions/CSV/sfhousingcompletesthrough2012.csv"
 
 QCEW_DIR = "D:/Input/QCEW/"
 
@@ -135,7 +138,7 @@ LODES_XWALK_FILE= "D:/Input/Census/LEHD/LODES/CA/ca_xwalk.csv"
 
 FUEL_COST_FILE = "D:/Input/FuelCost/PET_PRI_GND_A_EPM0_PTE_DPGAL_M.xls"
 
-CPI_FILE       = "D:/Input/CPI/SeriesReport-20150908105105_8887b6.xlsx"
+CPI_FILE       = "C:/CASA/Data/CPI/SeriesReport-20150908105105_8887b6.xlsx"
 
 FIPS = '06075'
 
@@ -151,13 +154,15 @@ DAILY_TS_OUTFILE   = "D:/Output/sfmuni_daily_ts.h5"
 MONTHLY_TRIP_OUTFILE = "D:/Output/sfmuni_monthly_trip.h5"
 MONTHLY_TS_OUTFILE   = "D:/Output/sfmuni_monthly_ts.h5"
 
+#DEMAND_REPORT_XLSFILE = "D:/Output/DriversOfDemandReport.xlsx"
+DEMAND_REPORT_XLSFILE = "C:/CASA/DriversOfDemand/DriversOfDemandReport.xlsx"
 REPORT_XLSFILE = "D:/Output/TransitPerformanceReport.xlsx"
 REPORT_ROUTEPLOTS = "D:/Output/RoutePlots.html"
 
 CLIPPER_OUTFILE = "D:/Output/clipper3.h5"
 
 #DEMAND_OUTFILE = "D:/Output/drivers_of_demand.h5"
-DEMAND_OUTFILE = "D:/Output/drivers_of_demand.h5"
+DEMAND_OUTFILE = "C:/CASA/DriversOfDemand/drivers_of_demand.h5"
 
 # main function call
 
@@ -216,24 +221,26 @@ if __name__ == "__main__":
         
 
     # process drivers of demand data.  
-    if 'demandDrivers' in STEPS_TO_RUN: 
+    if 'demand' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         demandHelper = DemandHelper()
 
-        demandHelper.processCensusPopulationEstimates(CENSUS_POPEST_PRE2010_FILE, 
-                                                      CENSUS_POPEST_POST2010_FILE, 
-                                                      FIPS, 
-                                                      DEMAND_OUTFILE)      
+        #demandHelper.processCensusPopulationEstimates(CENSUS_POPEST_PRE2010_FILE, 
+        #                                              CENSUS_POPEST_POST2010_FILE, 
+        #                                              FIPS, 
+        #                                              DEMAND_OUTFILE)      
         
-        demandHelper.processACSData(ACS_DIR, FIPS, DEMAND_OUTFILE)  
+        #demandHelper.processACSData(ACS_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+        
+        demandHelper.processHousingCompletionsData(HOUSING_COMPLETIONS_FILE, DEMAND_OUTFILE)          
 
-        demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+        #demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
 
-        demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
                                                              
-        demandHelper.processFuelPriceData(FUEL_COST_FILE, CPI_FILE, DEMAND_OUTFILE)
+        #demandHelper.processFuelPriceData(FUEL_COST_FILE, CPI_FILE, DEMAND_OUTFILE)
 
         print 'Finished processing drivers of demand data ', (datetime.datetime.now() - startTime) 
         
@@ -241,16 +248,21 @@ if __name__ == "__main__":
     # create performance reports
     if 'report' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, 
-                                   ts_file=MONTHLY_TS_OUTFILE, 
-                                   demand_file=DEMAND_OUTFILE)
-        reporter.writeSystemReport(REPORT_XLSFILE, dow=1)
-        reporter.createRoutePlot(REPORT_ROUTEPLOTS, 
-                                 months=('2009-07-01', '2010-07-01'), 
-                                 dow=1, 
-                                 tod='0600-0859', 
-                                 route_short_name=1, 
-                                 dir=1)
+        
+        demandReporter = DemandReporter(DEMAND_OUTFILE)
+        demandReporter.writeDemandReport(DEMAND_REPORT_XLSFILE)
+        
+        
+        #reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, 
+        #                           ts_file=MONTHLY_TS_OUTFILE, 
+        #                           demand_file=DEMAND_OUTFILE)
+        #reporter.writeSystemReport(REPORT_XLSFILE, dow=1)
+        #reporter.createRoutePlot(REPORT_ROUTEPLOTS, 
+        #                         months=('2009-07-01', '2010-07-01'), 
+        #                         dow=1, 
+        #                         tod='0600-0859', 
+        #                         route_short_name=1, 
+        #                         dir=1)
         
         print 'Finished performance reports in ', (datetime.datetime.now() - startTime) 
 
