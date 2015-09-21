@@ -370,7 +370,6 @@ class DemandHelper():
         dfNotExact = df[df['MONTH'].apply(pd.isnull)]        
         
         #group and resample to monthly
-        dfExact['MONTH'] = dfExact['ACTUAL_DATE'].apply(convertDateToMonth)
         monthlyAgg = dfExact.groupby('MONTH').aggregate(sum)
         monthlyAgg = monthlyAgg.reset_index()
         annualAgg = dfNotExact.groupby('YEAR').aggregate(sum)
@@ -612,10 +611,71 @@ class DemandHelper():
         # convert data to monthly
         monthly = self.convertAnnualToMonthly(annual)
         
+        # scale to be consistent with QCEW data
+        # factor is based on the ratio of QCEW to WAC
+        if lodesType=='WAC': 
+            self.setLODEStoQCEWFactors(monthly, outstore)
+        scaled = self.scaleLODEStoQCEW(monthly, lodesType, outstore, wrkemp)
+        
         # append to the output store
-        outstore.append(key, monthly, data_columns=True)
+        outstore.append(key, scaled, data_columns=True)
         outstore.close()
         
+
+    def setLODEStoQCEWFactors(self, wac, outstore):
+        '''
+        Determines factors to scale LODES data to be consistent with QCEW data 
+        based on the ratio of QCEW to WAC. 
+        '''
+
+        qcew = outstore.select('countyEmp')
+        
+        # calculate the factors
+        factors = pd.merge(wac, qcew, how='left', on=['MONTH'], sort=True, suffixes=('_WAC', '_QCEW'))  
+        factors['TOT_FACTOR']     = 1.0 * factors['TOTEMP'] / factors['EMP']
+        factors['RETAIL_FACTOR']  = 1.0 * factors['RETAIL_EMP'] / factors['EMP_RETAIL'] 
+        factors['EDHEALTH_FACTOR']= 1.0 * factors['EDHEALTH_EMP'] / factors['EMP_EDHEALTH'] 
+        factors['LEISURE_FACTOR'] = 1.0 * factors['LEISURE_EMP'] / factors['EMP_LEISURE'] 
+        factors['OTHER_FACTOR']   = 1.0 * factors['OTHER_EMP'] / factors['EMP_OTHER'] 
+        
+        factors = factors[['MONTH', 'TOT_FACTOR', 'RETAIL_FACTOR', 'EDHEALTH_FACTOR', 'LEISURE_FACTOR', 'OTHER_FACTOR']]
+        
+        # write the data
+        keys = outstore.keys()
+        if '/lodesFactors' in keys: 
+            outstore.remove('lodesFactors')
+        outstore.append('lodesFactors', factors, data_columns=True)
+        
+
+    def scaleLODEStoQCEW(self, monthly, lodesType, store, wrkemp):
+        '''
+        Scales LODES data to be consistent with QCEW data.
+        Based on factors calculated above
+        '''
+        
+        columns = monthly.columns.tolist()
+
+        # get the factors, written above
+        factors = store.select('lodesFactors')
+
+        # apply the factors
+        adj = pd.merge(monthly, factors, how='left', on=['MONTH'], sort=True, suffixes=('', '_FACTOR'))  
+        
+        adj[wrkemp] = adj[wrkemp] * adj['TOT_FACTOR']          # total workers
+        
+        adj[wrkemp+'_EARN0_15'] = adj[wrkemp+'_EARN0_15']  * adj['TOT_FACTOR']
+        adj[wrkemp+'_EARN15_40']= adj[wrkemp+'_EARN15_40'] * adj['TOT_FACTOR']  
+        adj[wrkemp+'_EARN40P']  = adj[wrkemp+'_EARN40P']   * adj['TOT_FACTOR']
+        
+        if lodesType=='RAC' or lodesType=='WAC': 
+            adj[wrkemp+'_RETAIL']   = adj[wrkemp+'_RETAIL']   * adj['RETAIL_FACTOR']
+            adj[wrkemp+'_EDHEALTH'] = adj[wrkemp+'_EDHEALTH'] * adj['EDHEALTH_FACTOR']
+            adj[wrkemp+'_LEISURE']  = adj[wrkemp+'_LEISURE']  * adj['LEISURE_FACTOR']
+            adj[wrkemp+'_OTHER']    = adj[wrkemp+'_OTHER']    * adj['OTHER_FACTOR']
+        
+        # keep only the original columns       
+        return adj[columns]
+
 
     def processFuelPriceData(self, fuelFile, cpiFile, outfile): 
         """ 
@@ -694,16 +754,26 @@ class DemandHelper():
         
         '''        
 
-        # extrapolate the final year to get the last 6 months of data
-        extraYear = annual['YEAR'].max() + 1
-        annual.loc[extraYear] = np.NaN
-        annual.at[extraYear, 'YEAR'] = extraYear
+        # extrapolate the first year to get the first 6 months of data
+        extraStartYear = int(annual['YEAR'].min() - 1)
+        annual.loc[extraStartYear] = np.NaN
+        annual.at[extraStartYear, 'YEAR'] = extraStartYear
         for col in annual.columns:
-            annual.at[extraYear, col] =(annual.at[extraYear-1, col] + 
-                                       (annual.at[extraYear-1, col] 
-                                       -annual.at[extraYear-2, col]))
+            annual.at[extraStartYear, col] =(annual.at[extraStartYear+1, col] - 
+                                       (annual.at[extraStartYear+2, col] 
+                                       -annual.at[extraStartYear+1, col]))
+
+        # extrapolate the final year to get the last 6 months of data
+        extraEndYear = int(annual['YEAR'].max() + 1)
+        annual.loc[extraEndYear] = np.NaN
+        annual.at[extraEndYear, 'YEAR'] = extraEndYear
+        for col in annual.columns:
+            annual.at[extraEndYear, col] =(annual.at[extraEndYear-1, col] + 
+                                       (annual.at[extraEndYear-1, col] 
+                                       -annual.at[extraEndYear-2, col]))
         
         # expand to monthly, and interpolate values
+        annual = annual.sort('YEAR')
         annual['MONTH'] = annual['YEAR'].apply(lambda x: pd.Timestamp(str(int(x)) + '-07-01'))
         annual = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
         
@@ -716,8 +786,9 @@ class DemandHelper():
         
         monthly = monthly.interpolate()
         
-        # drop the extraYear, which was just used to get to the end of the last year
-        monthly = monthly[monthly['YEAR']<extraYear-0.5]
+        # drop the extraStartYear and extraEndYear
+        monthly = monthly[monthly['YEAR']>=extraStartYear+0.5]
+        monthly = monthly[monthly['YEAR']<extraEndYear-0.5]
         monthly = monthly.drop('YEAR', 1)
         
         # convert to integers
@@ -730,7 +801,7 @@ class DemandHelper():
         
         # set a unique index
         monthly.index = pd.Series(range(0,len(monthly)))
-                
+                   
         return monthly
 
     

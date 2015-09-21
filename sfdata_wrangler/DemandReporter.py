@@ -50,13 +50,13 @@ class DemandReporter():
         '''   
         # open and join the input fields
         demand_store = pd.HDFStore(self.demand_file)
-          
+        
         population = demand_store.select('countyPop')
         acs        = demand_store.select('countyACS')
         hu         = demand_store.select('countyHousingCompletions')
         employment = demand_store.select('countyEmp')
-        lodesRAC   = demand_store.select('lodesRAC')
         lodesWAC   = demand_store.select('lodesWAC')
+        lodesRAC   = demand_store.select('lodesRAC')
         lodesOD    = demand_store.select('lodesOD')
         fuelPrice  = demand_store.select('fuelPrice')
 
@@ -68,8 +68,8 @@ class DemandReporter():
         df = pd.merge(df, acs, how='left', on=['MONTH'], sort=True, suffixes=('', '_ACS')) 
         df = pd.merge(df, hu, how='left', on=['MONTH'], sort=True, suffixes=('', '_HU')) 
         df = pd.merge(df, employment, how='left', on=['MONTH'], sort=True, suffixes=('', '_QCEW')) 
-        df = pd.merge(df, lodesRAC, how='left', on=['MONTH'], sort=True, suffixes=('', '_RAC')) 
         df = pd.merge(df, lodesWAC, how='left', on=['MONTH'], sort=True, suffixes=('', '_WAC')) 
+        df = pd.merge(df, lodesRAC, how='left', on=['MONTH'], sort=True, suffixes=('', '_RAC')) 
         df = pd.merge(df, lodesOD, how='left', on=['MONTH'], sort=True, suffixes=('', '_OD')) 
         df = pd.merge(df, fuelPrice, how='left', on=['MONTH'], sort=True, suffixes=('', '_FP')) 
                 
@@ -239,7 +239,7 @@ class DemandReporter():
         self.write_row(label='Employees, earning $40k+', data=df[['EMP_EARN40P']], 
             source='LODES WAC/QCEW', tempRes='Monthly', geogRes='Block', format=int_format)
             
-        self.write_row(label='Average monthly earnings (2010$)', data=df[['AVG_MONTHLY_EARNINGS_USD2010']], 
+        self.write_row(label='Average monthly earnings (2010$)', data=df[['AVG_MONTHLY_EARNINGS_2010USD']], 
             source='QCEW', tempRes='Monthly', geogRes='County', format=dollar_format)
 
         # INTRA-COUNTY WORKERS
