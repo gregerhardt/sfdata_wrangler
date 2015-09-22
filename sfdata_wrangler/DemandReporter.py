@@ -58,7 +58,7 @@ class DemandReporter():
         lodesWAC   = demand_store.select('lodesWAC')
         lodesRAC   = demand_store.select('lodesRAC')
         lodesOD    = demand_store.select('lodesOD')
-        fuelPrice  = demand_store.select('fuelPrice')
+        fuelPrice  = demand_store.select('autoOpCost')
 
         demand_store.close()
         
@@ -268,12 +268,12 @@ class DemandReporter():
             source='EIA', tempRes='Monthly', geogRes='MSA', format=cent_format)
             
         self.write_row(label='Average Fleet Efficiency (mpg)', data=df[['FLEET_EFFICIENCY']], 
-            source='BTS', tempRes='Annual', geogRes='Nation', format=dec_format)
+            source='BTS', tempRes='Annual', geogRes='US', format=dec_format)
             
-        self.write_row(label='Average Fuel Price (2010$ / mi)', data=df[['FUEL_COST_2010USD']], 
-            source='BTS/EIA', tempRes='Annual/Monthly', geogRes='Nation/MSA', format=cent_format)
+        self.write_row(label='Average Fuel Cost (2010$ / mi)', data=df[['FUEL_COST_2010USD']], 
+            source='BTS/EIA', tempRes='Annual/Monthly', geogRes='US/MSA', format=cent_format)
 
-        self.write_row(label='Average Auto Operating Cost (2010$/mile)', data=df[[]], 
+        self.write_row(label='Average Auto Operating Cost (2010$/mile)', data=df[['']], 
             source='IRS', tempRes='Annual', geogRes='US', format=cent_format)
             
         self.write_row(label='Average Daily Parking Cost (2010$)', data=df[[]], 

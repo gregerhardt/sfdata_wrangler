@@ -139,8 +139,8 @@ QCEW_DIR = "D:/Input/QCEW/"
 LODES_DIR = "D:/Input/Census/LEHD/LODES/CA/"
 LODES_XWALK_FILE= "D:/Input/Census/LEHD/LODES/CA/ca_xwalk.csv"
 
-FUEL_COST_FILE = "D:/Input/AutoOpCosts/FuelCost/PET_PRI_GND_A_EPM0_PTE_DPGAL_M.xls"
-FLEET_EFFICIENCY_FILE = "D:/Input/AutoOpCosts/FleetEfficiency/table_04_23_0.csv"
+FUEL_COST_FILE = "C:/CASA/Data/AutoOpCosts/FuelCost/PET_PRI_GND_A_EPM0_PTE_DPGAL_M.xls"
+FLEET_EFFICIENCY_FILE = "C:/CASA/Data/AutoOpCosts/FleetEfficiency/table_04_23_0.csv"
 
 CPI_FILE       = "C:/CASA/Data/CPI/SeriesReport-20150908105105_8887b6.xlsx"
 

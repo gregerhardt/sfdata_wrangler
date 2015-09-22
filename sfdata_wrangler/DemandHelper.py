@@ -919,21 +919,45 @@ class DemandHelper():
         return adj[columns]
 
 
-    def processFuelPriceData(self, fuelFile, cpiFile, outfile): 
+
+    def processAutoOpCosts(self, fuelFile, fleetEfficiencyFile, cpiFile, outfile): 
         """ 
         Reads raw QCEW data and converts it to a clean list format. 
         
         fuelFile - file containing data from EIA
-        outfile  - the HDF output file to write to
-        
+        fleetEfficiencyFile - file containing average fleet mpg
+        cpiFile  - inflation factors
+        outfile  - the HDF output file to write to        
         """
         
         # remove the existing key so we don't overwrite
         outstore = pd.HDFStore(outfile)
         keys = outstore.keys()
-        if '/fuelPrice' in keys: 
-            outstore.remove('fuelPrice')
+        if '/autoOpCost' in keys: 
+            outstore.remove('autoOpCost')
         
+        # get and merge the data
+        fuelPrice = self.getFuelPriceData(fuelFile, cpiFile)
+        fleetEfficiency = self.getFleetEfficiencyData(fleetEfficiencyFile)
+        dfout = pd.merge(fuelPrice, fleetEfficiency, how='left', on=['MONTH'], sort=True)  
+        
+        # calculate the average cost per mile
+        dfout['FUEL_COST'] = dfout['FUEL_PRICE'] / dfout['FLEET_EFFICIENCY']
+        dfout['FUEL_COST_2010USD'] = dfout['FUEL_PRICE_2010USD'] / dfout['FLEET_EFFICIENCY']
+        
+        # append to the output store
+        outstore.append('autoOpCost', dfout, data_columns=True)
+        outstore.close()
+
+
+    def getFuelPriceData(self, fuelFile, cpiFile): 
+        """ 
+        Gets the fuel price data and returns it as a dataframe
+        
+        fuelFile - file containing data from EIA
+        cpiFile  - inflation factors
+        
+        """        
         # get raw data
         df = pd.read_excel(fuelFile, sheetname='Data 4', skiprows=2)
         df = df.rename(columns={
@@ -953,9 +977,23 @@ class DemandHelper():
         # keep only the relevant columns
         df = df[['MONTH', 'FUEL_PRICE', 'FUEL_PRICE_2010USD', 'CPI']]        
         
-        # append to the output store
-        outstore.append('fuelPrice', df, data_columns=True)
-        outstore.close()
+        return df
+
+    
+    def getFleetEfficiencyData(self, fleetEfficiencyFile): 
+        """ 
+        Gets the average fleet efficiency and returns it as a dataframe
+        
+        """        
+
+        annual = pd.read_csv(fleetEfficiencyFile, skiprows=1)
+        annual = annual.rename(columns={'Light duty vehicle, short wheel base' : 'FLEET_EFFICIENCY'}) 
+        annual.index = annual['YEAR']
+        annual = annual[['YEAR', 'FLEET_EFFICIENCY']]
+
+        monthly = self.convertAnnualToMonthly(annual)
+        
+        return monthly
     
     
     def getCPIFactors(self, cpiFile):
@@ -1038,15 +1076,7 @@ class DemandHelper():
         monthly = monthly[monthly['YEAR']>=extraStartYear+0.5]
         monthly = monthly[monthly['YEAR']<extraEndYear-0.5]
         monthly = monthly.drop('YEAR', 1)
-        
-        # convert to integers
-        for col in monthly.columns:  
-            if monthly[col].dtype == float: 
-                try: 
-                    monthly[col] = monthly[col].astype(int)
-                except ValueError: 
-                    print 'Cannot convert NA values to int for column ', col
-        
+                
         # set a unique index
         monthly.index = pd.Series(range(0,len(monthly)))
                    
