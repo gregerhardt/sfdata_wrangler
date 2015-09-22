@@ -124,6 +124,9 @@ RAW_CLIPPER_FILES =["D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
                     "D:/Input/Clipper/2014_-_9_Anonymous_Clipper.csv"                    
                    ]
 
+CENSUS2000_DIR = "C:/CASA/Data/Census/Census2000/"
+CENSUS2010_FILE = "C:/CASA/Data/Census/Census2010/DP01/DEC_10_SF1_SF1DP1_with_ann.csv" 
+
 CENSUS_POPEST_PRE2010_FILE  = "C:/CASA/Data/Census/AnnualPopulationEstimates/2000to2010/CO-EST00INT-TOT.csv"
 CENSUS_POPEST_POST2010_FILE = "C:/CASA/Data/Census/AnnualPopulationEstimates/post2010/PEP_2014_PEPANNRES_with_ann.csv"
 
@@ -136,7 +139,8 @@ QCEW_DIR = "D:/Input/QCEW/"
 LODES_DIR = "D:/Input/Census/LEHD/LODES/CA/"
 LODES_XWALK_FILE= "D:/Input/Census/LEHD/LODES/CA/ca_xwalk.csv"
 
-FUEL_COST_FILE = "D:/Input/FuelCost/PET_PRI_GND_A_EPM0_PTE_DPGAL_M.xls"
+FUEL_COST_FILE = "D:/Input/AutoOpCosts/FuelCost/PET_PRI_GND_A_EPM0_PTE_DPGAL_M.xls"
+FLEET_EFFICIENCY_FILE = "D:/Input/AutoOpCosts/FleetEfficiency/table_04_23_0.csv"
 
 CPI_FILE       = "C:/CASA/Data/CPI/SeriesReport-20150908105105_8887b6.xlsx"
 
@@ -230,17 +234,17 @@ if __name__ == "__main__":
         #                                              FIPS, 
         #                                              DEMAND_OUTFILE)      
         
-        #demandHelper.processACSData(ACS_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+        #demandHelper.processCensusSampleData(ACS_DIR, CENSUS2000_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
         
-        demandHelper.processHousingCompletionsData(HOUSING_COMPLETIONS_FILE, DEMAND_OUTFILE)          
+        #demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILE, CENSUS2010_FILE, FIPS, DEMAND_OUTFILE)          
 
         #demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
 
-        #demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
         #demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
         #demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
                                                              
-        #demandHelper.processFuelPriceData(FUEL_COST_FILE, CPI_FILE, DEMAND_OUTFILE)
+        demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, CPI_FILE, DEMAND_OUTFILE)
 
         print 'Finished processing drivers of demand data ', (datetime.datetime.now() - startTime) 
         

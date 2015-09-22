@@ -54,8 +54,252 @@ class DemandHelper():
     # the range of years for these data files
     POP_EST_YEARS = [2000,2014]
     HU_YEARS      = [2001,2012]
-    ACS_YEARS     = [2005,2013]
+    ACS_YEARS     = [2005,2014]
     LODES_YEARS   = [2002,2013]
+    
+    # a list of output field and inputfield tuples for each table
+    ACS_EQUIV = {'B01003' : [('POP',   'Estimate; Total')
+                            ], 
+                 'DP04' :   [('UNITS_ACS', 'Estimate; HOUSING OCCUPANCY - Total housing units')
+                            ], 
+                 'DP03'   : [('HH',           'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Total households'),
+                             ('WORKERS',      'Estimate; EMPLOYMENT STATUS - In labor force - Civilian labor force - Employed'), 
+                             ('MEDIAN_HHINC', 'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Median household income (dollars)'),
+                             ('HH_INC0_15',  ['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Less than $10,000',
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $10,000 to $14,999']), 
+                             ('HH_INC15_50', ['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $15,000 to $24,999',
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $25,000 to $34,999', 
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $35,000 to $49,999']), 
+                             ('HH_INC50_100',['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $50,000 to $74,999',
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $75,000 to $99,999']), 
+                             ('HH_INC100P',  ['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $100,000 to $149,999',
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $150,000 to $199,999', 
+                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $200,000 or more'])
+                            ], 
+                 'B08203' : [('HH_0VEH',      'Estimate; No vehicle available'),
+                             ('HH_1VEH',      'Estimate; 1 vehicle available'), 
+                             ('HH_2PVEH',    ['Estimate; 2 vehicles available',
+                                              'Estimate; 3 vehicles available', 
+                                              'Estimate; 4 vehicles available'])
+                            ],
+                 'B08119' : [('JTW_DA',       'Estimate; Car, truck, or van - drove alone:'),
+                             ('JTW_SR',       'Estimate; Car, truck, or van - carpooled:'), 
+                             ('JTW_TRANSIT',  'Estimate; Public transportation (excluding taxicab):'), 
+                             ('JTW_WALK',     'Estimate; Walked:'), 
+                             ('JTW_OTHER',    'Estimate; Taxicab, motorcycle, bicycle, or other means:'), 
+                             ('JTW_HOME',     'Estimate; Worked at home:'),                              
+                             
+                             
+                             ('JTW_EARN0_50_DA',      ['Estimate; Car, truck, or van - drove alone: - $1 to $9,999 or loss', 
+                                                       'Estimate; Car, truck, or van - drove alone: - $10,000 to $14,999',
+                                                       'Estimate; Car, truck, or van - drove alone: - $15,000 to $24,999', 
+                                                       'Estimate; Car, truck, or van - drove alone: - $25,000 to $34,999',
+                                                       'Estimate; Car, truck, or van - drove alone: - $35,000 to $49,999']),
+                             ('JTW_EARN0_50_SR',      ['Estimate; Car, truck, or van - carpooled: - $1 to $9,999 or loss', 
+                                                       'Estimate; Car, truck, or van - carpooled: - $10,000 to $14,999',
+                                                       'Estimate; Car, truck, or van - carpooled: - $15,000 to $24,999', 
+                                                       'Estimate; Car, truck, or van - carpooled: - $25,000 to $34,999',
+                                                       'Estimate; Car, truck, or van - carpooled: - $35,000 to $49,999']),
+                             ('JTW_EARN0_50_TRANSIT', ['Estimate; Public transportation (excluding taxicab): - $1 to $9,999 or loss', 
+                                                       'Estimate; Public transportation (excluding taxicab): - $10,000 to $14,999',
+                                                       'Estimate; Public transportation (excluding taxicab): - $15,000 to $24,999', 
+                                                       'Estimate; Public transportation (excluding taxicab): - $25,000 to $34,999',
+                                                       'Estimate; Public transportation (excluding taxicab): - $35,000 to $49,999']),
+                             ('JTW_EARN0_50_WALK_OTHER',['Estimate; Walked: - $1 to $9,999 or loss', 
+                                                       'Estimate; Walked: - $10,000 to $14,999',
+                                                       'Estimate; Walked: - $15,000 to $24,999', 
+                                                       'Estimate; Walked: - $25,000 to $34,999',
+                                                       'Estimate; Walked: - $35,000 to $49,999', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $1 to $9,999 or loss', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $10,000 to $14,999',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $15,000 to $24,999', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $25,000 to $34,999',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $35,000 to $49,999']),
+                             ('JTW_EARN0_50_HOME',    ['Estimate; Worked at home: - $1 to $9,999 or loss', 
+                                                       'Estimate; Worked at home: - $10,000 to $14,999',
+                                                       'Estimate; Worked at home: - $15,000 to $24,999', 
+                                                       'Estimate; Worked at home: - $25,000 to $34,999',
+                                                       'Estimate; Worked at home: - $35,000 to $49,999']), 
+                             
+                             ('JTW_EARN50P_DA',       ['Estimate; Car, truck, or van - drove alone: - $50,000 to $64,999', 
+                                                       'Estimate; Car, truck, or van - drove alone: - $65,000 to $74,999',
+                                                       'Estimate; Car, truck, or van - drove alone: - $75,000 or more']),
+                             ('JTW_EARN50P_SR',       ['Estimate; Car, truck, or van - carpooled: - $50,000 to $64,999', 
+                                                       'Estimate; Car, truck, or van - carpooled: - $65,000 to $74,999',
+                                                       'Estimate; Car, truck, or van - carpooled: - $75,000 or more']),
+                             ('JTW_EARN50P_TRANSIT',  ['Estimate; Public transportation (excluding taxicab): - $50,000 to $64,999', 
+                                                       'Estimate; Public transportation (excluding taxicab): - $65,000 to $74,999',
+                                                       'Estimate; Public transportation (excluding taxicab): - $75,000 or more']),
+                             ('JTW_EARN50P_WALK_OTHER',['Estimate; Walked: - $50,000 to $64,999', 
+                                                       'Estimate; Walked: - $65,000 to $74,999',
+                                                       'Estimate; Walked: - $75,000 or more', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $50,000 to $64,999', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $65,000 to $74,999',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $75,000 or more']),
+                             ('JTW_EARN50P_HOME',     ['Estimate; Worked at home: - $50,000 to $64,999', 
+                                                       'Estimate; Worked at home: - $65,000 to $74,999',
+                                                       'Estimate; Worked at home: - $75,000 or more'])
+                            ],
+                 'B08141' : [('JTW_0VEH_DA',           'Estimate; Car, truck, or van - drove alone: - No vehicle available'),
+                             ('JTW_0VEH_SR',           'Estimate; Car, truck, or van - carpooled: - No vehicle available'),
+                             ('JTW_0VEH_TRANSIT',      'Estimate; Public transportation (excluding taxicab): - No vehicle available'),
+                             ('JTW_0VEH_WALK_OTHER',  ['Estimate; Walked: - No vehicle available',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - No vehicle available']),
+                             ('JTW_0VEH_HOME',         'Estimate; Worked at home: - No vehicle available'),
+                                                          
+                             ('JTW_1PVEH_DA',         ['Estimate; Car, truck, or van - drove alone: - 1 vehicle available', 
+                                                       'Estimate; Car, truck, or van - drove alone: - 2 vehicles available', 
+                                                       'Estimate; Car, truck, or van - drove alone: - 3 vehicles available',
+                                                       'Estimate; Car, truck, or van - drove alone: - 4 vehicles available',
+                                                       'Estimate; Car, truck, or van - drove alone: - 5 vehicles available']),
+                             ('JTW_1PVEH_SR',         ['Estimate; Car, truck, or van - carpooled: - 1 vehicle available', 
+                                                       'Estimate; Car, truck, or van - carpooled: - 2 vehicles available', 
+                                                       'Estimate; Car, truck, or van - carpooled: - 3 vehicles available',
+                                                       'Estimate; Car, truck, or van - carpooled: - 4 vehicles available',
+                                                       'Estimate; Car, truck, or van - carpooled: - 5 vehicles available']),
+                             ('JTW_1PVEH_TRANSIT',    ['Estimate; Public transportation (excluding taxicab): - 1 vehicle available', 
+                                                       'Estimate; Public transportation (excluding taxicab): - 2 vehicles available', 
+                                                       'Estimate; Public transportation (excluding taxicab): - 3 vehicles available',
+                                                       'Estimate; Public transportation (excluding taxicab): - 4 vehicles available',
+                                                       'Estimate; Public transportation (excluding taxicab): - 5 vehicles available']),
+                             ('JTW_1PVEH_WALK_OTHER', ['Estimate; Walked: - 1 vehicle available', 
+                                                       'Estimate; Walked: - 2 vehicles available', 
+                                                       'Estimate; Walked: - 3 vehicles available',
+                                                       'Estimate; Walked: - 4 vehicles available',
+                                                       'Estimate; Walked: - 5 vehicles available',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 1 vehicle available', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 2 vehicles available', 
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 3 vehicles available',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 4 vehicles available',
+                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 5 vehicles available']),
+                             ('JTW_1PVEH_HOME',       ['Estimate; Worked at home: - 1 vehicle available', 
+                                                       'Estimate; Worked at home: - 2 vehicles available', 
+                                                       'Estimate; Worked at home: - 3 vehicles available',
+                                                       'Estimate; Worked at home: - 4 vehicles available',
+                                                       'Estimate; Worked at home: - 5 vehicles available']),
+                            ]
+                }
+
+    
+    
+    # a list of output field and inputfield tuples for each table  in Census 2000
+    CENSUS2000_EQUIV = {
+                 'DP01' :  [('POP',  'Number; Total population'), 
+                            ('HH',   'Number; HOUSEHOLDS BY TYPE - Total households'), 
+                            ('UNITS_ACS','Number; HOUSING OCCUPANCY - Total housing units'), 
+                            ], 
+                 'DP03'   : [('WORKERS',      'Number; EMPLOYMENT STATUS - Population 16 years and over - In labor force - Civilian labor force - Employed'), 
+                             ('MEDIAN_HHINC', 'Number; INCOME IN 1999 - Families - Median family income (dollars)'), 
+                             ('HH_INC0_15',  ['Number; INCOME IN 1999 - Households - Less than $10,000',
+                                              'Number; INCOME IN 1999 - Households - $10,000 to $14,999']), 
+                             ('HH_INC15_50', ['Number; INCOME IN 1999 - Households - $15,000 to $24,999',
+                                              'Number; INCOME IN 1999 - Households - $25,000 to $34,999', 
+                                              'Number; INCOME IN 1999 - Households - $35,000 to $49,999']), 
+                             ('HH_INC50_100',['Number; INCOME IN 1999 - Households - $50,000 to $74,999',
+                                              'Number; INCOME IN 1999 - Households - $75,000 to $99,999']), 
+                             ('HH_INC100P',  ['Number; INCOME IN 1999 - Households - $100,000 to $149,999',
+                                              'Number; INCOME IN 1999 - Households - $150,000 to $199,999', 
+                                              'Number; INCOME IN 1999 - Households - $200,000 or more'])
+                            ], 
+                 '1-065' :  [('HH_0VEH',      'TAB65X2'),
+                             ('HH_1VEH',      'TAB65X3'), 
+                             ('HH_2PVEH',    ['TAB65X4','TAB65X5','TAB65X6'])
+                            ],
+                 'P030' :   [('JTW_DA',       'Car, truck, or van: - Drove alone'),
+                             ('JTW_SR',       'Car, truck, or van: - Carpooled'), 
+                             ('JTW_TRANSIT',  ['Public transportation: - Bus or trolley bus', 
+                                               'Public transportation: - Streetcar or trolley car (publico in Puerto Rico)', 
+                                               'Public transportation: - Subway or elevated', 
+                                               'Public transportation: - Railroad', 
+                                               'Public transportation: - Ferryboat']), 
+                             ('JTW_WALK',     'Walked'), 
+                             ('JTW_OTHER',   ['Public transportation: - Taxicab', 
+                                              'Motorcycle', 
+                                              'Bicycle', 
+                                              'Other means']), 
+                             ('JTW_HOME',     'Worked at home')
+                            ],            
+                 '1-013' :  [('JTW_EARN0_50_DA',      ['TAB13X13', 
+                                                       'TAB13X23', 
+                                                       'TAB13X35', 
+                                                       'TAB13X46', 
+                                                       'TAB13X57', 
+                                                       'TAB13X68',
+                                                       'TAB13X79',
+                                                       'TAB13X90']),
+                             ('JTW_EARN0_50_SR',      ['TAB13X14', 'TAB13X15', 'TAB13X16', 
+                                                       'TAB13X24', 'TAB13X25', 'TAB13X26',
+                                                       'TAB13X36', 'TAB13X37', 'TAB13X38', 
+                                                       'TAB13X47', 'TAB13X48', 'TAB13X49', 
+                                                       'TAB13X58', 'TAB13X59', 'TAB13X60', 
+                                                       'TAB13X69', 'TAB13X70', 'TAB13X71', 
+                                                       'TAB13X80', 'TAB13X81', 'TAB13X82', 
+                                                       'TAB13X91', 'TAB13X92', 'TAB13X93']),
+                             ('JTW_EARN0_50_TRANSIT', ['TAB13X17', 'TAB13X18', 'TAB13X19', 
+                                                       'TAB13X27', 'TAB13X28', 'TAB13X29',
+                                                       'TAB13X39', 'TAB13X40', 'TAB13X41', 
+                                                       'TAB13X50', 'TAB13X51', 'TAB13X52', 
+                                                       'TAB13X61', 'TAB13X62', 'TAB13X63', 
+                                                       'TAB13X72', 'TAB13X73', 'TAB13X74', 
+                                                       'TAB13X83', 'TAB13X84', 'TAB13X85', 
+                                                       'TAB13X94', 'TAB13X95', 'TAB13X96']),
+                             ('JTW_EARN0_50_WALK_OTHER',['TAB13X20', 'TAB13X21',  
+                                                       'TAB13X30', 'TAB13X31', 
+                                                       'TAB13X42', 'TAB13X43', 
+                                                       'TAB13X53', 'TAB13X54', 
+                                                       'TAB13X64', 'TAB13X65', 
+                                                       'TAB13X75', 'TAB13X76', 
+                                                       'TAB13X86', 'TAB13X87', 
+                                                       'TAB13X97', 'TAB13X98']),
+                             ('JTW_EARN0_50_HOME',    ['TAB13X22', 
+                                                       'TAB13X33', 
+                                                       'TAB13X44', 
+                                                       'TAB13X55', 
+                                                       'TAB13X66', 
+                                                       'TAB13X77', 
+                                                       'TAB13X88', 
+                                                       'TAB13X99']),
+                             
+                             ('JTW_EARN50P_DA',       ['TAB13X101', 
+                                                       'TAB13X112']),
+                             ('JTW_EARN50P_SR',       ['TAB13X102','TAB13X103','TAB13X104',
+                                                       'TAB13X113','TAB13X114','TAB13X115']),
+                             ('JTW_EARN50P_TRANSIT',  ['TAB13X105','TAB13X106','TAB13X107',
+                                                       'TAB13X116','TAB13X117','TAB13X118']),
+                             ('JTW_EARN50P_WALK_OTHER',['TAB13X108', 'TAB13X109',  
+                                                       'TAB13X119', 'TAB13X120']),
+                             ('JTW_EARN50P_HOME',     ['TAB13X110', 
+                                                       'TAB13X121']),
+                            ],
+                 '1-035' :  [('JTW_0VEH_DA',           'TAB35X13'),
+                             ('JTW_0VEH_SR',           ['TAB35X14', 'TAB35X15', 'TAB35X16']),
+                             ('JTW_0VEH_TRANSIT',      ['TAB35X17', 'TAB35X18', 'TAB35X19']),
+                             ('JTW_0VEH_WALK_OTHER',   ['TAB35X20', 'TAB35X21']),
+                             ('JTW_0VEH_HOME',         'TAB35X22'),
+                             
+                             ('JTW_1PVEH_DA',         ['TAB35X24', 
+                                                       'TAB35X35',
+                                                       'TAB35X46',
+                                                       'TAB35X57']),
+                             ('JTW_1PVEH_SR',         ['TAB35X25', 'TAB35X26', 'TAB35X27',
+                                                       'TAB35X36', 'TAB35X37', 'TAB35X38',
+                                                       'TAB35X47', 'TAB35X48', 'TAB35X49',
+                                                       'TAB35X58', 'TAB35X59', 'TAB35X60']),
+                             ('JTW_1PVEH_TRANSIT',    ['TAB35X28', 'TAB35X29', 'TAB35X30',
+                                                       'TAB35X39', 'TAB35X40', 'TAB35X41',
+                                                       'TAB35X50', 'TAB35X51', 'TAB35X52',
+                                                       'TAB35X61', 'TAB35X62', 'TAB35X63']),
+                             ('JTW_1PVEH_WALK_OTHER', ['TAB35X31', 'TAB35X32',
+                                                       'TAB35X42', 'TAB35X43', 
+                                                       'TAB35X53', 'TAB35X54', 
+                                                       'TAB35X64', 'TAB35X65']),
+                             ('JTW_1PVEH_HOME',       ['TAB35X33', 
+                                                       'TAB35X44',
+                                                       'TAB35X55',
+                                                       'TAB35X66'])
+                            ]
+                }
+
     
     def __init__(self):
         '''
@@ -118,140 +362,18 @@ class DemandHelper():
 
 
 
-    # a list of output field and inputfield tuples for each table
-    ACS_EQUIV = {'B01003' : [('POP_ACS', 'Estimate; Total')
-                            ], 
-                 'DP03'   : [('HH',           'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Total households'),
-                             ('WORKERS',      'Estimate; EMPLOYMENT STATUS - In labor force - Civilian labor force - Employed'), 
-                             ('MEDIAN_HHINC', 'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Median household income (dollars)'), 
-                             ('MEAN_HHINC',   'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Mean household income (dollars)'), 
-                             ('HH_INC0_15',  ['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - Less than $10,000',
-                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $10,000 to $14,999']), 
-                             ('HH_INC15_50', ['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $15,000 to $24,999',
-                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $25,000 to $34,999', 
-                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $35,000 to $49,999']), 
-                             ('HH_INC50_100',['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $50,000 to $74,999',
-                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $75,000 to $99,999']), 
-                             ('HH_INC100P',  ['Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $100,000 to $149,999',
-                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $150,000 to $199,999', 
-                                              'Estimate; INCOME AND BENEFITS (IN YYYY INFLATION-ADJUSTED DOLLARS) - $200,000 or more'])
-                            ], 
-                 'B08203' : [('HH_0VEH',      'Estimate; No vehicle available'),
-                             ('HH_1VEH',      'Estimate; 1 vehicle available'), 
-                             ('HH_2PVEH',    ['Estimate; 2 vehicles available',
-                                              'Estimate; 3 vehicles available', 
-                                              'Estimate; 4 vehicles available'])
-                            ],
-                 'B08119' : [('JTW_DA',       'Estimate; Car, truck, or van - drove alone:'),
-                             ('JTW_SR',       'Estimate; Car, truck, or van - carpooled:'), 
-                             ('JTW_TRANSIT',  'Estimate; Public transportation (excluding taxicab):'), 
-                             ('JTW_WALK',     'Estimate; Walked:'), 
-                             ('JTW_OTHER',    'Estimate; Taxicab, motorcycle, bicycle, or other means:'), 
-                             ('JTW_HOME',     'Estimate; Worked at home:'),                              
-                             
-                             ('JTW_EARN0_15_DA',      ['Estimate; Car, truck, or van - drove alone: - $1 to $9,999 or loss', 
-                                                       'Estimate; Car, truck, or van - drove alone: - $10,000 to $14,999']),
-                             ('JTW_EARN0_15_SR',      ['Estimate; Car, truck, or van - carpooled: - $1 to $9,999 or loss', 
-                                                       'Estimate; Car, truck, or van - carpooled: - $10,000 to $14,999']),
-                             ('JTW_EARN0_15_TRANSIT', ['Estimate; Public transportation (excluding taxicab): - $1 to $9,999 or loss', 
-                                                       'Estimate; Public transportation (excluding taxicab): - $10,000 to $14,999']),
-                             ('JTW_EARN0_15_WALK',    ['Estimate; Walked: - $1 to $9,999 or loss', 
-                                                       'Estimate; Walked: - $10,000 to $14,999']),
-                             ('JTW_EARN0_15_OTHER',   ['Estimate; Taxicab, motorcycle, bicycle, or other means: - $1 to $9,999 or loss', 
-                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $10,000 to $14,999']),
-                             ('JTW_EARN0_15_HOME',    ['Estimate; Worked at home: - $1 to $9,999 or loss', 
-                                                       'Estimate; Worked at home: - $10,000 to $14,999']),
-                             
-                             ('JTW_EARN15_50_DA',     ['Estimate; Car, truck, or van - drove alone: - $15,000 to $24,999', 
-                                                       'Estimate; Car, truck, or van - drove alone: - $25,000 to $34,999',
-                                                       'Estimate; Car, truck, or van - drove alone: - $35,000 to $49,999']),
-                             ('JTW_EARN15_50_SR',     ['Estimate; Car, truck, or van - carpooled: - $15,000 to $24,999', 
-                                                       'Estimate; Car, truck, or van - carpooled: - $25,000 to $34,999',
-                                                       'Estimate; Car, truck, or van - carpooled: - $35,000 to $49,999']),
-                             ('JTW_EARN15_50_TRANSIT',['Estimate; Public transportation (excluding taxicab): - $15,000 to $24,999', 
-                                                       'Estimate; Public transportation (excluding taxicab): - $25,000 to $34,999',
-                                                       'Estimate; Public transportation (excluding taxicab): - $35,000 to $49,999']),
-                             ('JTW_EARN15_50_WALK',   ['Estimate; Walked: - $15,000 to $24,999', 
-                                                       'Estimate; Walked: - $25,000 to $34,999',
-                                                       'Estimate; Walked: - $35,000 to $49,999']),
-                             ('JTW_EARN15_50_OTHER',  ['Estimate; Taxicab, motorcycle, bicycle, or other means: - $15,000 to $24,999', 
-                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $25,000 to $34,999',
-                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $35,000 to $49,999']),
-                             ('JTW_EARN15_50_HOME',   ['Estimate; Worked at home: - $15,000 to $24,999', 
-                                                       'Estimate; Worked at home: - $25,000 to $34,999',
-                                                       'Estimate; Worked at home: - $35,000 to $49,999']),
-                             
-                             ('JTW_EARN50P_DA',       ['Estimate; Car, truck, or van - drove alone: - $50,000 to $64,999', 
-                                                       'Estimate; Car, truck, or van - drove alone: - $65,000 to $74,999',
-                                                       'Estimate; Car, truck, or van - drove alone: - $75,000 or more']),
-                             ('JTW_EARN50P_SR',       ['Estimate; Car, truck, or van - carpooled: - $50,000 to $64,999', 
-                                                       'Estimate; Car, truck, or van - carpooled: - $65,000 to $74,999',
-                                                       'Estimate; Car, truck, or van - carpooled: - $75,000 or more']),
-                             ('JTW_EARN50P_TRANSIT',  ['Estimate; Public transportation (excluding taxicab): - $50,000 to $64,999', 
-                                                       'Estimate; Public transportation (excluding taxicab): - $65,000 to $74,999',
-                                                       'Estimate; Public transportation (excluding taxicab): - $75,000 or more']),
-                             ('JTW_EARN50P_WALK',     ['Estimate; Walked: - $50,000 to $64,999', 
-                                                       'Estimate; Walked: - $65,000 to $74,999',
-                                                       'Estimate; Walked: - $75,000 or more']),
-                             ('JTW_EARN50P_OTHER',    ['Estimate; Taxicab, motorcycle, bicycle, or other means: - $50,000 to $64,999', 
-                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $65,000 to $74,999',
-                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - $75,000 or more']),
-                             ('JTW_EARN50P_HOME',     ['Estimate; Worked at home: - $50,000 to $64,999', 
-                                                       'Estimate; Worked at home: - $65,000 to $74,999',
-                                                       'Estimate; Worked at home: - $75,000 or more']),
-                            ],
-                 'B08141' : [('JTW_0VEH_DA',           'Estimate; Car, truck, or van - drove alone: - No vehicle available'),
-                             ('JTW_0VEH_SR',           'Estimate; Car, truck, or van - carpooled: - No vehicle available'),
-                             ('JTW_0VEH_TRANSIT',      'Estimate; Public transportation (excluding taxicab): - No vehicle available'),
-                             ('JTW_0VEH_WALK',         'Estimate; Walked: - No vehicle available'),
-                             ('JTW_0VEH_OTHER',        'Estimate; Taxicab, motorcycle, bicycle, or other means: - No vehicle available'),
-                             ('JTW_0VEH_HOME',         'Estimate; Worked at home: - No vehicle available'),
-                             
-                             ('JTW_1VEH_DA',           'Estimate; Car, truck, or van - drove alone: - 1 vehicle available'),
-                             ('JTW_1VEH_SR',           'Estimate; Car, truck, or van - carpooled: - 1 vehicle available'),
-                             ('JTW_1VEH_TRANSIT',      'Estimate; Public transportation (excluding taxicab): - 1 vehicle available'),
-                             ('JTW_1VEH_WALK',         'Estimate; Walked: - 1 vehicle available'),
-                             ('JTW_1VEH_OTHER',        'Estimate; Taxicab, motorcycle, bicycle, or other means: - 1 vehicle available'),
-                             ('JTW_1VEH_HOME',         'Estimate; Worked at home: - 1 vehicle available'),
-                             
-                             ('JTW_2PVEH_DA',         ['Estimate; Car, truck, or van - drove alone: - 2 vehicles available', 
-                                                       'Estimate; Car, truck, or van - drove alone: - 3 vehicles available',
-                                                       'Estimate; Car, truck, or van - drove alone: - 4 vehicles available',
-                                                       'Estimate; Car, truck, or van - drove alone: - 5 vehicles available']),
-                             ('JTW_2PVEH_SR',         ['Estimate; Car, truck, or van - carpooled: - 2 vehicles available', 
-                                                       'Estimate; Car, truck, or van - carpooled: - 3 vehicles available',
-                                                       'Estimate; Car, truck, or van - carpooled: - 4 vehicles available',
-                                                       'Estimate; Car, truck, or van - carpooled: - 5 vehicles available']),
-                             ('JTW_2PVEH_TRANSIT',    ['Estimate; Public transportation (excluding taxicab): - 2 vehicles available', 
-                                                       'Estimate; Public transportation (excluding taxicab): - 3 vehicles available',
-                                                       'Estimate; Public transportation (excluding taxicab): - 4 vehicles available',
-                                                       'Estimate; Public transportation (excluding taxicab): - 5 vehicles available']),
-                             ('JTW_2PVEH_WALK',       ['Estimate; Walked: - 2 vehicles available', 
-                                                       'Estimate; Walked: - 3 vehicles available',
-                                                       'Estimate; Walked: - 4 vehicles available',
-                                                       'Estimate; Walked: - 5 vehicles available']),
-                             ('JTW_2PVEH_OTHER',      ['Estimate; Taxicab, motorcycle, bicycle, or other means: - 2 vehicles available', 
-                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 3 vehicles available',
-                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 4 vehicles available',
-                                                       'Estimate; Taxicab, motorcycle, bicycle, or other means: - 5 vehicles available']),
-                             ('JTW_2PVEH_HOME',       ['Estimate; Worked at home: - 2 vehicles available', 
-                                                       'Estimate; Worked at home: - 3 vehicles available',
-                                                       'Estimate; Worked at home: - 4 vehicles available',
-                                                       'Estimate; Worked at home: - 5 vehicles available']),
-                            ]
-                }
-
-
-    def processACSData(self, inputDir, fips, cpiFile, outfile): 
+    def processCensusSampleData(self, acsDir, census2000Dir, fips, cpiFile, outfile): 
         """ 
-        Reads raw ACS data and converts it to a clean list format. 
+        Reads raw Census Sample (2000 long form and 2005+ ACS)
+        data and converts it to a clean list format. 
         
-        inputDir - directory containing raw data files
+        acsDir   - directory containing raw ACS data files
+        census2000Dir - directory containing Census 2000 data
         fips     - the  FIPS codes to process, as string
+        cpiFile  - file containing consumer price index data
         outfile  - the HDF output file to write to
         
         """
-        fips = int(fips)
         
         # remove the existing key so we don't overwrite
         outstore = pd.HDFStore(outfile)
@@ -259,11 +381,120 @@ class DemandHelper():
         if '/countyACS' in keys: 
             outstore.remove('countyACS')
         
+        # get the data
+        census2000 = self.getCensus2000Table(census2000Dir, fips)
+        acsAnnual = self.getACSAnnualTable(acsDir, fips)
+        annual = census2000.append(acsAnnual)
+                
+        # convert data to monthly
+        monthly = self.convertAnnualToMonthly(annual, censusYears=[2000])
+        
+        # adjust household incomes for inflation
+        dfcpi = self.getCPIFactors(cpiFile)
+        monthly = pd.merge(monthly, dfcpi, how='left', on=['MONTH'], sort=True)  
+        monthly['MEDIAN_HHINC_2010USD'] = monthly['MEDIAN_HHINC'] * monthly['CPI_FACTOR']
+        
+        # calculate mode shares for journey to work data - totals
+        modes    = ['DA', 'SR', 'TRANSIT', 'WALK', 'OTHER', 'HOME']
+        monthly['total'] = 0.0
+        for mode in modes: 
+            monthly['total'] = monthly['total'] + monthly['JTW_' + mode]
+        for mode in modes: 
+            monthly['JTW_' + mode + '_SHARE'] = monthly['JTW_' + mode] / monthly['total']
+        monthly.drop('total', axis=1)
+                
+        # calculate mode shares for journey to work data - by segment
+        prefixes = ['JTW_0VEH_', 'JTW_1PVEH_', 'JTW_EARN0_50_', 'JTW_EARN50P_']
+        modes    = ['DA', 'SR', 'TRANSIT', 'WALK_OTHER', 'HOME']
+        for prefix in prefixes:
+            monthly['total'] = 0.0
+            for mode in modes: 
+                monthly['total'] = monthly['total'] + monthly[prefix + mode]
+            for mode in modes: 
+                monthly[prefix + mode + '_SHARE'] = monthly[prefix + mode] / monthly['total']
+            monthly.drop('total', axis=1)
+
+        # append to the output store
+        outstore.append('countyACS', monthly, data_columns=True)
+        outstore.close()
+        
+        
+    def getCensus2000Table(self, census2000Dir, fullFips): 
+        """ 
+        Fills a table of annual Census 2000 data (1 row). 
+        
+        census2000Dir - directory containing raw data files
+        fullFips     - the  FIPS codes to process, as string
+        
+        """
+        
+        # create the output file for annual data, with blanks for 2001-2004
+        years = range(2000, 2005)
+        year = 2000
+        annual = pd.DataFrame({'YEAR': years})
+        annual.index = years
+
+        # loop through the tables and get the data
+        for table, fields in self.CENSUS2000_EQUIV.iteritems():
+            
+            # initialize the output container
+            for outfield, infields in fields: 
+                annual[outfield] = np.NaN
+                                    
+            # different patterns for CTTP vs. main files
+            if table.startswith('1-'): 
+                pattern = census2000Dir + '/' + table + '/*' + table + '.csv'
+                skiprows = 0
+                fips = int(str(fullFips)[-2:])
+                countyId = 'COUNTY'
+                    
+            else:                
+                pattern = census2000Dir + '/' + table + '/DEC_' + str(year)[2:] + '*_with_ann.csv'
+                skiprows = 1
+                fips = int(fullFips)
+                countyId = 'Id2'
+
+            infiles = glob.glob(pattern)
+                
+            if len(infiles)!=1: 
+                raise IOError('Wrong number of files matching pattern: ' + pattern)
+            else: 
+                print infiles[0]
+                df = pd.read_csv(infiles[0], skiprows=skiprows)
+
+                # get the data relevant to this county
+                # and set the index equal to the fips code
+                df = df[df[countyId]==fips]
+                df.index = df[countyId]
+                                        
+                # copy the data over
+                for outfield, infields in fields: 
+                    if isinstance(infields, list):                              
+                        annual.at[year, outfield] = df.at[fips, infields[0]]   
+                        for infield in infields[1:]:                                                  
+                            annual.at[year, outfield] += float(df.at[fips, infield])                                
+                    else: 
+                        annual.at[year, outfield] = df.at[fips, infields]
+                        
+        return annual
+        
+    
+    def getACSAnnualTable(self, acsDir, fips): 
+        """ 
+        Fills a table of annual ACS data. 
+        
+        acsDir - directory containing raw data files
+        fips     - the  FIPS codes to process, as string
+        
+        """
+        
+        fips = int(fips)
+
         # create the output file for annual data
         years = range(self.ACS_YEARS[0], self.ACS_YEARS[1]+1)
         annual = pd.DataFrame({'YEAR': years})
         annual.index = years
-        
+
         # loop through the tables and get the data
         for table, fields in self.ACS_EQUIV.iteritems():
             
@@ -273,7 +504,7 @@ class DemandHelper():
                 
             # open the table specific to each year
             for year in years: 
-                pattern = inputDir + '/' + table + '/ACS_' + str(year)[2:] + '*_with_ann.csv'
+                pattern = acsDir + '/' + table + '/ACS_' + str(year)[2:] + '*_with_ann.csv'
                 infiles = glob.glob(pattern)
                 
                 if len(infiles)!=1: 
@@ -306,45 +537,19 @@ class DemandHelper():
                         if isinstance(infields, list):  
                             
                             annual.at[year, outfield] = df.at[fips, infields[0]]   
-                            for infield in infields[1:]:                                
-                            
+                            for infield in infields[1:]:                               
                                 # special case for one problematic table
                                 if table=='B08141': 
                                     if not infield in df.columns: 
-                                        continue                                
-                                
-                                annual.at[year, outfield] += float(df.at[fips, infield])
-                                
+                                        continue                                                                
+                                annual.at[year, outfield] += float(df.at[fips, infield])                                
                         else: 
                             annual.at[year, outfield] = df.at[fips, infields]
-        
-        # convert data to monthly
-        monthly = self.convertAnnualToMonthly(annual)
-        
-        # adjust household incomes for inflation
-        dfcpi = self.getCPIFactors(cpiFile)
-        monthly = pd.merge(monthly, dfcpi, how='left', on=['MONTH'], sort=True)  
-        monthly['MEDIAN_HHINC_2010USD'] = monthly['MEDIAN_HHINC'] * monthly['CPI_FACTOR']
-        monthly['MEAN_HHINC_2010USD'] = monthly['MEAN_HHINC'] * monthly['CPI_FACTOR']
-        
-        # calculate mode shares for journey to work data
-        prefixes = ['JTW_', 'JTW_0VEH_', 'JTW_1VEH_', 'JTW_2PVEH_', 'JTW_EARN0_15_', 'JTW_EARN15_50_', 'JTW_EARN50P_']
-        modes    = ['DA', 'SR', 'TRANSIT', 'WALK', 'OTHER', 'HOME']
-        for prefix in prefixes:
-            monthly['total'] = 0.0
-            for mode in modes: 
-                monthly['total'] = monthly['total'] + monthly[prefix + mode]
-            for mode in modes: 
-                monthly[prefix + mode + '_SHARE'] = monthly[prefix + mode] / monthly['total']
-            monthly.drop('total', axis=1)
-
-        # append to the output store
-        outstore.append('countyACS', monthly, data_columns=True)
-        outstore.close()
-        
+                            
+        return annual
         
 
-    def processHousingCompletionsData(self, infile, outfile): 
+    def processHousingUnitsData(self, completionsFile, census2010File, fips, outfile): 
         """ 
         Reads raw housing completions data and converts it to a clean list format. 
         
@@ -356,11 +561,11 @@ class DemandHelper():
         # remove the existing key so we don't overwrite
         outstore = pd.HDFStore(outfile)
         keys = outstore.keys()
-        if '/countyHousingCompletions' in keys: 
-            outstore.remove('countyHousingCompletions')
+        if '/countyHousingUnits' in keys: 
+            outstore.remove('countyHousingUnits')
         
         # read the data, and convert the dates
-        df = pd.read_csv(infile)
+        df = pd.read_csv(completionsFile)
         df['ACTUAL_DATE'] = df['ACTDT'].apply(convertToDate)
         df['MONTH'] = df['ACTUAL_DATE'].apply(convertDateToMonth)
         
@@ -391,13 +596,50 @@ class DemandHelper():
         dfout['NETUNITS'] += dfout['NETUNITS_ANNUAL'] / 12
         
         dfout = dfout[['YEAR', 'MONTH', 'NETUNITS']]
-
-        dfout.to_csv('c:/temp/housing.csv')
-
+        
+        # get the housing units from the Census 2010 data
+        units2010 = self.getCensus2010HousingUnits(census2010File, fips)
+        dfout = pd.merge(dfout, units2010, how='left', on=['MONTH'], sort=True, suffixes=('', '_2010')) 
+        
+        # fill in the totals
+        units = dfout['UNITS'].tolist()
+        net = dfout['NETUNITS'].tolist()
+        
+        for i in range(1, len(units)):
+            if (pd.notnull(units[i-1])):
+                units[i] = round(units[i-1] + net[i-1],0)
+        for i in range(len(units)-1, -1, -1):
+            if (pd.isnull(units[i])):
+                units[i] = round(units[i+1] - net[i],0)
+        
+        dfout['UNITS'] = units
+                                        
         # write the output
-        outstore.append('countyHousingCompletions', dfout, data_columns=True)        
+        outstore.append('countyHousingUnits', dfout, data_columns=True)        
         outstore.close()
         
+
+    def getCensus2010HousingUnits(self, census2010File, fips): 
+        """
+        Gets the number of housing units, according to the Census 2010
+        100% enumeration.  
+
+        census2010File - the file for DP01 summary file at county level. 
+        """        
+        
+        fips = int(fips)
+
+        df = pd.read_csv(census2010File, skiprows=1)
+        
+        df = df[df['Id2']==fips]
+        df.index = df['Id2']
+        
+        units = df.at[fips, 'Number; HOUSING OCCUPANCY - Total housing units']
+        month = pd.Timestamp('2010-04-01')
+
+        dfout = pd.DataFrame({'MONTH': [month], 'UNITS':[units]})
+
+        return dfout
         
 
     def processQCEWData(self, inputDir, fips, cpiFile, outfile): 
@@ -746,7 +988,7 @@ class DemandHelper():
         return dfcpi
 
 
-    def convertAnnualToMonthly(self, annual): 
+    def convertAnnualToMonthly(self, annual, censusYears=[]): 
         '''
         Convert annual dataframe to monthly dataframe. 
         Use linear interpolation to interpolate values, and extend to end
@@ -776,11 +1018,17 @@ class DemandHelper():
         annual = annual.sort('YEAR')
         annual['MONTH'] = annual['YEAR'].apply(lambda x: pd.Timestamp(str(int(x)) + '-07-01'))
         annual = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
-        
+
         monthly = annual[['MONTH']].resample('M')
         monthly['MONTH'] = monthly.index
         monthly['MONTH'] = monthly['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
                 
+        # special case for census years
+        for y in censusYears:
+            annual = annual.set_index(annual['YEAR'].astype(int))
+            annual.at[y, 'MONTH'] = pd.Timestamp(str(int(annual.at[y, 'YEAR'])) + '-04-01')
+            annual = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
+
         monthly = pd.merge(monthly, annual, how='left', on=['MONTH'], sort=True)  
         monthly = monthly.set_index(pd.DatetimeIndex(monthly['MONTH']))   
         

@@ -53,7 +53,7 @@ class DemandReporter():
         
         population = demand_store.select('countyPop')
         acs        = demand_store.select('countyACS')
-        hu         = demand_store.select('countyHousingCompletions')
+        hu         = demand_store.select('countyHousingUnits')
         employment = demand_store.select('countyEmp')
         lodesWAC   = demand_store.select('lodesWAC')
         lodesRAC   = demand_store.select('lodesRAC')
@@ -108,7 +108,9 @@ class DemandReporter():
         # set the column widths
         worksheet.set_column(0, 1, 3)
         worksheet.set_column(2, 2, 45)
-        worksheet.set_column(3, 5, 15)
+        worksheet.set_column(3, 3, 17)
+        worksheet.set_column(4, 4, 15)
+        worksheet.set_column(5, 5, 10)
         worksheet.set_column(6, 6, 25)                    
             
         # write the header
@@ -154,7 +156,7 @@ class DemandReporter():
         worksheet.write(9, 6, 'Values', bold)
         worksheet.write(10, 3, 'Source', bold)        
         worksheet.write(10, 4, 'Temporal Res', bold)        
-        worksheet.write(10, 5, 'Geographic Res', bold)        
+        worksheet.write(10, 5, 'Geog Res', bold)        
         worksheet.write(10, 6, 'Trend', bold)        
         
         self.set_position(self.writer, worksheet, 11, 2)
@@ -169,8 +171,11 @@ class DemandReporter():
         self.write_row(label='Households', data=df[['HH']], 
             source='ACS', tempRes='Annual', geogRes='County', format=int_format)
 
-        self.write_row(label='Housing Units', data=df[['NETUNITS']], 
-            source='Planning Dept', tempRes='Date', geogRes='Address', format=int_format)
+        self.write_row(label='Housing Units', data=df[['UNITS_ACS']], 
+            source='ACS', tempRes='Annual', geogRes='County', format=int_format)
+
+        self.write_row(label='Housing Units', data=df[['UNITS']], 
+            source='Planning Dept/Census', tempRes='Date', geogRes='Block', format=int_format)
 
         self.write_row(label='Households, Income $0-15k', data=df[['HH_INC0_15']], 
             source='ACS', tempRes='Annual', geogRes='County', format=int_format)
@@ -188,9 +193,6 @@ class DemandReporter():
             source='ACS', tempRes='Annual', geogRes='County', format=int_format)
         
         self.write_row(label='Median Household Income (2010$)', data=df[['MEDIAN_HHINC_2010USD']], 
-            source='ACS', tempRes='Annual', geogRes='County', format=dollar_format)
-
-        self.write_row(label='Mean Household Income (2010$)', data=df[['MEAN_HHINC_2010USD']], 
             source='ACS', tempRes='Annual', geogRes='County', format=dollar_format)
             
             
@@ -265,9 +267,12 @@ class DemandReporter():
         self.write_row(label='Average Fuel Price (2010$)', data=df[['FUEL_PRICE_2010USD']], 
             source='EIA', tempRes='Monthly', geogRes='MSA', format=cent_format)
             
-        self.write_row(label='Average Fleet Efficiency (mpg)', data=df[[]], 
-            source='EIA', tempRes='Annual', geogRes='County', format=dec_format)
+        self.write_row(label='Average Fleet Efficiency (mpg)', data=df[['FLEET_EFFICIENCY']], 
+            source='BTS', tempRes='Annual', geogRes='Nation', format=dec_format)
             
+        self.write_row(label='Average Fuel Price (2010$ / mi)', data=df[['FUEL_COST_2010USD']], 
+            source='BTS/EIA', tempRes='Annual/Monthly', geogRes='Nation/MSA', format=cent_format)
+
         self.write_row(label='Average Auto Operating Cost (2010$/mile)', data=df[[]], 
             source='IRS', tempRes='Annual', geogRes='US', format=cent_format)
             
@@ -314,10 +319,16 @@ class DemandReporter():
 
 
         # MODE SHARES BY SEGMENT   
-        groups = [('JTW_EARN0_15_',    'Workers earning $0-15k: '),
-                  ('JTW_EARN15_50_',   'Workers earning $15-50k: '),
+        groups = [('JTW_EARN0_50_',    'Workers earning $0-50k: '),
                   ('JTW_EARN50P_',     'Workers earning $50k+: '),
-                  ('JTW_0VEH_',        'Workers with 0 vehicles: ')]
+                  ('JTW_0VEH_',        'Workers with 0 vehicles: '),
+                  ('JTW_1PVEH_',       'Workers with 1+ vehicles: ')]
+
+        modes = [('DA',      'Drive-Alone'), 
+                 ('SR',      'Carpool'),
+                 ('TRANSIT', 'Transit'),
+                 ('WALK_OTHER','Taxi, walk, bike, other'),
+                 ('HOME',    'Work at home')]
 
         worksheet.write(self.row, 1, 'Commute Mode Shares by Segment', bold)
         self.row += 1
