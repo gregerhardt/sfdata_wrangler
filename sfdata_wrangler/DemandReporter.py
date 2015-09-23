@@ -58,7 +58,9 @@ class DemandReporter():
         lodesWAC   = demand_store.select('lodesWAC')
         lodesRAC   = demand_store.select('lodesRAC')
         lodesOD    = demand_store.select('lodesOD')
-        fuelPrice  = demand_store.select('autoOpCost')
+        autoOpCost = demand_store.select('autoOpCost')
+        tolls      = demand_store.select('tollCost')
+        transitFare= demand_store.select('transitFare')
 
         demand_store.close()
         
@@ -71,7 +73,9 @@ class DemandReporter():
         df = pd.merge(df, lodesWAC, how='left', on=['MONTH'], sort=True, suffixes=('', '_WAC')) 
         df = pd.merge(df, lodesRAC, how='left', on=['MONTH'], sort=True, suffixes=('', '_RAC')) 
         df = pd.merge(df, lodesOD, how='left', on=['MONTH'], sort=True, suffixes=('', '_OD')) 
-        df = pd.merge(df, fuelPrice, how='left', on=['MONTH'], sort=True, suffixes=('', '_FP')) 
+        df = pd.merge(df, autoOpCost, how='left', on=['MONTH'], sort=True, suffixes=('', '_AOP')) 
+        df = pd.merge(df, tolls, how='left', on=['MONTH'], sort=True, suffixes=('', '_TOLL')) 
+        df = pd.merge(df, transitFare, how='left', on=['MONTH'], sort=True, suffixes=('', '_FARE')) 
                 
         return df
 
@@ -260,8 +264,8 @@ class DemandReporter():
         self.write_row(label='Live & Work in Same County, earning $40k+', data=df[['SFWORKERS_EARN40P']], 
             source='LODES OD/QCEW', tempRes='Annual/Monthly', geogRes='Block', format=int_format)
             
-        # COSTS
-        worksheet.write(self.row, 1, 'Costs', bold)
+        # AUTO OPERATING COSTS
+        worksheet.write(self.row, 1, 'Auto Operating Costs', bold)
         self.row += 1
         
         self.write_row(label='Average Fuel Price (2010$)', data=df[['FUEL_PRICE_2010USD']], 
@@ -273,32 +277,48 @@ class DemandReporter():
         self.write_row(label='Average Fuel Cost (2010$ / mi)', data=df[['FUEL_COST_2010USD']], 
             source='BTS/EIA', tempRes='Annual/Monthly', geogRes='US/MSA', format=cent_format)
 
-        self.write_row(label='Average Auto Operating Cost (2010$/mile)', data=df[['']], 
+        self.write_row(label='Average Auto Operating Cost (2010$/mile)', data=df[['IRS_MILEAGE_RATE_2010USD']], 
             source='IRS', tempRes='Annual', geogRes='US', format=cent_format)
             
         self.write_row(label='Average Daily Parking Cost (2010$)', data=df[[]], 
             source='Unknown', tempRes='Annual', geogRes='County', format=cent_format)
             
-        self.write_row(label='Tolls: Bay Bridge (2010$)', data=df[[]], 
-            source='BATA', tempRes='Monthly', geogRes='County', format=cent_format)
+        self.write_row(label='Consumer Price Index', data=df[['CPI']], 
+            source='BLS', tempRes='Monthly', geogRes='US City Avg', format=int_format)
+
+        # TOLL COSTS
+        worksheet.write(self.row, 1, 'Toll Costs', bold)
+        self.row += 1
+
+        self.write_row(label='Bay Bridge Toll, Peak (2010$)', data=df[['TOLL_BB_PK_2010USD']], 
+            source='BATA', tempRes='Monthly', geogRes='Bridge', format=cent_format)
             
-        self.write_row(label='Tolls: Golden Gate Bridge (2010$)', data=df[[]], 
-            source='GGBA', tempRes='Monthly', geogRes='County', format=cent_format)
+        self.write_row(label='Bay Bridge Toll, Off-Peak (2010$)', data=df[['TOLL_BB_OP_2010USD']], 
+            source='BATA', tempRes='Monthly', geogRes='Bridge', format=cent_format)
+
+        self.write_row(label='Bay Bridge Toll, Carpools (2010$)', data=df[['TOLL_BB_CARPOOL_2010USD']], 
+            source='BATA', tempRes='Monthly', geogRes='Bridge', format=cent_format)
+
+        self.write_row(label='Golden Gate Bridge Toll, Peak (2010$)', data=df[['TOLL_GGB_2010USD']], 
+            source='BATA', tempRes='Monthly', geogRes='Bridge', format=cent_format)
+
+        self.write_row(label='Golden Gate Bridge Toll, Carpools (2010$)', data=df[['TOLL_GGB_CARPOOL_2010USD']], 
+            source='BATA', tempRes='Monthly', geogRes='Bridge', format=cent_format)
+
             
-        self.write_row(label='Transit Fares: MUNI Cash Fare (2010$)', data=df[[]], 
+        # TRANSIT FARES
+        worksheet.write(self.row, 1, 'Transit Fares', bold)
+        self.row += 1
+        
+        self.write_row(label='Transit Fares: MUNI Cash Fare (2010$)', data=df[['MUNI_FARE_2010USD']], 
             source='SFMTA', tempRes='Monthly', geogRes='County', format=cent_format)
             
         self.write_row(label='Transit Fares: MUNI Average Fare (2010$)', data=df[[]], 
             source='MTC', tempRes='Annual', geogRes='County', format=cent_format)
-            
-        self.write_row(label='Transit Fares: BART Freemont to Embarcadero (2010$)', data=df[[]], 
-            source='BART', tempRes='Monthly', geogRes='County', format=cent_format)
-            
-        self.write_row(label='Transit Fares: BART Average Fare (2010$)', data=df[[]], 
+                        
+        self.write_row(label='Transit Fares: BART Average Fare (2010$)', data=df[['BART_FARE_2010USD']], 
             source='MTC', tempRes='Annual', geogRes='County', format=cent_format)
             
-        self.write_row(label='Consumer Price Index', data=df[['CPI']], 
-            source='BLS', tempRes='Monthly', geogRes='US City Avg', format=int_format)
 
         # MODE SHARES        
         modes = [('DA',      'Drive-Alone'), 

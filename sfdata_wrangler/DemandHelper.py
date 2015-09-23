@@ -920,7 +920,7 @@ class DemandHelper():
 
 
 
-    def processAutoOpCosts(self, fuelFile, fleetEfficiencyFile, cpiFile, outfile): 
+    def processAutoOpCosts(self, fuelFile, fleetEfficiencyFile, mileageRateFile, cpiFile, outfile): 
         """ 
         Reads raw QCEW data and converts it to a clean list format. 
         
@@ -939,7 +939,10 @@ class DemandHelper():
         # get and merge the data
         fuelPrice = self.getFuelPriceData(fuelFile, cpiFile)
         fleetEfficiency = self.getFleetEfficiencyData(fleetEfficiencyFile)
+        irsMileageRate = self.getIRSMileageRates(mileageRateFile, cpiFile)
+
         dfout = pd.merge(fuelPrice, fleetEfficiency, how='left', on=['MONTH'], sort=True)  
+        dfout = pd.merge(dfout, irsMileageRate, how='left', on=['MONTH'], sort=True)  
         
         # calculate the average cost per mile
         dfout['FUEL_COST'] = dfout['FUEL_PRICE'] / dfout['FLEET_EFFICIENCY']
@@ -994,6 +997,112 @@ class DemandHelper():
         monthly = self.convertAnnualToMonthly(annual)
         
         return monthly
+    
+
+    def getIRSMileageRates(self, mileageRateFile, cpiFile):
+        """ 
+        Gets the IRS mileage reimbursement rate representing the marginal
+        cost of miles driven.  
+        
+        mileageRateFile - file containing data from IRS
+        cpiFile  - inflation factors
+        
+        """        
+        # get raw data
+        df = pd.read_csv(mileageRateFile)
+
+        # copy the data of interest, converting from cents to dollars
+        df['MONTH'] = df['PeriodStart'].apply(pd.to_datetime)
+        df['IRS_MILEAGE_RATE'] = df['Medical/Moving'] / 100.0
+        
+        # adjust the rate for inflation
+        dfcpi = self.getCPIFactors(cpiFile)
+        df = pd.merge(df, dfcpi, how='left', on=['MONTH'], sort=True)  
+        df['IRS_MILEAGE_RATE_2010USD'] = df['IRS_MILEAGE_RATE'] * df['CPI_FACTOR']
+                
+        # expand to a monthly, using backfill to keep same rate for whole year
+        df = df.set_index(pd.DatetimeIndex(df['MONTH']))
+        df = df.resample('M', fill_method='bfill')
+        df['MONTH'] = df.index
+        df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
+        
+        # keep only the relevant columns
+        df = df[['MONTH', 'IRS_MILEAGE_RATE', 'IRS_MILEAGE_RATE_2010USD']]        
+        
+        return df
+
+
+    def processTollCosts(self, tollFile, cpiFile, outfile): 
+        """ 
+        Processes the toll schedules into a monthly list format. 
+        
+        tollFile - file containing the input toll rates in nominal dollars
+        cpiFile  - inflation factors
+        outfile  - the HDF output file to write to        
+        """
+        
+        # remove the existing key so we don't overwrite
+        outstore = pd.HDFStore(outfile)
+        keys = outstore.keys()
+        if '/tollCost' in keys: 
+            outstore.remove('tollCost')
+        
+        # get the data and expand it to monthly
+        df = pd.read_csv(tollFile)
+                
+        # expand to a monthly, using backfill to keep same rate until it changes
+        df = df.set_index(pd.DatetimeIndex(df['PeriodStart']))
+        df = df.resample('M', fill_method='bfill')
+        df['MONTH'] = df.index
+        df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
+        
+        # adjust the rate for inflation
+        dfcpi = self.getCPIFactors(cpiFile)
+        df = pd.merge(df, dfcpi, how='left', on=['MONTH'], sort=True)  
+        
+        for col in df.select_dtypes(include=[np.number]).columns: 
+            df[col + '_2010USD'] = df[col] * df['CPI_FACTOR']
+
+        # append to the output store
+        outstore.append('tollCost', df, data_columns=True)
+        outstore.close()
+
+
+
+    def processTransitFares(self, cashFareFile, cpiFile, outfile): 
+        """ 
+        Processes the toll schedules into a monthly list format. 
+        
+        cashFareFile - file containing the input fares in nominal dollars
+        cpiFile  - inflation factors
+        outfile  - the HDF output file to write to        
+        """
+        
+        # remove the existing key so we don't overwrite
+        outstore = pd.HDFStore(outfile)
+        keys = outstore.keys()
+        if '/transitFare' in keys: 
+            outstore.remove('transitFare')
+        
+        # get the data and expand it to monthly
+        df = pd.read_csv(cashFareFile)
+                
+        # expand to a monthly, using backfill to keep same rate until it changes
+        df = df.set_index(pd.DatetimeIndex(df['PeriodStart']))
+        df = df.resample('M', fill_method='bfill')
+        df['MONTH'] = df.index
+        df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
+        
+        # adjust the rate for inflation
+        dfcpi = self.getCPIFactors(cpiFile)
+        df = pd.merge(df, dfcpi, how='left', on=['MONTH'], sort=True)  
+        
+        for col in df.select_dtypes(include=[np.number]).columns: 
+            df[col + '_2010USD'] = df[col] * df['CPI_FACTOR']
+
+        # append to the output store
+        outstore.append('transitFare', df, data_columns=True)
+        outstore.close()
     
     
     def getCPIFactors(self, cpiFile):
