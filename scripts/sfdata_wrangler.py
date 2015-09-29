@@ -143,6 +143,8 @@ FUEL_COST_FILE = "C:/CASA/Data/AutoOpCosts/FuelCost/PET_PRI_GND_A_EPM0_PTE_DPGAL
 FLEET_EFFICIENCY_FILE = "C:/CASA/Data/AutoOpCosts/FleetEfficiency/table_04_23_0.csv"
 MILEAGE_RATE_FILE = "C:/CASA/Data/AutoOpCosts/IRS/StandardMileageRates.csv"
 
+PARKING_RATE_FILE = "C:/CASA/Data/ParkingRateSurveys/CBDParkingRateSurveys.csv"
+
 TOLL_FILE = "C:/CASA/Data/Tolls/TollSchedules.csv"
 
 CASH_FARE_FILE = "C:/CASA/Data/TransitFares/TransitCashFares.csv"
@@ -234,27 +236,29 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         demandHelper = DemandHelper()
 
-        demandHelper.processCensusPopulationEstimates(CENSUS_POPEST_PRE2010_FILE, 
-                                                      CENSUS_POPEST_POST2010_FILE, 
-                                                      FIPS, 
-                                                      DEMAND_OUTFILE)      
+        #demandHelper.processCensusPopulationEstimates(CENSUS_POPEST_PRE2010_FILE, 
+        #                                              CENSUS_POPEST_POST2010_FILE, 
+        #                                              FIPS, 
+        #                                              DEMAND_OUTFILE)      
         
-        demandHelper.processCensusSampleData(ACS_DIR, CENSUS2000_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+        #demandHelper.processCensusSampleData(ACS_DIR, CENSUS2000_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
         
-        demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILE, CENSUS2010_FILE, FIPS, DEMAND_OUTFILE)          
+        #demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILE, CENSUS2010_FILE, FIPS, DEMAND_OUTFILE)          
 
-        demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+        #demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
 
-        demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
                                                              
-        demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
-                                   MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
+        #demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
+        #                           MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
-        demandHelper.processTollCosts(TOLL_FILE, CPI_FILE, DEMAND_OUTFILE)
+        demandHelper.processParkingCosts(PARKING_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
+
+        #demandHelper.processTollCosts(TOLL_FILE, CPI_FILE, DEMAND_OUTFILE)
         
-        demandHelper.processTransitFares(CASH_FARE_FILE, CPI_FILE, DEMAND_OUTFILE)
+        #demandHelper.processTransitFares(CASH_FARE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
         print 'Finished processing drivers of demand data ', (datetime.datetime.now() - startTime) 
         

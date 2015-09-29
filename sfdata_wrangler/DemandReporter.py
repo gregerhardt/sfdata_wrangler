@@ -60,6 +60,7 @@ class DemandReporter():
         lodesOD    = demand_store.select('lodesOD')
         autoOpCost = demand_store.select('autoOpCost')
         tolls      = demand_store.select('tollCost')
+        parkingCost= demand_store.select('parkingCost')
         transitFare= demand_store.select('transitFare')
 
         demand_store.close()
@@ -75,6 +76,7 @@ class DemandReporter():
         df = pd.merge(df, lodesOD, how='left', on=['MONTH'], sort=True, suffixes=('', '_OD')) 
         df = pd.merge(df, autoOpCost, how='left', on=['MONTH'], sort=True, suffixes=('', '_AOP')) 
         df = pd.merge(df, tolls, how='left', on=['MONTH'], sort=True, suffixes=('', '_TOLL')) 
+        df = pd.merge(df, parkingCost, how='left', on=['MONTH'], sort=True, suffixes=('', '_PARK')) 
         df = pd.merge(df, transitFare, how='left', on=['MONTH'], sort=True, suffixes=('', '_FARE')) 
                 
         return df
@@ -110,7 +112,8 @@ class DemandReporter():
         bold = self.writer.book.add_format({'bold': 1})        
             
         # set the column widths
-        worksheet.set_column(0, 1, 3)
+        worksheet.set_column(0, 0, 1)
+        worksheet.set_column(1, 1, 3, bold)
         worksheet.set_column(2, 2, 45)
         worksheet.set_column(3, 3, 17)
         worksheet.set_column(4, 4, 15)
@@ -131,8 +134,8 @@ class DemandReporter():
             
         # Use formulas to calculate the differences
         self.writeSystemValues(df, months, sheetName)
-        #self.writeSystemDifferenceFormulas(months, sheetName)
-        #self.writeSystemPercentDifferenceFormulas(months, sheetName)    
+        self.writeSystemDifferenceFormulas(months, sheetName)
+        self.writeSystemPercentDifferenceFormulas(months, sheetName)    
             
         # freeze so we can see what's happening
         worksheet.freeze_panes(0, 7)
@@ -157,7 +160,7 @@ class DemandReporter():
         percent_format = self.writer.book.add_format({'num_format': '0.0%'})
         
         # HEADER
-        worksheet.write(9, 6, 'Values', bold)
+        worksheet.write(9, 7, 'Values', bold)
         worksheet.write(10, 3, 'Source', bold)        
         worksheet.write(10, 4, 'Temporal Res', bold)        
         worksheet.write(10, 5, 'Geog Res', bold)        
@@ -264,8 +267,8 @@ class DemandReporter():
         self.write_row(label='Live & Work in Same County, earning $40k+', data=df[['SFWORKERS_EARN40P']], 
             source='LODES OD/QCEW', tempRes='Annual/Monthly', geogRes='Block', format=int_format)
             
-        # AUTO OPERATING COSTS
-        worksheet.write(self.row, 1, 'Auto Operating Costs', bold)
+        # COSTS
+        worksheet.write(self.row, 1, 'Costs', bold)
         self.row += 1
         
         self.write_row(label='Average Fuel Price (2010$)', data=df[['FUEL_PRICE_2010USD']], 
@@ -280,15 +283,11 @@ class DemandReporter():
         self.write_row(label='Average Auto Operating Cost (2010$/mile)', data=df[['IRS_MILEAGE_RATE_2010USD']], 
             source='IRS', tempRes='Annual', geogRes='US', format=cent_format)
             
-        self.write_row(label='Average Daily Parking Cost (2010$)', data=df[[]], 
-            source='Unknown', tempRes='Annual', geogRes='County', format=cent_format)
+        self.write_row(label='Median Daily CBD Parking Cost (2010$)', data=df[['DAILY_PARKING_RATE_2010USD']], 
+            source='Colliers', tempRes='Annual', geogRes='CBD', format=cent_format)
             
-        self.write_row(label='Consumer Price Index', data=df[['CPI']], 
-            source='BLS', tempRes='Monthly', geogRes='US City Avg', format=int_format)
-
-        # TOLL COSTS
-        worksheet.write(self.row, 1, 'Toll Costs', bold)
-        self.row += 1
+        self.write_row(label='Median Monthly CBD Parking Cost (2010$)', data=df[['MONTHLY_PARKING_RATE_2010USD']], 
+            source='Colliers', tempRes='Annual', geogRes='CBD', format=cent_format)
 
         self.write_row(label='Bay Bridge Toll, Peak (2010$)', data=df[['TOLL_BB_PK_2010USD']], 
             source='BATA', tempRes='Monthly', geogRes='Bridge', format=cent_format)
@@ -305,19 +304,8 @@ class DemandReporter():
         self.write_row(label='Golden Gate Bridge Toll, Carpools (2010$)', data=df[['TOLL_GGB_CARPOOL_2010USD']], 
             source='BATA', tempRes='Monthly', geogRes='Bridge', format=cent_format)
 
-            
-        # TRANSIT FARES
-        worksheet.write(self.row, 1, 'Transit Fares', bold)
-        self.row += 1
-        
-        self.write_row(label='Transit Fares: MUNI Cash Fare (2010$)', data=df[['MUNI_FARE_2010USD']], 
-            source='SFMTA', tempRes='Monthly', geogRes='County', format=cent_format)
-            
-        self.write_row(label='Transit Fares: MUNI Average Fare (2010$)', data=df[[]], 
-            source='MTC', tempRes='Annual', geogRes='County', format=cent_format)
-                        
-        self.write_row(label='Transit Fares: BART Average Fare (2010$)', data=df[['BART_FARE_2010USD']], 
-            source='MTC', tempRes='Annual', geogRes='County', format=cent_format)
+        self.write_row(label='Consumer Price Index', data=df[['CPI']], 
+            source='BLS', tempRes='Monthly', geogRes='US City Avg', format=int_format)
             
 
         # MODE SHARES        
@@ -362,7 +350,166 @@ class DemandReporter():
                 self.write_row(label=label, data=df[[key]], 
                     source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
 
+
+
+    def writeSystemDifferenceFormulas(self, months, sheetName): 
+        '''
+        Adds formulas to the system worksheet to calculate differences
+        from 12 months earlier. 
+        '''
+        # which cells to look at
+        ROW_OFFSET = 76
+        COL_OFFSET = 12
+        max_col = 6+len(months)+1
+        
+        # get the worksheet
+        workbook  = self.writer.book
+        worksheet = self.writer.sheets[sheetName]        
+        
+        # set up the formatting, with defaults
+        bold = workbook.add_format({'bold': 1})
+        int_format = workbook.add_format({'num_format': '#,##0'})
+        dec_format = workbook.add_format({'num_format': '#,##0.00'})
+        money_format = workbook.add_format({'num_format': '$#,##0.00'})
+        percent_format = workbook.add_format({'num_format': '0.0%'})
+        
+        # the header and labels
+        worksheet.write(85, 7, 'Difference from 12 Months Before', bold)
+        worksheet.write(86, 3, 'Source', bold)        
+        worksheet.write(86, 4, 'Temporal Res', bold)        
+        worksheet.write(86, 5, 'Geog Res', bold)    
+        worksheet.write(86, 6, 'Difference Trend', bold)
+        months.T.to_excel(self.writer, sheet_name=sheetName, 
+                            startrow=86, startcol=7, header=False, index=False)   
+        
+        # the data
+        for r in range(87,159):
+            for c in range(2, 6): 
+                cell = xl_rowcol_to_cell(r, c)
+                label = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                worksheet.write_formula(cell, '=IF(ISTEXT('+label+'),'+label+',"")')
             
+            for c in range(7+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '=IF(AND(ISNUMBER('+old+'),ISNUMBER('+new+')),'+new+'-'+old+',"")')
+            
+            data_range = xl_rowcol_to_cell(r, 7) + ':' + xl_rowcol_to_cell(r, max_col)
+            worksheet.add_sparkline(r, 6, {'range': data_range, 
+                                           'type': 'column', 
+                                           'negative_points': True})                  
+               
+               
+        # set the headers and formats                    
+        worksheet.write(87,  1, 'Population & Households', bold)
+        worksheet.write_blank(87,  2, None, bold)
+        for r in range(88,98):                     
+            worksheet.set_row(r, None, int_format) 
+
+        worksheet.write(98,  1, 'Workers (at home location)', bold)
+        worksheet.write_blank(98,  2, None, bold)
+        for r in range(99,103):                     
+            worksheet.set_row(r, None, int_format) 
+
+        worksheet.write(103, 1, 'Employment (at work location)', bold)
+        worksheet.write_blank(103,  2, None, bold)
+        for r in range(104,113):                     
+            worksheet.set_row(r, None, int_format) 
+
+        worksheet.write(113, 1, 'Intra-County Workers', bold)
+        worksheet.write_blank(113,  2, None, bold)
+        for r in range(114,118):                     
+            worksheet.set_row(r, None, int_format) 
+
+        worksheet.write(118, 1, 'Costs', bold)
+        worksheet.write_blank(118,  2, None, bold)
+        for r in range(119,131):                     
+            worksheet.set_row(r, None, money_format) 
+
+        worksheet.write(131, 1, 'Commute Mode Shares', bold)
+        worksheet.write_blank(131,  2, None, bold)
+        for r in range(132,138):                     
+            worksheet.set_row(r, None, percent_format) 
+
+        worksheet.write(138, 1, 'Commute Mode Shares by Segment', bold)
+        worksheet.write_blank(138,  2, None, bold)
+        for r in range(139,159):                     
+            worksheet.set_row(r, None, percent_format) 
+
+
+    def writeSystemPercentDifferenceFormulas(self, months, sheetName): 
+        '''
+        Adds formulas to the system worksheet to calculate percent differences
+        from 12 months earlier. 
+        '''
+        # which cells to look at
+        ROW_OFFSET = 153
+        COL_OFFSET = 12
+        max_col = 6+len(months)+1
+        
+        # get the worksheet
+        workbook  = self.writer.book
+        worksheet = self.writer.sheets[sheetName]        
+        
+        # set up the formatting, with defaults
+        bold = workbook.add_format({'bold': 1})
+        int_format = workbook.add_format({'num_format': '#,##0'})
+        dec_format = workbook.add_format({'num_format': '#,##0.00'})
+        money_format = workbook.add_format({'num_format': '$#,##0.00'})
+        percent_format = workbook.add_format({'num_format': '0.0%'})
+        
+        # the header and labels
+        worksheet.write(162, 7, 'Percent Difference from 12 Months Before', bold)
+        worksheet.write(163, 3, 'Source', bold)        
+        worksheet.write(163, 4, 'Temporal Res', bold)        
+        worksheet.write(163, 5, 'Geog Res', bold)    
+        worksheet.write(163, 6, 'Percent Difference Trend', bold)
+        months.T.to_excel(self.writer, sheet_name=sheetName, 
+                            startrow=163, startcol=7, header=False, index=False)   
+        
+        # the data
+        for r in range(164,235):
+            for c in range(2, 6): 
+                cell = xl_rowcol_to_cell(r, c)
+                label = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                worksheet.write_formula(cell, '=IF(ISTEXT('+label+'),'+label+',"")')
+            
+            worksheet.set_row(r, None, percent_format) 
+
+            for c in range(7+COL_OFFSET, max_col):
+                cell = xl_rowcol_to_cell(r, c)
+                new = xl_rowcol_to_cell(r-ROW_OFFSET, c)
+                old = xl_rowcol_to_cell(r-ROW_OFFSET, c-COL_OFFSET)
+                worksheet.write_formula(cell, '=IF(AND(ISNUMBER('+old+'),ISNUMBER('+new+')),'+new+'/'+old+'-1,"")')
+            
+            data_range = xl_rowcol_to_cell(r, 7) + ':' + xl_rowcol_to_cell(r, max_col)
+            worksheet.add_sparkline(r, 6, {'range': data_range, 
+                                           'type': 'column', 
+                                           'negative_points': True})                  
+               
+        # set the headers and formats                    
+        worksheet.write(164,  1, 'Population & Households', bold)
+        worksheet.write_blank(164,  2, None, bold)
+
+        worksheet.write(175,  1, 'Workers (at home location)', bold)
+        worksheet.write_blank(175,  2, None, bold)
+
+        worksheet.write(180, 1, 'Employment (at work location)', bold)
+        worksheet.write_blank(180,  2, None, bold)
+
+        worksheet.write(190, 1, 'Intra-County Workers', bold)
+        worksheet.write_blank(190,  2, None, bold)
+
+        worksheet.write(195, 1, 'Costs', bold)
+        worksheet.write_blank(195,  2, None, bold)
+
+        worksheet.write(208, 1, 'Commute Mode Shares', bold)
+        worksheet.write_blank(208,  2, None, bold)
+
+        worksheet.write(215, 1, 'Commute Mode Shares by Segment', bold)
+        worksheet.write_blank(215,  2, None, bold)
+
 
     def set_position(self, writer, worksheet, row, col):
         '''

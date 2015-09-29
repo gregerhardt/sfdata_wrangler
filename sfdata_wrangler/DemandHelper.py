@@ -1068,6 +1068,41 @@ class DemandHelper():
         outstore.close()
 
 
+    def processParkingCosts(self, parkingRateFile, cpiFile, outfile): 
+        """ 
+        Processes the parking costs into a monthly list format. 
+        
+        parkingRateFile - file containing the input toll rates in nominal dollars
+        cpiFile  - inflation factors
+        outfile  - the HDF output file to write to        
+        """
+        
+        # remove the existing key so we don't overwrite
+        outstore = pd.HDFStore(outfile)
+        keys = outstore.keys()
+        if '/parkingCost' in keys: 
+            outstore.remove('parkingCost')
+        
+        # get the data and expand it to monthly
+        df = pd.read_csv(parkingRateFile)
+                
+        # expand to a monthly, using backfill to keep same rate until it changes
+        df = df.set_index(pd.DatetimeIndex(df['PeriodStart']))
+        df = df.resample('M', fill_method='bfill')
+        df['MONTH'] = df.index
+        df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
+        
+        # adjust the rate for inflation
+        dfcpi = self.getCPIFactors(cpiFile)
+        df = pd.merge(df, dfcpi, how='left', on=['MONTH'], sort=True)  
+        
+        for col in df.select_dtypes(include=[np.number]).columns: 
+            df[col + '_2010USD'] = df[col] * df['CPI_FACTOR']
+
+        # append to the output store
+        outstore.append('parkingCost', df, data_columns=True)
+        outstore.close()
+
 
     def processTransitFares(self, cashFareFile, cpiFile, outfile): 
         """ 
