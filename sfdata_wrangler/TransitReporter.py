@@ -90,6 +90,7 @@ class TransitReporter():
         df['WHEELCHAIR']     = ts['WHEELCHAIR']
         df['BIKERACK']       = ts['BIKERACK']
         df['RUNSPEED'] 	     = ts['RUNSPEED']
+        df['TOTSPEED'] 	     = ts['TOTSPEED']
         df['DWELL_PER_STOP'] = ts['DWELL'] / ts['TRIP_STOPS']
         df['HEADWAY_S']      = ts['HEADWAY_S']
         df['FARE_PER_PASS']  = ts['FULLFARE_REV'] / ts['ON']
@@ -286,64 +287,64 @@ class TransitReporter():
         # LEVEL-OF-SERVICE
         worksheet.write(26, 1, 'Level-of-Service', bold)      
         worksheet.write(27, 2, 'Average Run Speed (mph)')      
-        worksheet.write(28, 2, 'Average Dwell Time per Stop (min)')      
-        worksheet.write(29, 2, 'Average Scheduled Headway (min)')      
-        worksheet.write(30, 2, 'Average Full Fare ($)')      
-        worksheet.write(31, 2, 'Average Distance Traveled per Passenger (mi)')      
-        worksheet.write(32, 2, 'Average In-Vehicle Time per Passenger (min)')      
-        worksheet.write(33, 2, 'Average Wait Time per Passenger (min)')      
+        worksheet.write(28, 2, 'Average Total Speed (mph)')      
+        worksheet.write(29, 2, 'Average Dwell Time per Stop (min)')      
+        worksheet.write(30, 2, 'Average Scheduled Headway (min)')      
+        worksheet.write(31, 2, 'Average Full Fare ($)')      
+        worksheet.write(32, 2, 'Average Distance Traveled per Passenger (mi)')      
+        worksheet.write(33, 2, 'Average In-Vehicle Time per Passenger (min)')      
+        worksheet.write(34, 2, 'Average Wait Time per Passenger (min)')      
 
         worksheet.set_row(27, None, dec_format) 
         worksheet.set_row(28, None, dec_format) 
         worksheet.set_row(29, None, dec_format) 
-        worksheet.set_row(30, None, money_format) 
-        worksheet.set_row(31, None, dec_format) 
+        worksheet.set_row(30, None, dec_format) 
+        worksheet.set_row(31, None, money_format) 
         worksheet.set_row(32, None, dec_format) 
         worksheet.set_row(33, None, dec_format) 
+        worksheet.set_row(34, None, dec_format) 
  
-        selected = df[['RUNSPEED', 'DWELL_PER_STOP', 'HEADWAY_S', 'FARE_PER_PASS', 'MILES_PER_PASS', 'IVT_PER_PAS', 'WAIT_PER_PAS']]
+        selected = df[['RUNSPEED', 'TOTSPEED', 'DWELL_PER_STOP', 'HEADWAY_S', 'FARE_PER_PASS', 'MILES_PER_PASS', 'IVT_PER_PAS', 'WAIT_PER_PAS']]
         selected.T.to_excel(writer, sheet_name=tod, 
                             startrow=27, startcol=4, header=False, index=False)
         
-        for r in range(27,34):
+        for r in range(27,35):
             cell = xl_rowcol_to_cell(r, 3)
             data_range = xl_rowcol_to_cell(r, 4) + ':' + xl_rowcol_to_cell(r, max_col)
             worksheet.add_sparkline(cell, {'range': data_range})
                         
         # RELIABILITY
-        worksheet.write(34, 1, 'Reliability', bold)    
-        worksheet.write(35, 2, 'Percent of Vehicles Arriving On-Time (-1 to +5 min)')       
-        worksheet.write(36, 2, 'Average Waiting Delay per Passenger (min)')       
-        worksheet.write(37, 2, 'Average Arrival Delay per Passenger (min)')       
+        worksheet.write(35, 1, 'Reliability', bold)    
+        worksheet.write(36, 2, 'Percent of Vehicles Arriving On-Time (-1 to +5 min)')       
+        worksheet.write(37, 2, 'Average Waiting Delay per Passenger (min)')       
+        worksheet.write(38, 2, 'Average Arrival Delay per Passenger (min)')       
 
-        worksheet.set_row(35, None, percent_format) 
-        worksheet.set_row(36, None, dec_format) 
+        worksheet.set_row(36, None, percent_format) 
         worksheet.set_row(37, None, dec_format) 
+        worksheet.set_row(38, None, dec_format) 
 
         selected = df[['ONTIME5', 'DELAY_DEP_PER_PASS', 'DELAY_ARR_PER_PASS']]
         selected.T.to_excel(writer, sheet_name=tod, 
-                            startrow=35, startcol=4, header=False, index=False)
+                            startrow=36, startcol=4, header=False, index=False)
         
-        for r in range(34,38):
+        for r in range(36,39):
             cell = xl_rowcol_to_cell(r, 3)
             data_range = xl_rowcol_to_cell(r, 4) + ':' + xl_rowcol_to_cell(r, max_col)
             worksheet.add_sparkline(cell, {'range': data_range})
             
         # CROWDING
-        worksheet.write(38, 1, 'Crowding', bold)   
-        worksheet.write(39, 2, 'Average Volume-Capacity Ratio')       
-        worksheet.write(40, 2, 'Percent of Trips with V/C > 0.85')       
-        worksheet.write(41, 2, 'Passenger Hours with V/C > 0.85')        
+        worksheet.write(39, 1, 'Crowding', bold)   
+        worksheet.write(40, 2, 'Average Volume-Capacity Ratio')       
+        worksheet.write(41, 2, 'Percent of Trips with V/C > 0.85')       
         
         selected = df[['VC', 'CROWDED', 'CROWDHOURS']]
         selected.T.to_excel(writer, sheet_name=tod, 
-                            startrow=39, startcol=4, header=False, index=False)       
+                            startrow=40, startcol=4, header=False, index=False)       
         
-        worksheet.set_row(39, None, dec_format) 
-        worksheet.set_row(40, None, percent_format) 
-        worksheet.set_row(41, None, int_format) 
+        worksheet.set_row(40, None, dec_format) 
+        worksheet.set_row(41, None, percent_format) 
 
-        for r in range(39,42):
+        for r in range(40,42):
             cell = xl_rowcol_to_cell(r, 3)
             data_range = xl_rowcol_to_cell(r, 4) + ':' + xl_rowcol_to_cell(r, max_col)
             worksheet.add_sparkline(cell, {'range': data_range})
@@ -463,7 +464,7 @@ class TransitReporter():
         # LEVEL-OF-SERVICE
         worksheet.write(66, 1, 'Level-of-Service', bold)      
         
-        for r in range(67,74):
+        for r in range(67,75):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -480,12 +481,12 @@ class TransitReporter():
                                            'type': 'column', 
                                            'negative_points': True})      
                            
-        worksheet.set_row(70, None, money_format) 
+        worksheet.set_row(71, None, money_format) 
         
         # RELIABILITY
-        worksheet.write(74, 1, 'Reliability', bold)    
+        worksheet.write(75, 1, 'Reliability', bold)    
         
-        for r in range(75,78):
+        for r in range(76,79):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -502,12 +503,12 @@ class TransitReporter():
                                            'type': 'column', 
                                            'negative_points': True})      
                         
-        worksheet.set_row(75, None, percent_format)      
+        worksheet.set_row(76, None, percent_format)      
         
         # CROWDING
-        worksheet.write(78, 1, 'Crowding', bold)   
+        worksheet.write(79, 1, 'Crowding', bold)   
         
-        for r in range(79,82):
+        for r in range(80,82):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -524,8 +525,8 @@ class TransitReporter():
                                            'type': 'column', 
                                            'negative_points': True})      
                           
-        worksheet.set_row(79, None, dec_format)              
-        worksheet.set_row(80, None, percent_format) 
+        worksheet.set_row(80, None, dec_format)              
+        worksheet.set_row(81, None, percent_format) 
         
         
     def writeSystemPercentDifferenceFormulas(self, writer, months, tod): 
@@ -615,7 +616,7 @@ class TransitReporter():
         # LEVEL-OF-SERVICE
         worksheet.write(100, 1, 'Level-of-Service', bold)      
         
-        for r in range(101,108):
+        for r in range(101,109):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -634,9 +635,9 @@ class TransitReporter():
                            
         
         # RELIABILITY
-        worksheet.write(108, 1, 'Reliability', bold)    
+        worksheet.write(109, 1, 'Reliability', bold)    
         
-        for r in range(109,112):
+        for r in range(110,113):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -655,9 +656,9 @@ class TransitReporter():
                         
         
         # CROWDING
-        worksheet.write(112, 1, 'Crowding', bold)   
+        worksheet.write(113, 1, 'Crowding', bold)   
         
-        for r in range(113,116):
+        for r in range(114,116):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
