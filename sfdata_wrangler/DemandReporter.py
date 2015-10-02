@@ -251,20 +251,25 @@ class DemandReporter():
         self.write_row(label='Average monthly earnings (2010$)', data=df[['AVG_MONTHLY_EARNINGS_2010USD']], 
             source='QCEW', tempRes='Monthly', geogRes='County', format=dollar_format)
 
-        # INTRA-COUNTY WORKERS
-        worksheet.write(self.row, 1, 'Intra-County Workers', bold)
+        # JOBS-HOUSING BALANCE
+        worksheet.write(self.row, 1, 'Jobs-Housing Balance', bold)
         self.row += 1
         
-        self.write_row(label='Live & Work in Same County', data=df[['SFWORKERS']], 
+        df['EmpPerHU'] = 1.0 * df['TOTEMP'] / df['UNITS']
+        self.write_row(label='Employees per Housing Unit', data=df[['EmpPerHU']], 
+            source='QCEW/Planning Dept', tempRes='Monthly', geogRes='Block', format=dec_format)
+
+        df['EmpPerWorker'] = 1.0 * df['TOTEMP'] / df['WORKERS_RAC']
+        self.write_row(label='Employees per Worker', data=df[['EmpPerWorker']], 
+            source='LODES OD/QCEW', tempRes='Annual/Monthly', geogRes='Block', format=dec_format)
+
+        self.write_row(label='Workers: Live & Work in SF', data=df[['INTRA']], 
+            source='LODES OD/QCEW', tempRes='Annual/Monthly', geogRes='Block', format=int_format)
+
+        self.write_row(label='Workers: Live elswhere & work in SF', data=df[['IN']], 
             source='LODES OD/QCEW', tempRes='Annual/Monthly', geogRes='Block', format=int_format)
             
-        self.write_row(label='Live & Work in Same County, earning $0-15k', data=df[['SFWORKERS_EARN0_15']], 
-            source='LODES OD/QCEW', tempRes='Annual/Monthly', geogRes='Block', format=int_format)
-            
-        self.write_row(label='Live & Work in Same County, earning $15-40k', data=df[['SFWORKERS_EARN15_40']], 
-            source='LODES OD/QCEW', tempRes='Annual/Monthly', geogRes='Block', format=int_format)
-            
-        self.write_row(label='Live & Work in Same County, earning $40k+', data=df[['SFWORKERS_EARN40P']], 
+        self.write_row(label='Workers: Live in SF & work elsewhere', data=df[['OUT']], 
             source='LODES OD/QCEW', tempRes='Annual/Monthly', geogRes='Block', format=int_format)
             
         # COSTS
@@ -308,49 +313,6 @@ class DemandReporter():
             source='BLS', tempRes='Monthly', geogRes='US City Avg', format=int_format)
             
 
-        # MODE SHARES        
-        modes = [('DA',      'Drive-Alone'), 
-                 ('SR',      'Carpool'),
-                 ('TRANSIT', 'Transit'),
-                 ('WALK',    'Walk'),
-                 ('OTHER',   'Taxi, bike, other'),
-                 ('HOME',    'Work at home')]
-
-        worksheet.write(self.row, 1, 'Commute Mode Shares', bold)
-        self.row += 1
-
-        for mode, modeName in modes: 
-            key = 'JTW_' + mode + '_SHARE'
-            label =  modeName
-            self.write_row(label=label, data=df[[key]], 
-                source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
-
-
-        # MODE SHARES BY SEGMENT   
-        groups = [('JTW_EARN0_50_',    'Workers earning $0-50k: '),
-                  ('JTW_EARN50P_',     'Workers earning $50k+: '),
-                  ('JTW_0VEH_',        'Workers with 0 vehicles: '),
-                  ('JTW_1PVEH_',       'Workers with 1+ vehicles: ')]
-
-        modes = [('DA',      'Drive-Alone'), 
-                 ('SR',      'Carpool'),
-                 ('TRANSIT', 'Transit'),
-                 ('WALK_OTHER','Taxi, walk, bike, other'),
-                 ('HOME',    'Work at home')]
-
-        worksheet.write(self.row, 1, 'Commute Mode Shares by Segment', bold)
-        self.row += 1
-
-        for group, groupName in groups: 
-            for mode, modeName in modes: 
-
-                key = group + mode + '_SHARE'
-                label = groupName + modeName
-
-                self.write_row(label=label, data=df[[key]], 
-                    source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
-
-
 
     def writeSystemDifferenceFormulas(self, months, sheetName): 
         '''
@@ -358,7 +320,7 @@ class DemandReporter():
         from 12 months earlier. 
         '''
         # which cells to look at
-        ROW_OFFSET = 76
+        ROW_OFFSET = 49
         COL_OFFSET = 12
         max_col = 6+len(months)+1
         
@@ -374,16 +336,16 @@ class DemandReporter():
         percent_format = workbook.add_format({'num_format': '0.0%'})
         
         # the header and labels
-        worksheet.write(85, 7, 'Difference from 12 Months Before', bold)
-        worksheet.write(86, 3, 'Source', bold)        
-        worksheet.write(86, 4, 'Temporal Res', bold)        
-        worksheet.write(86, 5, 'Geog Res', bold)    
-        worksheet.write(86, 6, 'Difference Trend', bold)
+        worksheet.write(58, 7, 'Difference from 12 Months Before', bold)
+        worksheet.write(59, 3, 'Source', bold)        
+        worksheet.write(59, 4, 'Temporal Res', bold)        
+        worksheet.write(59, 5, 'Geog Res', bold)    
+        worksheet.write(59, 6, 'Difference Trend', bold)
         months.T.to_excel(self.writer, sheet_name=sheetName, 
-                            startrow=86, startcol=7, header=False, index=False)   
+                            startrow=59, startcol=7, header=False, index=False)   
         
-        # the data
-        for r in range(87,159):
+        # the data: 
+        for r in range(60,106):
             for c in range(2, 6): 
                 cell = xl_rowcol_to_cell(r, c)
                 label = xl_rowcol_to_cell(r-ROW_OFFSET, c)
@@ -402,40 +364,33 @@ class DemandReporter():
                
                
         # set the headers and formats                    
-        worksheet.write(87,  1, 'Population & Households', bold)
-        worksheet.write_blank(87,  2, None, bold)
-        for r in range(88,98):                     
+        worksheet.write(60,  1, 'Population & Households', bold)
+        worksheet.write_blank(60,  2, None, bold)
+        for r in range(61,71):                     
             worksheet.set_row(r, None, int_format) 
 
-        worksheet.write(98,  1, 'Workers (at home location)', bold)
-        worksheet.write_blank(98,  2, None, bold)
-        for r in range(99,103):                     
+        worksheet.write(71,  1, 'Workers (at home location)', bold)
+        worksheet.write_blank(71,  2, None, bold)
+        for r in range(72,76):                     
             worksheet.set_row(r, None, int_format) 
 
-        worksheet.write(103, 1, 'Employment (at work location)', bold)
-        worksheet.write_blank(103,  2, None, bold)
-        for r in range(104,113):                     
+        worksheet.write(76, 1, 'Employment (at work location)', bold)
+        worksheet.write_blank(76,  2, None, bold)
+        for r in range(77,86):                     
             worksheet.set_row(r, None, int_format) 
 
-        worksheet.write(113, 1, 'Intra-County Workers', bold)
-        worksheet.write_blank(113,  2, None, bold)
-        for r in range(114,118):                     
+        worksheet.write(86, 1, 'Jobs-Housing Balance', bold)
+        worksheet.write_blank(86,  2, None, bold)
+        for r in range(87,89):                     
+            worksheet.set_row(r, None, dec_format) 
+        for r in range(89,92):                     
             worksheet.set_row(r, None, int_format) 
 
-        worksheet.write(118, 1, 'Costs', bold)
-        worksheet.write_blank(118,  2, None, bold)
-        for r in range(119,131):                     
+        worksheet.write(92, 1, 'Costs', bold)
+        worksheet.write_blank(92,  2, None, bold)
+        for r in range(93,106):                     
             worksheet.set_row(r, None, money_format) 
 
-        worksheet.write(131, 1, 'Commute Mode Shares', bold)
-        worksheet.write_blank(131,  2, None, bold)
-        for r in range(132,138):                     
-            worksheet.set_row(r, None, percent_format) 
-
-        worksheet.write(138, 1, 'Commute Mode Shares by Segment', bold)
-        worksheet.write_blank(138,  2, None, bold)
-        for r in range(139,159):                     
-            worksheet.set_row(r, None, percent_format) 
 
 
     def writeSystemPercentDifferenceFormulas(self, months, sheetName): 
@@ -444,7 +399,7 @@ class DemandReporter():
         from 12 months earlier. 
         '''
         # which cells to look at
-        ROW_OFFSET = 153
+        ROW_OFFSET = 98
         COL_OFFSET = 12
         max_col = 6+len(months)+1
         
@@ -460,16 +415,16 @@ class DemandReporter():
         percent_format = workbook.add_format({'num_format': '0.0%'})
         
         # the header and labels
-        worksheet.write(162, 7, 'Percent Difference from 12 Months Before', bold)
-        worksheet.write(163, 3, 'Source', bold)        
-        worksheet.write(163, 4, 'Temporal Res', bold)        
-        worksheet.write(163, 5, 'Geog Res', bold)    
-        worksheet.write(163, 6, 'Percent Difference Trend', bold)
+        worksheet.write(107, 7, 'Percent Difference from 12 Months Before', bold)
+        worksheet.write(108, 3, 'Source', bold)        
+        worksheet.write(108, 4, 'Temporal Res', bold)        
+        worksheet.write(108, 5, 'Geog Res', bold)    
+        worksheet.write(108, 6, 'Percent Difference Trend', bold)
         months.T.to_excel(self.writer, sheet_name=sheetName, 
-                            startrow=163, startcol=7, header=False, index=False)   
+                            startrow=108, startcol=7, header=False, index=False)   
         
         # the data
-        for r in range(164,235):
+        for r in range(109,155):
             for c in range(2, 6): 
                 cell = xl_rowcol_to_cell(r, c)
                 label = xl_rowcol_to_cell(r-ROW_OFFSET, c)
@@ -489,26 +444,21 @@ class DemandReporter():
                                            'negative_points': True})                  
                
         # set the headers and formats                    
-        worksheet.write(164,  1, 'Population & Households', bold)
-        worksheet.write_blank(164,  2, None, bold)
+        worksheet.write(109,  1, 'Population & Households', bold)
+        worksheet.write_blank(109,  2, None, bold)
 
-        worksheet.write(175,  1, 'Workers (at home location)', bold)
-        worksheet.write_blank(175,  2, None, bold)
+        worksheet.write(120,  1, 'Workers (at home location)', bold)
+        worksheet.write_blank(120,  2, None, bold)
 
-        worksheet.write(180, 1, 'Employment (at work location)', bold)
-        worksheet.write_blank(180,  2, None, bold)
+        worksheet.write(125, 1, 'Employment (at work location)', bold)
+        worksheet.write_blank(125,  2, None, bold)
 
-        worksheet.write(190, 1, 'Intra-County Workers', bold)
-        worksheet.write_blank(190,  2, None, bold)
+        worksheet.write(135, 1, 'Jobs-Housing Balance', bold)
+        worksheet.write_blank(135,  2, None, bold)
 
-        worksheet.write(195, 1, 'Costs', bold)
-        worksheet.write_blank(195,  2, None, bold)
+        worksheet.write(141, 1, 'Costs', bold)
+        worksheet.write_blank(141,  2, None, bold)
 
-        worksheet.write(208, 1, 'Commute Mode Shares', bold)
-        worksheet.write_blank(208,  2, None, bold)
-
-        worksheet.write(215, 1, 'Commute Mode Shares by Segment', bold)
-        worksheet.write_blank(215,  2, None, bold)
 
 
     def set_position(self, writer, worksheet, row, col):

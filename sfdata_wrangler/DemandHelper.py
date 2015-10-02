@@ -380,6 +380,8 @@ class DemandHelper():
         keys = outstore.keys()
         if '/countyACS' in keys: 
             outstore.remove('countyACS')
+        if '/countyACSannual' in keys: 
+            outstore.remove('countyACSannual')
         
         # get the data
         census2000 = self.getCensus2000Table(census2000Dir, fips)
@@ -414,8 +416,14 @@ class DemandHelper():
                 monthly[prefix + mode + '_SHARE'] = monthly[prefix + mode] / monthly['total']
             monthly.drop('total', axis=1)
 
+        # get the july data as the annual measures for each year
+        monthly['YEAR'] = monthly['MONTH'].apply(lambda x: x.year)
+        monthly['M'] = monthly['MONTH'].apply(lambda x: x.month)
+        annual = monthly[monthly['M']==7]
+        
         # append to the output store
         outstore.append('countyACS', monthly, data_columns=True)
+        outstore.append('countyACSannual', annual, data_columns=True)
         outstore.close()
         
         
@@ -748,7 +756,7 @@ class DemandHelper():
         
         inputDir - directory containing input CSV files
         lodesType - RAC, WAC or OD
-                    OD file processed specifically for intra-county flows
+                    OD file processed specifically for intra-county vs inter-county flows
         xwalkFile - file containing the geography crosswalk from LODES
         fips - fips code for SF county
         outfile - HDF file to write to
@@ -771,7 +779,7 @@ class DemandHelper():
         elif lodesType=='OD':
             hgeoCol = 'h_geocode'
             wgeoCol = 'w_geocode'
-            wrkemp = 'SFWORKERS'
+            wrkempList = ['INTRA', 'IN', 'OUT']
             filePattern = inputDir + '/OD/ca_od_main_JT00_'
             
         
@@ -790,18 +798,26 @@ class DemandHelper():
         annual = pd.DataFrame({'YEAR': years})
         annual.index = years
         
-        annual[wrkemp] = np.NaN          # total workers
-        
-        annual[wrkemp+'_EARN0_15'] = np.NaN  # Number of workers with earnings $1250/month or less
-        annual[wrkemp+'_EARN15_40']= np.NaN  # Number of workers with earnings $1251/month to $3333/month
-        annual[wrkemp+'_EARN40P']  = np.NaN  # Number of workers with earnings greater than $3333/month
-        
         if lodesType=='RAC' or lodesType=='WAC': 
+            annual[wrkemp] = np.NaN          # total workers
+            
+            annual[wrkemp+'_EARN0_15'] = np.NaN  # Number of workers with earnings $1250/month or less
+            annual[wrkemp+'_EARN15_40']= np.NaN  # Number of workers with earnings $1251/month to $3333/month
+            annual[wrkemp+'_EARN40P']  = np.NaN  # Number of workers with earnings greater than $3333/month
+            
             annual[wrkemp+'_RETAIL']   = np.NaN  # Number of workers in retail sector
             annual[wrkemp+'_EDHEALTH'] = np.NaN  # Number of workers in education and health sector
             annual[wrkemp+'_LEISURE']  = np.NaN  # Number of workers in leisure and hospitality sector
             annual[wrkemp+'_OTHER']    = np.NaN  # Number of workers in other sectors
         
+        elif lodesType=='OD': 
+            for wrkemp in wrkempList: 
+                annual[wrkemp] = np.NaN          # total workers
+                
+                annual[wrkemp+'_EARN0_15'] = np.NaN  # Number of workers with earnings $1250/month or less
+                annual[wrkemp+'_EARN15_40']= np.NaN  # Number of workers with earnings $1251/month to $3333/month
+                annual[wrkemp+'_EARN40P']  = np.NaN  # Number of workers with earnings greater than $3333/month
+                
         
         # get the data for each year
         for year in years: 
@@ -835,20 +851,30 @@ class DemandHelper():
                                                         -annual.at[year, wrkemp+'_LEISURE']
                                                         )
                 
-                # for OD, keep only intra-county flows
+                # for OD, keep different values for each option
                 elif lodesType=='OD': 
                     df = pd.merge(df, xwalk, how='left', left_on=hgeoCol, right_on='tabblk2010')   
                     df = pd.merge(df, xwalk, how='left', left_on=wgeoCol, right_on='tabblk2010', suffixes=('_h', '_w'))           
-                    df = df[(df['cty_h']==fips) & (df['cty_w']==fips)]     
-                           
-                    agg = df.groupby('cty_h').agg('sum')
-                    
-                    # copy over the appropriate fields
-                    annual.at[year, wrkemp] = agg.at[fips, 'S000']        
-                    
-                    annual.at[year, wrkemp+'_EARN0_15'] = agg.at[fips, 'SE01']
-                    annual.at[year, wrkemp+'_EARN15_40']= agg.at[fips, 'SE02'] 
-                    annual.at[year, wrkemp+'_EARN40P']  = agg.at[fips, 'SE03'] 
+           
+                    for wrkemp in wrkempList:               
+                        
+                        # intra-county
+                        if wrkemp == 'INTRA': 
+                            selected = df[(df['cty_h']==fips) & (df['cty_w']==fips)]                             
+                            agg = selected.groupby('cty_h').agg('sum')
+                        elif wrkemp == 'IN': 
+                            selected = df[(df['cty_h']!=fips) & (df['cty_w']==fips)]                             
+                            agg = selected.groupby('cty_w').agg('sum')
+                        elif wrkemp == 'OUT': 
+                            selected = df[(df['cty_h']==fips) & (df['cty_w']!=fips)]                             
+                            agg = selected.groupby('cty_h').agg('sum')
+                        
+                        # copy over the appropriate fields
+                        annual.at[year, wrkemp] = agg.at[fips, 'S000']        
+                        
+                        annual.at[year, wrkemp+'_EARN0_15'] = agg.at[fips, 'SE01']
+                        annual.at[year, wrkemp+'_EARN15_40']= agg.at[fips, 'SE02'] 
+                        annual.at[year, wrkemp+'_EARN40P']  = agg.at[fips, 'SE03'] 
         
         # convert data to monthly
         monthly = self.convertAnnualToMonthly(annual)
