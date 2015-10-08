@@ -30,13 +30,14 @@ class MultiModalReporter():
     visuals and graphs. 
     """
 
-    def __init__(self, multimodal_file, demand_file):
+    def __init__(self, multimodal_file, demand_file, ts_file):
         '''
         Constructor. 
 
         '''   
         self.multimodal_file = multimodal_file
         self.demand_file = demand_file
+        self.ts_file = ts_file
 
         self.writer = None
         self.worksheet = None
@@ -54,6 +55,7 @@ class MultiModalReporter():
         demand_store = pd.HDFStore(self.demand_file)
         
         transit = mm_store.select('transitAnnual')
+        fares = mm_store.select('transitFareAnnual')
         acs = demand_store.select('countyACSannual')
         
         mm_store.close()
@@ -61,7 +63,8 @@ class MultiModalReporter():
 
         # start with the population, which has the longest time-series, 
         # and join all the others with the month being equivalent
-        df = pd.merge(transit, acs, how='left', left_on=['FISCAL_YEAR'], right_on=['YEAR'], sort=True, suffixes=('', '_ACS')) 
+        df = pd.merge(transit, fares, how='left', on=['FISCAL_YEAR'],  sort=True, suffixes=('', '_FARE')) 
+        df = pd.merge(df, acs, how='left', left_on=['FISCAL_YEAR'], right_on=['YEAR'], sort=True, suffixes=('', '_ACS')) 
 
         return df
 
@@ -74,19 +77,26 @@ class MultiModalReporter():
         # open and join the input fields
         mm_store = pd.HDFStore(self.multimodal_file)
         demand_store = pd.HDFStore(self.demand_file)
+        ts_store = pd.HDFStore(self.ts_file)
         
         transit = mm_store.select('transitMonthly')
         fares = mm_store.select('transitFare')
         acs = demand_store.select('countyACS')
         
-        print fares.info()
+        # more specific data
+        ts = ts_store.select('system_day_s', where='DOW=1') 
+        muni = ts[['MONTH']].copy()
+        muni['GTFS_SERVMILES_MUNI_BUS'] = ts['SERVMILES_S']
+        muni['APC_ON_MUNI_BUS'] = ts['ON']
         
         mm_store.close()
         demand_store.close()
+        ts_store.close()
 
         # join all the others with the month being equivalent
         df = pd.merge(transit, fares, how='left', on=['MONTH'],  sort=True, suffixes=('', '_FARE')) 
         df = pd.merge(df, acs, how='left', on=['MONTH'],  sort=True, suffixes=('', '_ACS')) 
+        df = pd.merge(df, muni, how='left', on=['MONTH'],  sort=True, suffixes=('', '_MUNI')) 
 
         return df
 
@@ -184,26 +194,29 @@ class MultiModalReporter():
         self.set_position(self.writer, worksheet, 11, 2)
         
         # TRANSIT STATISTICAL SUMMARY DATA
-        measures = [('Annual Service Miles', 'SERVMILES', int_format), 
-                    ('Annual Ridership', 'PASSENGERS', int_format), 
-                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', int_format), 
-                    ('Average Fare (2010$)', 'FARE_2010USD', cent_format), 
+        measures = [('Annual Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', int_format), 
+                    ('Annual Ridership', 'PASSENGERS', 'Transit Stat Summary', 'FY', int_format), 
+                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', int_format), 
+                    ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY', cent_format), 
+                    ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', cent_format), 
                     ]
         
-        modes = [('Muni Bus', 'MUNI_BUS'),
+        modes = [('Muni Bus+Rail', 'MUNI'), 
+                 ('Muni Bus', 'MUNI_BUS'),
                  ('Muni Cable Car', 'MUNI_CC'),
                  ('Muni Rail', 'MUNI_RAIL'),
                  ('BART', 'BART'),
                  ('Caltrain', 'CALTRAIN')
                 ]
                 
-        for header, measure, format in measures: 
+        for header, measure, source, tempRes, format in measures: 
             worksheet.write(self.row, 1, header, bold)
             self.row += 1
                 
             for label, mode in modes: 
-                self.write_row(label=label, data=df[[measure + '_' + mode]], 
-                    source='Transit Stat Summary', tempRes='FY', geogRes='System', format=format)
+                if measure + '_' + mode in df.columns: 
+                    self.write_row(label=label, data=df[[measure + '_' + mode]], 
+                        source=source, tempRes=tempRes, geogRes='System', format=format)
 
         # MODE SHARES        
         modes = [('DA',      'Drive-Alone'), 
@@ -325,38 +338,34 @@ class MultiModalReporter():
         
         self.set_position(self.writer, worksheet, 11, 2)
         
+        
         # TRANSIT STATISTICAL SUMMARY DATA
-        measures = [('Monthly Service Miles', 'SERVMILES', int_format), 
-                    ('Monthly Ridership', 'PASSENGERS', int_format), 
-                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', int_format), 
-                    ('Average Fare (2010$)', 'FARE_2010USD', cent_format), 
+        measures = [('Monthly Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', int_format),
+                    ('Average Weekday Service Miles', 'GTFS_SERVMILES', 'GTFS', 'Actual', int_format),  
+                    ('Monthly Ridership', 'PASSENGERS', 'Transit Stat Summary', 'FY', int_format), 
+                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', int_format), 
+                    ('Average Weekday Ridership', 'APC_ON', 'APCs/Faregate', 'Monthly', int_format), 
+                    ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY/Actual', cent_format), 
+                    ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', cent_format), 
                     ]
         
-        modes = [('Muni Bus', 'MUNI_BUS'),
+        
+        modes = [('Muni Bus+Rail', 'MUNI'), 
+                 ('Muni Bus', 'MUNI_BUS'),
                  ('Muni Cable Car', 'MUNI_CC'),
                  ('Muni Rail', 'MUNI_RAIL'),
                  ('BART', 'BART'),
                  ('Caltrain', 'CALTRAIN')
                 ]
                 
-        for header, measure, format in measures: 
+        for header, measure, source, tempRes, format in measures: 
             worksheet.write(self.row, 1, header, bold)
             self.row += 1
                 
             for label, mode in modes: 
-                self.write_row(label=label, data=df[[measure + '_' + mode]], 
-                    source='Transit Stat Summary', tempRes='FY', geogRes='System', format=format)
-
-        # FULL CASH FARES
-        worksheet.write(self.row, 1, 'Cash Fare (2010$)', bold)
-        self.row += 1
-
-        self.write_row(label='Muni', data=df[['MUNI_CASH_FARE_2010USD']], 
-            source='Published Fares', tempRes='Actual', geogRes='System', format=format)
-            
-        self.write_row(label='BART', data=df[['BART_CASH_FARE_2010USD']], 
-            source='Published Fares', tempRes='Actual', geogRes='System', format=format)
-
+                if measure + '_' + mode in df.columns: 
+                    self.write_row(label=label, data=df[[measure + '_' + mode]], 
+                        source=source, tempRes=tempRes, geogRes='System', format=format)
 
         # MODE SHARES        
         modes = [('DA',      'Drive-Alone'), 

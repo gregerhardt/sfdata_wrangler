@@ -1048,7 +1048,7 @@ class DemandHelper():
                 
         # expand to a monthly, using backfill to keep same rate for whole year
         df = df.set_index(pd.DatetimeIndex(df['MONTH']))
-        df = df.resample('M', fill_method='bfill')
+        df = df.resample('M', fill_method='ffill')
         df['MONTH'] = df.index
         df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
         
@@ -1078,7 +1078,7 @@ class DemandHelper():
                 
         # expand to a monthly, using backfill to keep same rate until it changes
         df = df.set_index(pd.DatetimeIndex(df['PeriodStart']))
-        df = df.resample('M', fill_method='bfill')
+        df = df.resample('M', fill_method='ffill')
         df['MONTH'] = df.index
         df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
         
@@ -1114,7 +1114,7 @@ class DemandHelper():
                 
         # expand to a monthly, using backfill to keep same rate until it changes
         df = df.set_index(pd.DatetimeIndex(df['PeriodStart']))
-        df = df.resample('M', fill_method='bfill')
+        df = df.resample('M', fill_method='ffill')
         df['MONTH'] = df.index
         df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
         

@@ -24,6 +24,15 @@ import glob
 import os
 
 
+def getFiscalYear(month):
+    '''
+    gets the fiscal year given a month
+    '''
+    if month.month<=6: 
+        return month.year
+    else:
+        return month.year + 1
+
     
 class MultiModalHelper():
     """ 
@@ -87,18 +96,6 @@ class MultiModalHelper():
             
             annual = pd.merge(annual, df, how='left', on=['FISCAL_YEAR'], sort=True, suffixes=('', colLabel))
         
-        # calculate average fares paid
-        modes = ['BART', 'CALTRAIN', 'MUNI_BUS', 'MUNI_MOTORBUS', 'MUNI_TROLLEYBUS', 'MUNI_CC', 'MUNI_RAIL']
-        for mode in modes: 
-            annual['FARE_' + mode] = annual['FAREBOX_' + mode] / annual['PASSENGERS_' + mode]
-
-        # adjust fares and farebox revenue for inflation
-        dfcpi = self.getCPIFactors(cpiFile)
-        annual = pd.merge(annual, dfcpi, how='left', on=['MONTH'], sort=True)  
-        for mode in modes: 
-            annual['FARE_2010USD_' + mode] = annual['FARE_' + mode] * annual['CPI_FACTOR']
-            annual['FAREBOX_2010USD_' + mode] = annual['FAREBOX_' + mode] * annual['CPI_FACTOR']
-        
         # append to the output store
         outstore.append('transitAnnual', annual, data_columns=True)
         outstore.close()
@@ -123,7 +120,7 @@ class MultiModalHelper():
         
         # expand to a monthly, using backfill to keep same values for whole year
         monthly = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
-        monthly = monthly.resample('M', fill_method='bfill')
+        monthly = monthly.resample('M', fill_method='ffill')
         monthly['MONTH'] = monthly.index
         monthly['MONTH'] = monthly['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
         
@@ -132,8 +129,7 @@ class MultiModalHelper():
         defaultFactors = [('SERVMILES_', 1.0/12.0), 
                          ('PASSENGERS_', 1.0/12.0), 
                          ('FAREBOX_', 1.0/12.0), 
-                         ('AVG_WEEKDAY_RIDERSHIP_', 1.0), 
-                         ('FARE_', 1.0)
+                         ('AVG_WEEKDAY_RIDERSHIP_', 1.0)
                          ]
         modes = ['BART', 'CALTRAIN', 'MUNI_BUS', 'MUNI_MOTORBUS', 'MUNI_TROLLEYBUS', 'MUNI_CC', 'MUNI_RAIL']
         for colLabel, factor in defaultFactors: 
@@ -141,13 +137,6 @@ class MultiModalHelper():
                 col = colLabel + mode
                 monthly[col] = monthly[col] * factor
         
-        # adjust fares and farebox revenue for inflation
-        dfcpi = self.getCPIFactors(cpiFile)
-        monthly = pd.merge(monthly, dfcpi, how='left', on=['MONTH'], sort=True)  
-        for mode in modes: 
-            annual['FARE_2010USD_' + mode] = annual['FARE_' + mode] * annual['CPI_FACTOR']
-            annual['FAREBOX_2010USD_' + mode] = annual['FAREBOX_' + mode] * annual['CPI_FACTOR']
-                
         # append to the output store
         outstore.append('transitMonthly', monthly, data_columns=True)
         outstore.close()
@@ -167,26 +156,69 @@ class MultiModalHelper():
         keys = outstore.keys()
         if '/transitFare' in keys: 
             outstore.remove('transitFare')
+        if '/transitFareAnnual' in keys: 
+            outstore.remove('transitFareAnnual')
         
         # get the data and expand it to monthly
         df = pd.read_csv(cashFareFile)
                 
         # expand to a monthly, using backfill to keep same rate until it changes
         df = df.set_index(pd.DatetimeIndex(df['PeriodStart']))
-        df = df.resample('M', fill_method='bfill')
+        df = df.resample('M', fill_method='ffill')
         df['MONTH'] = df.index
         df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
         
-        # adjust the rate for inflation
+        # determine the fiscal year averages
+        df['FISCAL_YEAR'] = df['MONTH'].apply(getFiscalYear)   
+        df_fy = df.groupby('FISCAL_YEAR').agg('mean') 
+        df_fy['FISCAL_YEAR'] = df_fy.index
+        df_fy['MONTH'] = df_fy['FISCAL_YEAR'].apply(lambda x: pd.to_datetime(str(x) + '-01-01'))
+
+        # get and make sure the indices are aligned
+        farebox_fy = outstore.get('transitAnnual')
+        farebox_fy.index = farebox_fy['FISCAL_YEAR']
+        
+        # consolidate muni bus and rail        
+        # calculate average fare paid
+        farebox_fy['FAREBOX_MUNI'] = farebox_fy['FAREBOX_MUNI_BUS'] + farebox_fy['FAREBOX_MUNI_RAIL']
+        farebox_fy['PASSENGERS_MUNI'] = farebox_fy['PASSENGERS_MUNI_BUS'] + farebox_fy['PASSENGERS_MUNI_RAIL']
+        modes = ['MUNI', 'MUNI_CC', 'BART', 'CALTRAIN']
+        for mode in modes: 
+            df_fy['AVG_FARE_' + mode] = farebox_fy['FAREBOX_' + mode] / farebox_fy['PASSENGERS_' + mode]
+            if mode != 'CALTRAIN': 
+                df_fy['FARE_RATIO_' + mode] = df_fy['AVG_FARE_' + mode] / df_fy['CASH_FARE_' + mode]
+
+        # merge back to monthly data, and apply the fare ratios to calculate average fares
+        df = pd.merge(df, df_fy, how='left', on='FISCAL_YEAR', sort=True, suffixes=('', '_FY')) 
+        for mode in modes: 
+            if mode != 'CALTRAIN': 
+                df['AVG_FARE_' + mode] = df['CASH_FARE_' + mode] * df['FARE_RATIO_' + mode]
+        
+        # keep only needed fields
+        fields = ['MONTH']
+        for mode in modes:
+            if mode != 'CALTRAIN': 
+                fields = fields + ['CASH_FARE_' + mode]
+            fields = fields + ['AVG_FARE_' + mode]
+        df = df[fields]
+
+        # adjust for inflation
         dfcpi = self.getCPIFactors(cpiFile)
         df = pd.merge(df, dfcpi, how='left', on=['MONTH'], sort=True)  
-        
-        for col in df.select_dtypes(include=[np.number]).columns: 
-            df[col + '_2010USD'] = df[col] * df['CPI_FACTOR']
+        df_fy = pd.merge(df_fy, dfcpi, how='left', on=['MONTH'], sort=True)  
+        for mode in modes:
+            if mode != 'CALTRAIN': 
+                df['CASH_FARE_2010USD_' + mode] = df['CASH_FARE_' + mode] * df['CPI_FACTOR']
+                df_fy['CASH_FARE_2010USD_' + mode] = df_fy['CASH_FARE_' + mode] * df_fy['CPI_FACTOR']
+            df['AVG_FARE_2010USD_' + mode] = df['AVG_FARE_' + mode] * df['CPI_FACTOR']
+            df_fy['AVG_FARE_2010USD_' + mode] = df_fy['AVG_FARE_' + mode] * df_fy['CPI_FACTOR']
 
+                
         # append to the output store
         outstore.append('transitFare', df, data_columns=True)
+        outstore.append('transitFareAnnual', df_fy, data_columns=True)
         outstore.close()
+    
     
     
     def getCPIFactors(self, cpiFile):
