@@ -20,11 +20,13 @@ __license__     = """
 
 import pandas as pd
 import numpy as np
+import datetime
 
 import transitfeed  
 from pyproj import Proj
 from shapely.geometry import Point, LineString  
             
+from SFMuniDataAggregator import SFMuniDataAggregator
 
                                     
 def convertLongitudeLatitudeToXY(lon_lat):        
@@ -95,6 +97,24 @@ def calculateHeadways(df):
     
     return df                                                
     
+    
+def getDayOfWeek(service_id):
+    """
+    determine the day-of-week as 1=weekday, 2=sat, 3=sun
+    """ 
+    try: 
+        dow = int(service_id)
+    except ValueError: 
+        if service_id=='WKDY' or service_id=='M-FSAT': 
+            dow = 1
+        elif service_id=='SAT': 
+            dow = 2
+        elif service_id=='SUN' or service_id=='SUNAB': 
+            dow = 3
+        else:
+            raise
+    return dow
+    
 
 class GTFSHelper():
     """ 
@@ -115,7 +135,8 @@ class GTFSHelper():
         'SCHED_DATES'     : 20, 
         'ROUTE_ID'        : 10,  
         'TRIP_ID'         : 12,  
-        'STOP_ID'         : 10  
+        'STOP_ID'         : 10,  
+        'SERVICE_ID'      : 10,  
         }
 
     def __init__(self):
@@ -160,7 +181,72 @@ class GTFSHelper():
                 startIndex += len(df)
         
         outstore.close()
+
+        self.createDailySystemTotals(infiles, outfile, outkey, outkey+'Daily')
         
+
+    def createDailySystemTotals(self, infiles, outfile, inkey, outkey):
+        """
+        Converts from the detailed schedule information to the 
+        daily system totals.
+        
+        """
+        
+        outstore = pd.HDFStore(outfile) 
+        if outkey in outstore.keys(): 
+            outstore.remove(outkey)
+
+        # determine the system totals, grouped by schedule dates
+        detailed_df = outstore.get(inkey)
+        aggregator = SFMuniDataAggregator()        
+        AGGREGATION_RULES = [            
+           	['TRIPS'        ,'TRIP_ID'     ,aggregator.countUnique, 'system', 'int64', 0],
+           	['TRIP_STOPS'   ,'TRIP_STOPS'  ,'sum',  'system', 'int64', 0],
+           	['FARE'         ,'FARE'        ,'mean', 'system', 'float64', 0],
+           	['HEADWAY_S'    ,'HEADWAY_S'   ,'mean', 'system', 'float64', 0],
+           	['SERVMILES_S'  ,'SERVMILES_S' ,'sum',  'system', 'float64', 0],
+           	['DWELL_S'      ,'DWELL_S'     ,'sum',  'system', 'float64', 0],
+           	['RUNTIME_S'    ,'RUNTIME_S'   ,'sum',  'system', 'float64', 0],
+           	['TOTTIME_S'    ,'TOTTIME_S'   ,'sum',  'system', 'float64', 0],
+           	['RUNSPEED_S'   ,'RUNSPEED_S'  ,'mean', 'system', 'float64', 0],
+           	['TOTSPEED_S'   ,'TOTSPEED_S'  ,'mean', 'system', 'float64', 0]
+                ]                
+        aggdf, stringLengths  = aggregator.aggregateTransitRecords(detailed_df, 
+                groupby=['SCHED_DATES','DOW','SERVICE_ID','AGENCY_ID','ROUTE_TYPE'], 
+                columnSpecs=AGGREGATION_RULES)
+
+        # use the GTFS files to determine the service in operation for each date
+        for infile in infiles: 
+            print '\n\nReading ', infile
+            
+            self.establishTransitFeed(infile)
+
+            # loop through each date, and add the appropriate service to the database  
+            gtfsDateRange = self.schedule.GetDateRange()
+            dateRangeString = str(gtfsDateRange[0]) + '-' + str(gtfsDateRange[1])
+            gtfsStartDate = pd.to_datetime(gtfsDateRange[0], format='%Y%m%d')
+            gtfsEndDate   = pd.to_datetime(gtfsDateRange[1], format='%Y%m%d') 
+            
+            # note that the last date is not included, hence the +1 increment
+            servicePeriodsEachDate = self.schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate + pd.DateOffset(days=1)) 
+            
+            for date, servicePeriodsForDate in servicePeriodsEachDate:     
+                print datetime.datetime.now(), ' Processing ', date
+        
+                # select and append the appropriate aggregated records for this date
+                for period in servicePeriodsForDate:   
+                        
+                    servIdString = str(period.service_id).strip().upper()
+
+                    records = aggdf[(aggdf['SCHED_DATES']==dateRangeString) & (aggdf['SERVICE_ID']==servIdString)]
+                    records['DATE'] = date
+                        
+                    # write the data
+                    outstore.append(outkey, records, data_columns=True, 
+                            min_itemsize=stringLengths)
+
+        outstore.close()
+
     
     def getGTFSDataFrame(self, period, startIndex=0, route_types=range(0,100)):
         """
@@ -171,18 +257,7 @@ class GTFSHelper():
         data = []
         
         # determine the day-of-week as 1=weekday, 2=sat, 3=sun
-        try: 
-            dow = int(period.service_id)
-        except ValueError: 
-            if period.service_id=='WKDY' or period.service_id=='M-FSAT': 
-                dow = 1
-            elif period.service_id=='SAT': 
-                dow = 2
-            elif period.service_id=='SUN' or period.service_id=='SUNAB': 
-                dow = 3
-            else:
-                raise
-            
+        dow = getDayOfWeek(period.service_id)
         
         # determine the dates
         dateRange = self.schedule.GetDateRange()
@@ -355,6 +430,7 @@ class GTFSHelper():
                         record['ROUTE_ID']  = str(trip.route_id).strip().upper()
                         record['TRIP_ID']   = str(trip.trip_id).strip().upper()
                         record['STOP_ID']   = str(stopTime.stop_id).strip().upper()
+                        record['SERVICE_ID']= str(trip.service_id).strip().upper()
                                                                                                                                         
                         data.append(record)                
                         i += 1

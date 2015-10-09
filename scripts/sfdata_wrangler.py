@@ -110,7 +110,7 @@ RAW_GTFS_FILES = [
 
 # these should be ordered from old to new, and avoid gaps or overlaps
 BART_GTFS_FILES = [
-    "C:/CASA/Data/BART/GTFS/bart-archiver_20090701_0208.zip",          # 20070101,20090630
+    "C:/CASA/Data/BART/GTFS/bart-archiver_20090701_0208_1.zip",        # 20070101,20090630 (originally 20091231)
     "C:/CASA/Data/BART/GTFS/bart-archiver_20090728_0211_1.zip",        # 20090701,20090913 (originally 20091231)
     "C:/CASA/Data/BART/GTFS/bart-archiver_20091006_0210_1.zip",        # 20090914,20100912 (originally 20101231)
     "C:/CASA/Data/BART/GTFS/bart-archiver_20101112_0839_1.zip",        # 20100913,20110218 (originally 20111231)
@@ -119,7 +119,7 @@ BART_GTFS_FILES = [
     "C:/CASA/Data/BART/GTFS/bart-archiver_20130830_1519_1.zip",        # 20120910,20131231 (originally 20140101)
     "C:/CASA/Data/BART/GTFS/bart-archiver_20140109_0110_1.zip",        # 20140101,20141121 (originally 20151231)
     "C:/CASA/Data/BART/GTFS/bay-area-rapid-transit_20150804_0108_1.zip", # 20141122,20150913 (originally 20160101)
-    "C:/CASA/Data/BART/GTFS/bay-area-rapid-transit_20150930_1457.zip"  # 20150914,20170101
+    "C:/CASA/Data/BART/GTFS/bay-area-rapid-transit_20150930_1457_1.zip"  # 20150914,20170101 (modified exception dates to be in range)
     ]
 
 RAW_CLIPPER_FILES =["D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",

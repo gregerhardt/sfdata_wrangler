@@ -314,7 +314,9 @@ class SFMuniDataExpander():
         gtfsDateRange = gtfsHelper.schedule.GetDateRange()
         gtfsStartDate = pd.to_datetime(gtfsDateRange[0], format='%Y%m%d')
         gtfsEndDate   = pd.to_datetime(gtfsDateRange[1], format='%Y%m%d')
-        servicePeriodsEachDate = gtfsHelper.schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate) 
+            
+        # note that the last date is not included, hence the +1 increment
+        servicePeriodsEachDate = gtfsHelper.schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate + pd.DateOffset(days=1)) 
                    
         print 'Writing data for periods from ', gtfsStartDate, ' to ', gtfsEndDate
         for date, servicePeriodsForDate in servicePeriodsEachDate:           

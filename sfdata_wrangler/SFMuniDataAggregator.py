@@ -944,28 +944,32 @@ class SFMuniDataAggregator():
             aggregated[field] = grouped.size()
         
         # update scheduled speed
-        speedInput = pd.Series(zip(aggregated['SERVMILES_S'], 
-                                   aggregated['RUNTIME_S']), 
-                               index=aggregated.index)     
-        aggregated['RUNSPEED_S'] = speedInput.apply(self.updateSpeeds)
+        if 'RUNSPEED_S' in colorder: 
+            speedInput = pd.Series(zip(aggregated['SERVMILES_S'], 
+                                    aggregated['RUNTIME_S']), 
+                                index=aggregated.index)     
+            aggregated['RUNSPEED_S'] = speedInput.apply(self.updateSpeeds)
         
         # update actual speed--based on scheduled service miles for consistency
-        speedInput = pd.Series(zip(aggregated['SERVMILES'], 
-                                   aggregated['RUNTIME']), 
-                               index=aggregated.index)            
-        aggregated['RUNSPEED'] = speedInput.apply(self.updateSpeeds)
+        if 'RUNSPEED' in colorder: 
+            speedInput = pd.Series(zip(aggregated['SERVMILES'], 
+                                    aggregated['RUNTIME']), 
+                                index=aggregated.index)            
+            aggregated['RUNSPEED'] = speedInput.apply(self.updateSpeeds)
         
         # update scheduled speed
-        speedInput = pd.Series(zip(aggregated['SERVMILES_S'], 
-                                   aggregated['TOTTIME_S']), 
-                               index=aggregated.index)     
-        aggregated['TOTSPEED_S'] = speedInput.apply(self.updateSpeeds)
+        if 'TOTSPEED_S' in colorder: 
+            speedInput = pd.Series(zip(aggregated['SERVMILES_S'], 
+                                    aggregated['TOTTIME_S']), 
+                                index=aggregated.index)     
+            aggregated['TOTSPEED_S'] = speedInput.apply(self.updateSpeeds)
         
         # update actual speed--based on scheduled service miles for consistency
-        speedInput = pd.Series(zip(aggregated['SERVMILES'], 
-                                   aggregated['TOTTIME']), 
-                               index=aggregated.index)            
-        aggregated['TOTSPEED'] = speedInput.apply(self.updateSpeeds)
+        if 'TOTSPEED' in colorder: 
+            speedInput = pd.Series(zip(aggregated['SERVMILES'], 
+                                    aggregated['TOTTIME']), 
+                                index=aggregated.index)            
+            aggregated['TOTSPEED'] = speedInput.apply(self.updateSpeeds)
 
         # force the data types
         # this doesn't work if there are missing values, hence the pass
