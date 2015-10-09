@@ -24,11 +24,14 @@ sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 
 from SFMuniDataHelper import SFMuniDataHelper
 from GTFSHelper import GTFSHelper
+from SFMuniDataExpander import SFMuniDataExpander
 from SFMuniDataAggregator import SFMuniDataAggregator
+from MultiModalHelper import MultiModalHelper
+from DemandHelper import DemandHelper
+from MultiModalReporter import MultiModalReporter
 from TransitReporter import TransitReporter
 from DemandReporter import DemandReporter
 from ClipperHelper import ClipperHelper
-from DemandHelper import DemandHelper
 
 
 USAGE = r"""
@@ -49,7 +52,9 @@ USAGE = r"""
 VALID_STEPS = [ 'clean', 
                 'expand', 
                 'aggregate', 
+                'gtfs', 
                 'cleanClipper', 
+                'multimodal', 
                 'demand', 
                 'report'
                 ]    
@@ -80,7 +85,7 @@ RAW_STP_FILES =["D:/Input/SFMTA Data/Raw STP Files/0803.stp",
     
 # these should be ordered from old to new, and avoid gaps or overlaps
 RAW_GTFS_FILES = [
-  #"D:/Input/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
+  "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
                                                                                            # above file modified to avoid overlap of 13 days
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
@@ -102,6 +107,20 @@ RAW_GTFS_FILES = [
   "D:/Input/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip"   # 20131026 to 20140131  
   ]
 
+
+# these should be ordered from old to new, and avoid gaps or overlaps
+BART_GTFS_FILES = [
+    "C:/CASA/Data/BART/GTFS/bart-archiver_20090701_0208.zip",          # 20070101,20090630
+    "C:/CASA/Data/BART/GTFS/bart-archiver_20090728_0211_1.zip",        # 20090701,20090913 (originally 20091231)
+    "C:/CASA/Data/BART/GTFS/bart-archiver_20091006_0210_1.zip",        # 20090914,20100912 (originally 20101231)
+    "C:/CASA/Data/BART/GTFS/bart-archiver_20101112_0839_1.zip",        # 20100913,20110218 (originally 20111231)
+    "C:/CASA/Data/BART/GTFS/bart-archiver_20120210_0412_1.zip",        # 20110219,20120630 (originally 20130101)
+    "C:/CASA/Data/BART/GTFS/bart-archiver_20120820_0458_1.zip",        # 20120701,20120909 (originally 20140101)
+    "C:/CASA/Data/BART/GTFS/bart-archiver_20130830_1519_1.zip",        # 20120910,20131231 (originally 20140101)
+    "C:/CASA/Data/BART/GTFS/bart-archiver_20140109_0110_1.zip",        # 20140101,20141121 (originally 20151231)
+    "C:/CASA/Data/BART/GTFS/bay-area-rapid-transit_20150804_0108_1.zip", # 20141122,20150913 (originally 20160101)
+    "C:/CASA/Data/BART/GTFS/bay-area-rapid-transit_20150930_1457.zip"  # 20150914,20170101
+    ]
 
 RAW_CLIPPER_FILES =["D:/Input/Clipper/2013_-_3_Anonymous_Clipper.csv",
                     "D:/Input/Clipper/2013_-_5_Anonymous_Clipper.csv",
@@ -151,6 +170,8 @@ CASH_FARE_FILE = "C:/CASA/Data/TransitFares/TransitCashFares.csv"
 
 CPI_FILE       = "C:/CASA/Data/CPI/SeriesReport-20150908105105_8887b6.xlsx"
 
+TRANSIT_ANNUAL_DIR = "C:/CASA/Data/TransitStatisticalSummary"
+
 FIPS = '06075'
 
 # OUTPUT FILES--change as needed
@@ -165,15 +186,18 @@ DAILY_TS_OUTFILE   = "D:/Output/sfmuni_daily_ts.h5"
 MONTHLY_TRIP_OUTFILE = "D:/Output/sfmuni_monthly_trip.h5"
 MONTHLY_TS_OUTFILE   = "D:/Output/sfmuni_monthly_ts.h5"
 
-#DEMAND_REPORT_XLSFILE = "D:/Output/DriversOfDemandReport.xlsx"
-DEMAND_REPORT_XLSFILE = "C:/CASA/DriversOfDemand/DriversOfDemandReport.xlsx"
-REPORT_XLSFILE = "D:/Output/TransitPerformanceReport.xlsx"
-REPORT_ROUTEPLOTS = "D:/Output/RoutePlots.html"
+MULTIMODAL_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MultiModalReport.xlsx"
+DEMAND_REPORT_XLSFILE = "C:/CASA/PerformanceReports/DriversOfDemandReport.xlsx"
+MUNI_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MuniPerformanceReport.xlsx"
+REPORT_ROUTEPLOTS = "C:/CASA/PerformanceReports/RoutePlots.html"
+
+GTFS_OUTFILE = "C:/CASA/PerformanceReports/gtfs.h5"
 
 CLIPPER_OUTFILE = "D:/Output/clipper3.h5"
 
-#DEMAND_OUTFILE = "D:/Output/drivers_of_demand.h5"
-DEMAND_OUTFILE = "C:/CASA/DriversOfDemand/drivers_of_demand.h5"
+DEMAND_OUTFILE = "C:/CASA/PerformanceReports/DriversOfDemand/drivers_of_demand.h5"
+
+MULTIMODAL_OUTFILE = "C:/CASA/PerformanceReports/multimodal.h5"
 
 # main function call
 
@@ -203,7 +227,7 @@ if __name__ == "__main__":
     # process GTFS data, and join AVL/APC data to it, also aggregate trip_stops to trips
     if 'expand' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        gtfsHelper = GTFSHelper(sfmuni_file=CLEANED_OUTFILE, 
+        sfmuniExpander = SFMuniDataExpander(sfmuni_file=CLEANED_OUTFILE, 
                                 trip_outfile=EXPANDED_TRIP_OUTFILE, 
                                 ts_outfile=EXPANDED_TS_OUTFILE, 
                                 daily_trip_outfile=DAILY_TRIP_OUTFILE, 
@@ -211,7 +235,7 @@ if __name__ == "__main__":
                                 dow=[1], 
                                 startDate='2000-01-01')
         for infile in RAW_GTFS_FILES: 
-            gtfsHelper.expandAndWeight(infile)   
+            sfmuniExpander.expandAndWeight(infile)   
         print 'Finished expanding to GTFS in ', (datetime.datetime.now() - startTime)
 
     # aggregate to monthly totals
@@ -222,6 +246,16 @@ if __name__ == "__main__":
         aggregator.aggregateTripStopsToMonths(DAILY_TS_OUTFILE, MONTHLY_TS_OUTFILE)
         print 'Finished aggregations in ', (datetime.datetime.now() - startTime) 
 
+
+    # process GTFS schedule data.  
+    if 'gtfs' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()   
+        gtfsHelper = GTFSHelper() 
+        #gtfsHelper.processFiles(RAW_GTFS_FILES, GTFS_OUTFILE, 'sfmuni')
+        gtfsHelper.processFiles(BART_GTFS_FILES, GTFS_OUTFILE, 'bart')
+        print 'Finished processing GTFS data ', (datetime.datetime.now() - startTime) 
+        
+
     # process Clipper data.  
     if 'cleanClipper' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
@@ -230,7 +264,7 @@ if __name__ == "__main__":
             clipperHelper.processRawData(infile, CLIPPER_OUTFILE)   
         print 'Finished processing Clipper data ', (datetime.datetime.now() - startTime) 
         
-
+        
     # process drivers of demand data.  
     if 'demand' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
@@ -247,26 +281,38 @@ if __name__ == "__main__":
 
         #demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
 
-        #demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        #demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        #demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
                                                              
         #demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
         #                           MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
-        demandHelper.processParkingCosts(PARKING_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
+        #demandHelper.processParkingCosts(PARKING_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
         #demandHelper.processTollCosts(TOLL_FILE, CPI_FILE, DEMAND_OUTFILE)
         
-        #demandHelper.processTransitFares(CASH_FARE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
         print 'Finished processing drivers of demand data ', (datetime.datetime.now() - startTime) 
         
         
+    # process multimodal data  
+    if 'multimodal' in STEPS_TO_RUN: 
+        startTime = datetime.datetime.now()   
+        mmHelper = MultiModalHelper()
+
+        mmHelper.processAnnualTransitData(TRANSIT_ANNUAL_DIR, CPI_FILE, MULTIMODAL_OUTFILE)    
+        mmHelper.processMonthlyTransitData(CPI_FILE, MULTIMODAL_OUTFILE)    
+        mmHelper.processTransitFares(CASH_FARE_FILE, CPI_FILE, MULTIMODAL_OUTFILE)
+
+
     # create performance reports
     if 'report' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         
+        mmReporter = MultiModalReporter(MULTIMODAL_OUTFILE, DEMAND_OUTFILE, MONTHLY_TS_OUTFILE)
+        mmReporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE)
+
         demandReporter = DemandReporter(DEMAND_OUTFILE)
         demandReporter.writeDemandReport(DEMAND_REPORT_XLSFILE)
         
@@ -274,7 +320,7 @@ if __name__ == "__main__":
         #reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, 
         #                           ts_file=MONTHLY_TS_OUTFILE, 
         #                           demand_file=DEMAND_OUTFILE)
-        #reporter.writeSystemReport(REPORT_XLSFILE, dow=1)
+        #reporter.writeSystemReport(MUNI_REPORT_XLSFILE, dow=1)
         #reporter.createRoutePlot(REPORT_ROUTEPLOTS, 
         #                         months=('2009-07-01', '2010-07-01'), 
         #                         dow=1, 
