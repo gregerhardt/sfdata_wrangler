@@ -183,6 +183,8 @@ class GTFSHelper():
         outstore.close()
 
         self.createDailySystemTotals(infiles, outfile, outkey, outkey+'Daily')
+        self.createMonthlySystemTotals(outfile,outkey+'Daily',outkey+'Monthly')
+        
         
 
     def createDailySystemTotals(self, infiles, outfile, inkey, outkey):
@@ -231,7 +233,16 @@ class GTFSHelper():
             servicePeriodsEachDate = self.schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate + pd.DateOffset(days=1)) 
             
             for date, servicePeriodsForDate in servicePeriodsEachDate:     
-                print datetime.datetime.now(), ' Processing ', date
+                print ' Processing ', date
+                
+                # some calculations
+                month = ((pd.to_datetime(date)).to_period('month')).to_timestamp() 
+                if (date.weekday()==5):
+                    dow=2
+                elif (date.weekday()==6):
+                    dow=3
+                else: 
+                    dow=1
         
                 # select and append the appropriate aggregated records for this date
                 for period in servicePeriodsForDate:   
@@ -239,7 +250,10 @@ class GTFSHelper():
                     servIdString = str(period.service_id).strip().upper()
 
                     records = aggdf[(aggdf['SCHED_DATES']==dateRangeString) & (aggdf['SERVICE_ID']==servIdString)]
+
+                    records['DOW'] = dow
                     records['DATE'] = date
+                    records['MONTH'] = month
                         
                     # write the data
                     outstore.append(outkey, records, data_columns=True, 
@@ -247,6 +261,43 @@ class GTFSHelper():
 
         outstore.close()
 
+
+    def createMonthlySystemTotals(self,  outfile, inkey, outkey):
+        """
+        Converts from the detailed schedule information to the 
+        daily system totals.
+        
+        """
+        
+        print 'Calculating monthly totals'
+        
+        outstore = pd.HDFStore(outfile) 
+        if outkey in outstore.keys(): 
+            outstore.remove(outkey)
+
+        # determine the system totals, grouped by schedule dates
+        df = outstore.get(inkey)
+        aggregator = SFMuniDataAggregator()        
+        AGGREGATION_RULES = [            
+           	['TRIPS'        ,'TRIPS'       ,'mean', 'system', 'int64',   0],
+           	['TRIP_STOPS'   ,'TRIP_STOPS'  ,'mean', 'system', 'int64',   0],
+           	['FARE'         ,'FARE'        ,'mean', 'system', 'float64', 0],
+           	['HEADWAY_S'    ,'HEADWAY_S'   ,'mean', 'system', 'float64', 0],
+           	['SERVMILES_S'  ,'SERVMILES_S' ,'mean', 'system', 'float64', 0],
+           	['DWELL_S'      ,'DWELL_S'     ,'mean', 'system', 'float64', 0],
+           	['RUNTIME_S'    ,'RUNTIME_S'   ,'mean', 'system', 'float64', 0],
+           	['TOTTIME_S'    ,'TOTTIME_S'   ,'mean', 'system', 'float64', 0],
+           	['RUNSPEED_S'   ,'RUNSPEED_S'  ,'mean', 'system', 'float64', 0],
+           	['TOTSPEED_S'   ,'TOTSPEED_S'  ,'mean', 'system', 'float64', 0]
+                ]                
+        aggdf, stringLengths  = aggregator.aggregateTransitRecords(df, 
+                groupby=['MONTH','DOW','AGENCY_ID','ROUTE_TYPE'], 
+                columnSpecs=AGGREGATION_RULES)
+                        
+        # write the data
+        outstore.append(outkey, aggdf, data_columns=True, min_itemsize=stringLengths)
+
+        outstore.close()
     
     def getGTFSDataFrame(self, period, startIndex=0, route_types=range(0,100)):
         """

@@ -251,7 +251,7 @@ if __name__ == "__main__":
     if 'gtfs' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         gtfsHelper = GTFSHelper() 
-        #gtfsHelper.processFiles(RAW_GTFS_FILES, GTFS_OUTFILE, 'sfmuni')
+        gtfsHelper.processFiles(RAW_GTFS_FILES, GTFS_OUTFILE, 'sfmuni')
         gtfsHelper.processFiles(BART_GTFS_FILES, GTFS_OUTFILE, 'bart')
         print 'Finished processing GTFS data ', (datetime.datetime.now() - startTime) 
         
@@ -310,11 +310,11 @@ if __name__ == "__main__":
     if 'report' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         
-        mmReporter = MultiModalReporter(MULTIMODAL_OUTFILE, DEMAND_OUTFILE, MONTHLY_TS_OUTFILE)
+        mmReporter = MultiModalReporter(MULTIMODAL_OUTFILE, DEMAND_OUTFILE, MONTHLY_TS_OUTFILE, GTFS_OUTFILE)
         mmReporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE)
 
-        demandReporter = DemandReporter(DEMAND_OUTFILE)
-        demandReporter.writeDemandReport(DEMAND_REPORT_XLSFILE)
+        #demandReporter = DemandReporter(DEMAND_OUTFILE)
+        #demandReporter.writeDemandReport(DEMAND_REPORT_XLSFILE)
         
         
         #reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, 

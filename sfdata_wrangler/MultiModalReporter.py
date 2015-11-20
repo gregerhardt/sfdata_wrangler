@@ -30,7 +30,7 @@ class MultiModalReporter():
     visuals and graphs. 
     """
 
-    def __init__(self, multimodal_file, demand_file, ts_file):
+    def __init__(self, multimodal_file, demand_file, ts_file, gtfs_file):
         '''
         Constructor. 
 
@@ -38,6 +38,7 @@ class MultiModalReporter():
         self.multimodal_file = multimodal_file
         self.demand_file = demand_file
         self.ts_file = ts_file
+        self.gtfs_file = gtfs_file
 
         self.writer = None
         self.worksheet = None
@@ -53,6 +54,7 @@ class MultiModalReporter():
         # open and join the input fields
         mm_store = pd.HDFStore(self.multimodal_file)
         demand_store = pd.HDFStore(self.demand_file)
+        gtfs_store = pd.HDFStore(self.gtfs_file)
         
         transit = mm_store.select('transitAnnual')
         fares = mm_store.select('transitFareAnnual')
@@ -78,26 +80,40 @@ class MultiModalReporter():
         mm_store = pd.HDFStore(self.multimodal_file)
         demand_store = pd.HDFStore(self.demand_file)
         ts_store = pd.HDFStore(self.ts_file)
+        gtfs_store = pd.HDFStore(self.gtfs_file)
         
         transit = mm_store.select('transitMonthly')
         fares = mm_store.select('transitFare')
         acs = demand_store.select('countyACS')
         
+        # schedule data
+        gtfs_bart     = gtfs_store.select('bartMonthly', where='DOW=1 and ROUTE_TYPE=1')
+        gtfs_munibus  = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=3')
+        gtfs_munirail = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=0')
+        gtfs_municc   = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=5')        
+        
         # more specific data
         ts = ts_store.select('system_day_s', where='DOW=1') 
         muni = ts[['MONTH']].copy()
-        muni['GTFS_SERVMILES_MUNI_BUS'] = ts['SERVMILES_S']
         muni['APC_ON_MUNI_BUS'] = ts['ON']
         
         mm_store.close()
         demand_store.close()
         ts_store.close()
+        gtfs_store.close()
 
         # join all the others with the month being equivalent
         df = pd.merge(transit, fares, how='left', on=['MONTH'],  sort=True, suffixes=('', '_FARE')) 
         df = pd.merge(df, acs, how='left', on=['MONTH'],  sort=True, suffixes=('', '_ACS')) 
         df = pd.merge(df, muni, how='left', on=['MONTH'],  sort=True, suffixes=('', '_MUNI')) 
 
+        # do the first one twice so we get the suffixes right
+        df = pd.merge(df, gtfs_bart, how='left', on=['MONTH'],  sort=True, suffixes=('', '_NOT_USED')) 
+        df = pd.merge(df, gtfs_bart, how='left', on=['MONTH'],  sort=True, suffixes=('', '_GTFS_BART')) 
+        df = pd.merge(df, gtfs_munibus, how='left', on=['MONTH'],  sort=True, suffixes=('', '_GTFS_MUNI_BUS')) 
+        df = pd.merge(df, gtfs_munirail, how='left', on=['MONTH'],  sort=True, suffixes=('', '_GTFS_MUNI_RAIL')) 
+        df = pd.merge(df, gtfs_municc, how='left', on=['MONTH'],  sort=True, suffixes=('', '_GTFS_MUNI_CC')) 
+        
         return df
 
         
@@ -341,12 +357,15 @@ class MultiModalReporter():
         
         # TRANSIT STATISTICAL SUMMARY DATA
         measures = [('Monthly Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', int_format),
-                    ('Average Weekday Service Miles', 'GTFS_SERVMILES', 'GTFS', 'Actual', int_format),  
                     ('Monthly Ridership', 'PASSENGERS', 'Transit Stat Summary', 'FY', int_format), 
                     ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', int_format), 
                     ('Average Weekday Ridership', 'APC_ON', 'APCs/Faregate', 'Monthly', int_format), 
                     ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY/Actual', cent_format), 
-                    ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', cent_format), 
+                    ('Cash Fare (nominal $)', 'FARE_GTFS', 'GTFS', 'Actual', cent_format),  
+                    ('Weekday Service Miles', 'SERVMILES_S_GTFS', 'GTFS', 'Actual', int_format),  
+                    ('Weekday Average Headway', 'HEADWAY_S_GTFS', 'GTFS', 'Actual', dec_format),  
+                    ('Weekday Average Run Speed', 'RUNSPEED_S_GTFS', 'GTFS', 'Actual', dec_format),  
+                    ('Weekday Average Total Speed', 'TOTSPEED_S_GTFS', 'GTFS', 'Actual', dec_format),  
                     ]
         
         
@@ -357,7 +376,7 @@ class MultiModalReporter():
                  ('BART', 'BART'),
                  ('Caltrain', 'CALTRAIN')
                 ]
-                
+                        
         for header, measure, source, tempRes, format in measures: 
             worksheet.write(self.row, 1, header, bold)
             self.row += 1
@@ -366,6 +385,8 @@ class MultiModalReporter():
                 if measure + '_' + mode in df.columns: 
                     self.write_row(label=label, data=df[[measure + '_' + mode]], 
                         source=source, tempRes=tempRes, geogRes='System', format=format)
+                else:
+                    print "can't find ",  measure + '_' + mode
 
         # MODE SHARES        
         modes = [('DA',      'Drive-Alone'), 
