@@ -53,7 +53,7 @@ class DemandHelper():
 
     # the range of years for these data files
     POP_EST_YEARS = [2000,2014]
-    HU_YEARS      = [2001,2012]
+    HU_YEARS      = [2001,2014]
     ACS_YEARS     = [2005,2014]
     LODES_YEARS   = [2002,2013]
     
@@ -557,7 +557,7 @@ class DemandHelper():
         return annual
         
 
-    def processHousingUnitsData(self, completionsFile, census2010File, fips, outfile): 
+    def processHousingUnitsData(self, completionsFiles, census2010File, fips, outfile): 
         """ 
         Reads raw housing completions data and converts it to a clean list format. 
         
@@ -572,38 +572,50 @@ class DemandHelper():
         if '/countyHousingUnits' in keys: 
             outstore.remove('countyHousingUnits')
         
-        # read the data, and convert the dates
-        df = pd.read_csv(completionsFile)
-        df['ACTUAL_DATE'] = df['ACTDT'].apply(convertToDate)
-        df['MONTH'] = df['ACTUAL_DATE'].apply(convertDateToMonth)
-        
-        # split the records between those with an exact date, and 
-        # those that only have a year
-        dfExact = df[df['MONTH'].apply(pd.notnull)]
-        dfNotExact = df[df['MONTH'].apply(pd.isnull)]        
-        
-        #group and resample to monthly
-        monthlyAgg = dfExact.groupby('MONTH').aggregate(sum)
-        monthlyAgg = monthlyAgg.reset_index()
-        annualAgg = dfNotExact.groupby('YEAR').aggregate(sum)
-        annualAgg = annualAgg.reset_index()
-        
         # create the output container
         numYears = self.HU_YEARS[1] - self.HU_YEARS[0] + 1
         months = pd.date_range(str(self.HU_YEARS[0]-1) + '-12-31', 
                 periods=12*numYears, freq='M') + pd.DateOffset(days=1)
         dfout = pd.DataFrame({'YEAR': months.year, 'MONTH': months, 'NETUNITS':0})
-
-        # merge the data.  If missing on RHS, then they are zeros. 
-        dfout = pd.merge(dfout, monthlyAgg, how='left', on=['MONTH'], sort=True, suffixes=('', '_MONTHLY')) 
-        dfout = pd.merge(dfout, annualAgg, how='left', on=['YEAR'], sort=True, suffixes=('', '_ANNUAL')) 
-        dfout = dfout.fillna(0)
+    
+        # read and append each file
+        for infile in completionsFiles: 
+    
+            # read the data
+            df = pd.read_csv(infile)
+            
+            # if the year is not in the columns, fill it in as appropriate
+            if not 'YEAR' in df.columns: 
+                basename = os.path.basename(infile)
+                year = int(basename[:4])
+                df['YEAR'] = year
+            
+            # convert the dates
+            df['ACTUAL_DATE'] = df['ACTDATE'].apply(convertToDate)
+            df['MONTH'] = df['ACTUAL_DATE'].apply(convertDateToMonth)
+            
+            # split the records between those with an exact date, and 
+            # those that only have a year
+            dfExact = df[df['MONTH'].apply(pd.notnull)]
+            dfNotExact = df[df['MONTH'].apply(pd.isnull)]        
+            
+            #group and resample to monthly
+            monthlyAgg = dfExact.groupby('MONTH').aggregate(sum)
+            monthlyAgg = monthlyAgg.reset_index()
+            annualAgg = dfNotExact.groupby('YEAR').aggregate(sum)
+            annualAgg = annualAgg.reset_index()
+            
+            # merge the data.  If missing on RHS, then they are zeros. 
+            dfout = pd.merge(dfout, monthlyAgg, how='left', on=['MONTH'], sort=True, suffixes=('', '_MONTHLY')) 
+            dfout = pd.merge(dfout, annualAgg, how='left', on=['YEAR'], sort=True, suffixes=('', '_ANNUAL')) 
+            dfout = dfout.fillna(0)
+            
+            # accumulate the totals, distributing annual data throughout the year
+            dfout['NETUNITS'] += dfout['NETUNITS_MONTHLY']
+            dfout['NETUNITS'] += dfout['NETUNITS_ANNUAL'] / 12
+            
+            dfout = dfout[['YEAR', 'MONTH', 'NETUNITS']]
         
-        # accumulate the totals, distributing annual data throughout the year
-        dfout['NETUNITS'] += dfout['NETUNITS_MONTHLY']
-        dfout['NETUNITS'] += dfout['NETUNITS_ANNUAL'] / 12
-        
-        dfout = dfout[['YEAR', 'MONTH', 'NETUNITS']]
         
         # get the housing units from the Census 2010 data
         units2010 = self.getCensus2010HousingUnits(census2010File, fips)

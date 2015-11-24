@@ -156,7 +156,12 @@ CENSUS_POPEST_POST2010_FILE = "C:/CASA/Data/Census/AnnualPopulationEstimates/pos
 
 ACS_DIR = "C:/CASA/Data/Census/ACS/Tables/"
 
-HOUSING_COMPLETIONS_FILE = "C:/CASA/Data/BuildingCompletions/CSV/sfhousingcompletesthrough2012.csv"
+HOUSING_COMPLETIONS_FILES = ["C:/CASA/Data/HousingInventory/sfhousingcompletesthrough2011.csv", 
+                             "C:/CASA/Data/HousingInventory/2012_Housing_Inventory.csv",  
+                             "C:/CASA/Data/HousingInventory/2013_Housing_Inventory.csv",  
+                             "C:/CASA/Data/HousingInventory/2014_Housing_Inventory.csv"
+                             ] 
+
 
 QCEW_DIR = "D:/Input/QCEW/"
 
@@ -282,13 +287,13 @@ if __name__ == "__main__":
         
         #demandHelper.processCensusSampleData(ACS_DIR, CENSUS2000_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
         
-        #demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILE, CENSUS2010_FILE, FIPS, DEMAND_OUTFILE)          
+        demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILES, CENSUS2010_FILE, FIPS, DEMAND_OUTFILE)          
 
         #demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
 
-        demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
                                                              
         #demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
         #                           MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
@@ -319,8 +324,8 @@ if __name__ == "__main__":
         mmReporter = MultiModalReporter(MULTIMODAL_OUTFILE, DEMAND_OUTFILE, MONTHLY_TS_OUTFILE, GTFS_OUTFILE)
         mmReporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE)
 
-        #demandReporter = DemandReporter(DEMAND_OUTFILE)
-        #demandReporter.writeDemandReport(DEMAND_REPORT_XLSFILE)
+        demandReporter = DemandReporter(DEMAND_OUTFILE)
+        demandReporter.writeDemandReport(DEMAND_REPORT_XLSFILE)
         
         
         #reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, 
