@@ -196,18 +196,18 @@ DAILY_TS_OUTFILE   = "D:/Output/sfmuni_daily_ts.h5"
 MONTHLY_TRIP_OUTFILE = "D:/Output/sfmuni_monthly_trip.h5"
 MONTHLY_TS_OUTFILE   = "D:/Output/sfmuni_monthly_ts.h5"
 
+GTFS_OUTFILE = "C:/CASA/PerformanceReports/gtfs.h5"
+CLIPPER_OUTFILE = "D:/Output/clipper3.h5"
+DEMAND_OUTFILE = "C:/CASA/PerformanceReports/DriversOfDemand/drivers_of_demand.h5"
+MULTIMODAL_OUTFILE = "C:/CASA/PerformanceReports/multimodal.h5"
+
 MULTIMODAL_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MultiModalReport.xlsx"
 DEMAND_REPORT_XLSFILE = "C:/CASA/PerformanceReports/DriversOfDemandReport.xlsx"
 MUNI_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MuniPerformanceReport.xlsx"
 REPORT_ROUTEPLOTS = "C:/CASA/PerformanceReports/RoutePlots.html"
 
-GTFS_OUTFILE = "C:/CASA/PerformanceReports/gtfs.h5"
+MUNI_ESTIMATION_FILE = "C:/CASA/ModelEstimation/MuniBusCountyLevel/data/MuniEstimationFile.csv"
 
-CLIPPER_OUTFILE = "D:/Output/clipper3.h5"
-
-DEMAND_OUTFILE = "C:/CASA/PerformanceReports/DriversOfDemand/drivers_of_demand.h5"
-
-MULTIMODAL_OUTFILE = "C:/CASA/PerformanceReports/multimodal.h5"
 
 # main function call
 
@@ -320,24 +320,26 @@ if __name__ == "__main__":
     # create performance reports
     if 'report' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
-        
-        mmReporter = MultiModalReporter(MULTIMODAL_OUTFILE, DEMAND_OUTFILE, MONTHLY_TS_OUTFILE, GTFS_OUTFILE)
-        mmReporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE)
+                
+        reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, 
+                                   ts_file=MONTHLY_TS_OUTFILE, 
+                                   demand_file=DEMAND_OUTFILE,
+                                   gtfs_file=GTFS_OUTFILE, 
+                                   multimodal_file=MULTIMODAL_OUTFILE)
+        reporter.writeSystemReport(MUNI_REPORT_XLSFILE, dow=1)
 
-        demandReporter = DemandReporter(DEMAND_OUTFILE)
-        demandReporter.writeDemandReport(DEMAND_REPORT_XLSFILE)
+        reporter.writeDemandReport(DEMAND_REPORT_XLSFILE)
+
+        reporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE)
         
         
-        #reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, 
-        #                           ts_file=MONTHLY_TS_OUTFILE, 
-        #                           demand_file=DEMAND_OUTFILE)
-        #reporter.writeSystemReport(MUNI_REPORT_XLSFILE, dow=1)
         #reporter.createRoutePlot(REPORT_ROUTEPLOTS, 
         #                         months=('2009-07-01', '2010-07-01'), 
         #                         dow=1, 
         #                         tod='0600-0859', 
         #                         route_short_name=1, 
         #                         dir=1)
+
         
         print 'Finished performance reports in ', (datetime.datetime.now() - startTime) 
 
