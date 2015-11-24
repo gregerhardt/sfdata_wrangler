@@ -19,9 +19,7 @@ __license__     = """
 """
 
 import pandas as pd
-import numpy as np
 import glob
-import os
 
 
 def getFiscalYear(month):
@@ -42,6 +40,19 @@ class MultiModalHelper():
     
     ANNUAL_TRANSIT_YEARS = [2000,2014]
 
+    MONTHS = ['January', 
+              'February', 
+              'March', 
+              'April', 
+              'May', 
+              'June', 
+              'July', 
+              'August', 
+              'September', 
+              'October', 
+              'November', 
+              'December']
+    
 
     def __init__(self):
         '''
@@ -249,3 +260,61 @@ class MultiModalHelper():
         dfcpi = dfcpi[['MONTH', 'CPI', 'CPI_FACTOR']]
         
         return dfcpi
+
+
+    def processBARTEntryExits(self, indir, outfile, outkey):
+        """
+        Read data, cleans it, processes it, and writes it to an HDF5 file.
+        
+        indir - the year will be appended here        
+        outfile - output file name in h5 format
+        outkey - write to this key
+        """
+        
+        # initialize a few things
+        numRecords = 0
+        outstore = pd.HDFStore(outfile) 
+        if outkey in outstore.keys(): 
+            outstore.remove(outkey)        
+        
+        # loop through each directly and get the right files
+        dirs = glob.glob(indir + '*/')
+        for d in dirs: 
+            year = d[-5:-1]
+            print 'Processing files in ' + d            
+            
+            for month in self.MONTHS: 
+                files = glob.glob(d + '/*' + month + '*')
+                
+                if len(files)==1: 
+                                        
+                    # first get the number of stations
+                    df_wholesheet = pd.read_excel(files[0], sheetname=0, header=1, index_col=0)
+                    num_stations = df_wholesheet.columns.tolist().index('Exits')
+                    footer_rows = len(df_wholesheet) - num_stations - 1
+                    
+                    # now get actual data and convert formats
+                    df = pd.read_excel(files[0], sheetname=0, header=1, 
+                                skip_footer=footer_rows, index_col=0, parse_cols=num_stations+1)
+                    df = pd.DataFrame(df.stack())
+                    
+                    df = df.reset_index()
+                    df = df.rename(columns={'level_0' : 'FROM' , 'level_1' : 'TO', 0 : 'RIDERS'})
+                    
+                    # make sure numbers are stored as strings
+                    df['FROM'] = df['FROM'].apply(str)
+                    df['TO'] = df['TO'].apply(str)
+    
+                    # set a few extra fields
+                    df['MONTH'] = pd.to_datetime(month + ' 1, ' + year)
+                    df['STATIONS'] = num_stations
+                    
+                    # give it a unique index
+                    df.index = pd.Series(range(numRecords,numRecords+len(df))) 
+                    numRecords += len(df)
+                    
+                    # append the data
+                    outstore.append(outkey, df, data_columns=True)
+        
+        outstore.close()
+        

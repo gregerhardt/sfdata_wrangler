@@ -24,7 +24,6 @@ sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 
 from SFMuniDataHelper import SFMuniDataHelper
 from GTFSHelper import GTFSHelper
-from BARTHelper import BARTHelper
 from SFMuniDataExpander import SFMuniDataExpander
 from SFMuniDataAggregator import SFMuniDataAggregator
 from MultiModalHelper import MultiModalHelper
@@ -54,7 +53,6 @@ VALID_STEPS = [ 'clean',
                 'expand', 
                 'aggregate', 
                 'gtfs', 
-                'bart', 
                 'cleanClipper', 
                 'multimodal', 
                 'demand', 
@@ -200,8 +198,6 @@ REPORT_ROUTEPLOTS = "C:/CASA/PerformanceReports/RoutePlots.html"
 
 GTFS_OUTFILE = "C:/CASA/PerformanceReports/gtfs.h5"
 
-BART_OUTFILE = "C:/CASA/PerformanceReports/bart.h5"
-
 CLIPPER_OUTFILE = "D:/Output/clipper3.h5"
 
 DEMAND_OUTFILE = "C:/CASA/PerformanceReports/DriversOfDemand/drivers_of_demand.h5"
@@ -265,14 +261,6 @@ if __name__ == "__main__":
         print 'Finished processing GTFS data ', (datetime.datetime.now() - startTime) 
         
 
-    # process BART entry/exit data. 
-    if 'bart' in STEPS_TO_RUN: 
-        startTime = datetime.datetime.now()   
-        bartHelper = BARTHelper() 
-        bartHelper.processFiles(BART_ENTRY_EXIT_DIR, BART_OUTFILE, 'weekday')
-        print 'Finished processing BART data ', (datetime.datetime.now() - startTime)         
-
-
     # process Clipper data.  
     if 'cleanClipper' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
@@ -321,6 +309,7 @@ if __name__ == "__main__":
         mmHelper.processAnnualTransitData(TRANSIT_ANNUAL_DIR, CPI_FILE, MULTIMODAL_OUTFILE)    
         mmHelper.processMonthlyTransitData(CPI_FILE, MULTIMODAL_OUTFILE)    
         mmHelper.processTransitFares(CASH_FARE_FILE, CPI_FILE, MULTIMODAL_OUTFILE)
+        mmHelper.processBARTEntryExits(BART_ENTRY_EXIT_DIR, MULTIMODAL_OUTFILE, 'bart_weekday')
 
 
     # create performance reports

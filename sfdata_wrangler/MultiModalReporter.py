@@ -54,7 +54,6 @@ class MultiModalReporter():
         # open and join the input fields
         mm_store = pd.HDFStore(self.multimodal_file)
         demand_store = pd.HDFStore(self.demand_file)
-        gtfs_store = pd.HDFStore(self.gtfs_file)
         
         transit = mm_store.select('transitAnnual')
         fares = mm_store.select('transitFareAnnual')
@@ -85,6 +84,7 @@ class MultiModalReporter():
         transit = mm_store.select('transitMonthly')
         fares = mm_store.select('transitFare')
         acs = demand_store.select('countyACS')
+        bart = mm_store.select('bart_weekday', where="FROM='Entries' and TO='Exits'")
         
         # schedule data
         gtfs_bart     = gtfs_store.select('bartMonthly', where='DOW=1 and ROUTE_TYPE=1')
@@ -96,6 +96,7 @@ class MultiModalReporter():
         ts = ts_store.select('system_day_s', where='DOW=1') 
         muni = ts[['MONTH']].copy()
         muni['APC_ON_MUNI_BUS'] = ts['ON']
+        bart['APC_ON_BART'] = bart['RIDERS']
         
         mm_store.close()
         demand_store.close()
@@ -106,6 +107,7 @@ class MultiModalReporter():
         df = pd.merge(transit, fares, how='left', on=['MONTH'],  sort=True, suffixes=('', '_FARE')) 
         df = pd.merge(df, acs, how='left', on=['MONTH'],  sort=True, suffixes=('', '_ACS')) 
         df = pd.merge(df, muni, how='left', on=['MONTH'],  sort=True, suffixes=('', '_MUNI')) 
+        df = pd.merge(df, bart, how='left', on=['MONTH'],  sort=True, suffixes=('', '_BART')) 
 
         # do the first one twice so we get the suffixes right
         df = pd.merge(df, gtfs_bart, how='left', on=['MONTH'],  sort=True, suffixes=('', '_NOT_USED')) 
@@ -176,21 +178,30 @@ class MultiModalReporter():
         worksheet.write(8, 3, comments)        
             
         # Use formulas to calculate the differences
-        self.writeAnnualSystemValues(df, years, sheetName)
-        #self.writeSystemDifferenceFormulas(years, sheetName)
-        #self.writeSystemPercentDifferenceFormulas(years, sheetName)    
+        self.set_position(self.writer, worksheet, 7, 2)  
+        self.writeAnnualValues(df, years, sheetName, 'values')
+        self.writeAnnualValues(df, years, sheetName, 'diff')
+        self.writeAnnualValues(df, years, sheetName, 'pctDiff')
             
         # freeze so we can see what's happening
         worksheet.freeze_panes(0, 7)
             
 
-    def writeAnnualSystemValues(self, df, months, sheetName):
+    def writeAnnualValues(self, df, years, sheetName, formulaType='values'):
         '''
         Writes the main system values to the worksheet. 
         '''
                 
+        # leave a couple of empty spaces
+        self.row += 2
+        
+        # which cells to look at
+        ROW_OFFSET = self.row - 9
+        COL_OFFSET = 1
+        max_col = 6+len(years)+1
+
         # get the worksheet
-        worksheet = self.writer.sheets[sheetName]        
+        worksheet = self.writer.sheets[sheetName]      
         
         # set up the formatting, with defaults
         bold = self.writer.book.add_format({'bold': 1})
@@ -201,13 +212,22 @@ class MultiModalReporter():
         percent_format = self.writer.book.add_format({'num_format': '0.0%'})
         
         # HEADER
-        worksheet.write(9, 7, 'Values', bold)
-        worksheet.write(10, 3, 'Source', bold)        
-        worksheet.write(10, 4, 'Temporal Res', bold)        
-        worksheet.write(10, 5, 'Geog Res', bold)        
-        worksheet.write(10, 6, 'Trend', bold)        
+        if formulaType=='diff': 
+            worksheet.write(self.row, 7, 'Difference from year before', bold)
+        elif formulaType=='pctDiff': 
+            worksheet.write(self.row, 7, 'Percent difference from year before', bold)
+        else:        
+            worksheet.write(self.row, 7, 'Values', bold)
+        self.row += 1
         
-        self.set_position(self.writer, worksheet, 11, 2)
+        worksheet.write(self.row, 3, 'Source', bold)        
+        worksheet.write(self.row, 4, 'Temporal Res', bold)        
+        worksheet.write(self.row, 5, 'Geog Res', bold)        
+        worksheet.write(self.row, 6, 'Trend', bold) 
+        years.T.to_excel(self.writer, sheet_name=sheetName, 
+                            startrow=self.row, startcol=7, header=False, index=False) 
+        self.row += 1       
+
         
         # TRANSIT STATISTICAL SUMMARY DATA
         measures = [('Annual Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', int_format), 
@@ -231,8 +251,16 @@ class MultiModalReporter():
                 
             for label, mode in modes: 
                 if measure + '_' + mode in df.columns: 
-                    self.write_row(label=label, data=df[[measure + '_' + mode]], 
-                        source=source, tempRes=tempRes, geogRes='System', format=format)
+
+                    if formulaType=='values':
+                        self.write_row(label=label, data=df[[measure + '_' + mode]], 
+                            source=source, tempRes=tempRes, geogRes='System', format=format)
+
+                    else: 
+                        self.write_difference_row(label=label, 
+                            row_offset=ROW_OFFSET, col_offset=COL_OFFSET, max_col=max_col,
+                            source=source, tempRes=tempRes, geogRes='System', format=format, 
+                            formulaType=formulaType)
 
         # MODE SHARES        
         modes = [('DA',      'Drive-Alone'), 
@@ -248,8 +276,15 @@ class MultiModalReporter():
         for mode, modeName in modes: 
             key = 'JTW_' + mode + '_SHARE'
             label =  modeName
-            self.write_row(label=label, data=df[[key]], 
-                source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
+            
+            if formulaType=='values':
+                self.write_row(label=label, data=df[[key]], 
+                    source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
+            else: 
+                self.write_difference_row(label=label, 
+                    row_offset=ROW_OFFSET, col_offset=COL_OFFSET, max_col=max_col,
+                    source='ACS', tempRes='Annual', geogRes='County', format=percent_format, 
+                            formulaType=formulaType)
 
 
         # MODE SHARES BY SEGMENT   
@@ -273,8 +308,14 @@ class MultiModalReporter():
                 key = group + mode + '_SHARE'
                 label = groupName + modeName
 
-                self.write_row(label=label, data=df[[key]], 
-                    source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
+                if formulaType=='values':         
+                    self.write_row(label=label, data=df[[key]], 
+                        source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
+                else: 
+                    self.write_difference_row(label=label, 
+                        row_offset=ROW_OFFSET, col_offset=COL_OFFSET, max_col=max_col,
+                        source='ACS', tempRes='Annual', geogRes='County', format=percent_format, 
+                                formulaType=formulaType)
 
 
     def writeMonthlySheet(self, sheetName, comments=None):         
@@ -321,19 +362,28 @@ class MultiModalReporter():
         worksheet.write(8, 3, comments)        
             
         # Use formulas to calculate the differences
-        self.writeMonthlySystemValues(df, periods, sheetName)
-        #self.writeSystemDifferenceFormulas(years, sheetName)
-        #self.writeSystemPercentDifferenceFormulas(years, sheetName)    
-            
+        self.set_position(self.writer, worksheet, 7, 2)  
+        self.writeMonthlyValues(df, periods, sheetName, 'values')
+        self.writeMonthlyValues(df, periods, sheetName, 'diff')
+        self.writeMonthlyValues(df, periods, sheetName, 'pctDiff')
+                        
         # freeze so we can see what's happening
         worksheet.freeze_panes(0, 7)
 
 
-    def writeMonthlySystemValues(self, df, months, sheetName):
+    def writeMonthlyValues(self, df, months, sheetName, formulaType='values'):
         '''
         Writes the main system values to the worksheet. 
         '''
                 
+        # leave a couple of empty spaces
+        self.row += 2
+        
+        # which cells to look at
+        ROW_OFFSET = self.row - 9
+        COL_OFFSET = 12
+        max_col = 6+len(months)+1
+
         # get the worksheet
         worksheet = self.writer.sheets[sheetName]        
         
@@ -345,15 +395,24 @@ class MultiModalReporter():
         dollar_format = self.writer.book.add_format({'num_format': '$#,##0'})
         percent_format = self.writer.book.add_format({'num_format': '0.0%'})
         
+        
         # HEADER
-        worksheet.write(9, 7, 'Values', bold)
-        worksheet.write(10, 3, 'Source', bold)        
-        worksheet.write(10, 4, 'Temporal Res', bold)        
-        worksheet.write(10, 5, 'Geog Res', bold)        
-        worksheet.write(10, 6, 'Trend', bold)        
+        if formulaType=='diff': 
+            worksheet.write(self.row, 7, 'Difference from year before', bold)
+        elif formulaType=='pctDiff': 
+            worksheet.write(self.row, 7, 'Percent difference from year before', bold)
+        else:        
+            worksheet.write(self.row, 7, 'Values', bold)
+        self.row += 1
         
-        self.set_position(self.writer, worksheet, 11, 2)
-        
+        worksheet.write(self.row, 3, 'Source', bold)        
+        worksheet.write(self.row, 4, 'Temporal Res', bold)        
+        worksheet.write(self.row, 5, 'Geog Res', bold)        
+        worksheet.write(self.row, 6, 'Trend', bold) 
+        months.T.to_excel(self.writer, sheet_name=sheetName, 
+                            startrow=self.row, startcol=7, header=False, index=False) 
+        self.row += 1       
+
         
         # TRANSIT STATISTICAL SUMMARY DATA
         measures = [('Monthly Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', int_format),
@@ -382,9 +441,17 @@ class MultiModalReporter():
             self.row += 1
                 
             for label, mode in modes: 
-                if measure + '_' + mode in df.columns: 
-                    self.write_row(label=label, data=df[[measure + '_' + mode]], 
-                        source=source, tempRes=tempRes, geogRes='System', format=format)
+                if measure + '_' + mode in df.columns:                     
+                    if formulaType=='values':
+                        self.write_row(label=label, data=df[[measure + '_' + mode]], 
+                            source=source, tempRes=tempRes, geogRes='System', format=format)
+
+                    else: 
+                        self.write_difference_row(label=label, 
+                            row_offset=ROW_OFFSET, col_offset=COL_OFFSET, max_col=max_col,
+                            source=source, tempRes=tempRes, geogRes='System', format=format, 
+                            formulaType=formulaType)
+
                 else:
                     print "can't find ",  measure + '_' + mode
 
@@ -402,8 +469,15 @@ class MultiModalReporter():
         for mode, modeName in modes: 
             key = 'JTW_' + mode + '_SHARE'
             label =  modeName
-            self.write_row(label=label, data=df[[key]], 
-                source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
+            
+            if formulaType=='values':
+                self.write_row(label=label, data=df[[key]], 
+                    source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
+            else: 
+                self.write_difference_row(label=label, 
+                    row_offset=ROW_OFFSET, col_offset=COL_OFFSET, max_col=max_col,
+                    source='ACS', tempRes='Annual', geogRes='County', format=percent_format, 
+                            formulaType=formulaType)
 
 
         # MODE SHARES BY SEGMENT   
@@ -427,9 +501,14 @@ class MultiModalReporter():
                 key = group + mode + '_SHARE'
                 label = groupName + modeName
 
-                self.write_row(label=label, data=df[[key]], 
-                    source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
-
+                if formulaType=='values':
+                    self.write_row(label=label, data=df[[key]], 
+                        source='ACS', tempRes='Annual', geogRes='County', format=percent_format)
+                else: 
+                    self.write_difference_row(label=label, 
+                        row_offset=ROW_OFFSET, col_offset=COL_OFFSET, max_col=max_col,
+                        source='ACS', tempRes='Annual', geogRes='County', format=percent_format, 
+                                formulaType=formulaType)
 
 
     def set_position(self, writer, worksheet, row, col):
@@ -481,4 +560,55 @@ class MultiModalReporter():
         # increment the row
         self.row += 1
 
-    
+
+                                    
+    def write_difference_row(self, row_offset, col_offset, max_col, 
+        label, source, tempRes, geogRes, format, sparkline=True, 
+        formulaType='diff'):
+        '''
+        Writes a row of difference formulas to the worksheet.
+        
+        worksheet - where to write it
+        row_offset - offset for row formulas
+        col_offset - offset for col formulas
+        max_col - right most column
+        label - string label to write in first column
+        source - string source to write in second column
+        res - string resolution to write in third column
+        format - number format for the row
+        sparkline - boolean indicating whether or not to add a sparkline
+        formulaType - either 'diff' or 'pctDiff'
+        '''
+        
+        # labels
+        self.worksheet.write(self.row, self.col, label)
+        self.worksheet.write(self.row, self.col+1, source)
+        self.worksheet.write(self.row, self.col+2, tempRes)
+        self.worksheet.write(self.row, self.col+3, geogRes)
+
+        # formats
+        percent_format = self.writer.book.add_format({'num_format': '0.0%'})
+        if formulaType=='diff': 
+            self.worksheet.set_row(self.row, None, format) 
+        elif formulaType=='pctDiff': 
+            self.worksheet.set_row(self.row, None, percent_format)             
+        
+        # formulas
+        for c in range(7+col_offset, max_col):
+            cell = xl_rowcol_to_cell(self.row, c)
+            new = xl_rowcol_to_cell(self.row-row_offset, c)
+            old = xl_rowcol_to_cell(self.row-row_offset, c-col_offset)
+            if formulaType=='diff': 
+                self.worksheet.write_formula(cell, '=IF(AND(ISNUMBER('+old+'),ISNUMBER('+new+')),'+new+'-'+old+',"")')
+            elif formulaType=='pctDiff':                 
+                self.worksheet.write_formula(cell, '=IF(AND(ISNUMBER('+old+'),ISNUMBER('+new+')),'+new+'/'+old+'-1,"")')
+            
+        # sparkline
+        if sparkline: 
+            data_range = xl_rowcol_to_cell(self.row, 7) + ':' + xl_rowcol_to_cell(self.row, max_col)
+            self.worksheet.add_sparkline(self.row, 6, {'range': data_range, 
+                                                       'type': 'column', 
+                                                       'negative_points': True})                  
+        # increment the row
+        self.row += 1
+        

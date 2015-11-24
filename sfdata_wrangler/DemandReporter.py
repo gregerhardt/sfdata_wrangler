@@ -45,7 +45,7 @@ class DemandReporter():
 
     def assembleDemandData(self):
         '''
-        Calculates the fields used in the system performance reports
+        Calculates the fields used in the  performance reports
         and stores them in an HDF datastore. 
         '''   
         # open and join the input fields
@@ -133,9 +133,9 @@ class DemandReporter():
         worksheet.write(8, 3, comments)        
             
         # Use formulas to calculate the differences
-        self.writeSystemValues(df, months, sheetName)
-        self.writeSystemDifferenceFormulas(months, sheetName)
-        self.writeSystemPercentDifferenceFormulas(months, sheetName)    
+        self.writeValues(df, months, sheetName)
+        self.writeDifferenceFormulas(months, sheetName)
+        self.writePercentDifferenceFormulas(months, sheetName)    
             
         # freeze so we can see what's happening
         worksheet.freeze_panes(0, 7)
@@ -143,9 +143,9 @@ class DemandReporter():
         self.writer.save()
     
 
-    def writeSystemValues(self, df, months, sheetName):
+    def writeValues(self, df, months, sheetName):
         '''
-        Writes the main system values to the worksheet. 
+        Writes the main  values to the worksheet. 
         '''
     
         # get the worksheet
@@ -314,9 +314,9 @@ class DemandReporter():
             
 
 
-    def writeSystemDifferenceFormulas(self, months, sheetName): 
+    def writeDifferenceFormulas(self, months, sheetName): 
         '''
-        Adds formulas to the system worksheet to calculate differences
+        Adds formulas to the  worksheet to calculate differences
         from 12 months earlier. 
         '''
         # which cells to look at
@@ -393,9 +393,9 @@ class DemandReporter():
 
 
 
-    def writeSystemPercentDifferenceFormulas(self, months, sheetName): 
+    def writePercentDifferenceFormulas(self, months, sheetName): 
         '''
-        Adds formulas to the system worksheet to calculate percent differences
+        Adds formulas to the  worksheet to calculate percent differences
         from 12 months earlier. 
         '''
         # which cells to look at
