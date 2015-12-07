@@ -18,6 +18,7 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import os
 import numpy as np
 import pandas as pd
 import datetime
@@ -89,6 +90,7 @@ class TransitReporter():
         df = ts[['MONTH']].copy()
 
         df['TRIPS']          = trips['TRIPS']
+        df['SERVMILES']      = ts['SERVMILES']
         df['SERVMILES_S']    = ts['SERVMILES_S']
         df['ON']             = ts['ON']
         df['RDBRDNGS']       = ts['RDBRDNGS']
@@ -103,6 +105,7 @@ class TransitReporter():
         df['FARE_PER_PASS']  = ts['FULLFARE_REV'] / ts['ON']
         df['MILES_PER_PASS'] = ts['PASSMILES'] / ts['ON']
         df['IVT_PER_PAS']    = (ts['PASSHOURS'] / ts['ON']) * 60.0
+        df['PASSPEED']       = (df['MILES_PER_PASS'] / df['IVT_PER_PAS']) * 60.0
         df['WAIT_PER_PAS']   = (ts['WAITHOURS'] / ts['ON']) * 60.0
         df['ONTIME5']        = ts['ONTIME5']	
         df['DELAY_DEP_PER_PASS'] = ts['PASSDELAY_DEP'] / ts['ON']
@@ -115,6 +118,14 @@ class TransitReporter():
         df['OBSERVED_PCT']   = trips['OBS_TRIPS'] / trips['TRIPS']
         df['MEASURE_ERR']    = ts['OFF'] / ts['ON'] - 1.0
         df['WEIGHT_ERR']     = ts['SERVMILES'] / ts['SERVMILES_S'] - 1.0
+
+        # additional fields for estimation
+        df['OFF_MINUS_ON']   = ts['OFF'] - ts['ON']
+        df['SERVMILES_MINUS_SERVMILES_S']   = ts['SERVMILES'] - ts['SERVMILES_S']
+        
+        df['MEASURE_ERR_ON']  = df['MEASURE_ERR'] * df['ON']
+        df['WEIGHT_ERR_ON']   = df['WEIGHT_ERR'] * df['ON']
+        
         
         # merge the drivers of demand data
         # employment includes TOTEMP
@@ -866,7 +877,32 @@ class TransitReporter():
         df = pd.merge(df, tolls, how='left', on=['MONTH'], sort=True, suffixes=('', '_TOLL')) 
         df = pd.merge(df, parkingCost, how='left', on=['MONTH'], sort=True, suffixes=('', '_PARK')) 
         df = pd.merge(df, transitFare, how='left', on=['MONTH'], sort=True, suffixes=('', '_FARE')) 
-                
+        
+        # some additional, calculated fields        
+        df['EMP_EARN0_40'] = df['EMP_EARN0_15'] + df['EMP_EARN15_40']
+        df['WORKERS_EARN0_40'] = df['WORKERS_EARN0_15'] + df['WORKERS_EARN15_40']
+        
+        df['EmpPerHU'] = 1.0 * df['TOTEMP'] / df['UNITS']
+        df['EmpPerWorker'] = 1.0 * df['TOTEMP'] / df['WORKERS_RAC']
+
+        df['INTRA_SHARE_EMP'] = df['INTRA'] / df['TOTEMP']
+        df['IN_SHARE_EMP'] = df['IN'] / df['TOTEMP']
+
+        df['INTRA_SHARE_WKR'] = df['INTRA'] / df['WORKERS_RAC']
+        df['OUT_SHARE_WKR'] = df['OUT'] / df['WORKERS_RAC']
+
+        df['WKR_SHARE_POP'] = df['WORKERS_RAC'] / df['POP']
+        
+        df['NON_WORKERS'] = df['POP'] - df['WORKERS_RAC']
+        
+        df['EMP_SHARE0_15']  = df['EMP_EARN0_15']  / df['TOTEMP']
+        df['EMP_SHARE15_40'] = df['EMP_EARN15_40'] / df['TOTEMP']
+        df['EMP_SHARE40P']   = df['EMP_EARN40P']   / df['TOTEMP']
+       
+        df['WORKERS_SHARE0_15']  = df['WORKERS_EARN0_15']  / df['WORKERS_RAC']
+        df['WORKERS_SHARE15_40'] = df['WORKERS_EARN15_40'] / df['WORKERS_RAC']
+        df['WORKERS_SHARE40P']   = df['WORKERS_EARN40P']   / df['WORKERS_RAC']
+
         return df
 
         
@@ -1043,11 +1079,9 @@ class TransitReporter():
         worksheet.write(self.row, 1, 'Jobs-Housing Balance', bold)
         self.row += 1
         
-        df['EmpPerHU'] = 1.0 * df['TOTEMP'] / df['UNITS']
         self.write_row(label='Employees per Housing Unit', data=df[['EmpPerHU']], 
             source='QCEW/Planning Dept', tempRes='Monthly', geogRes='Block', format=dec_format)
 
-        df['EmpPerWorker'] = 1.0 * df['TOTEMP'] / df['WORKERS_RAC']
         self.write_row(label='Employees per Worker', data=df[['EmpPerWorker']], 
             source='LODES OD/QCEW', tempRes='Annual/Monthly', geogRes='Block', format=dec_format)
 
@@ -1308,10 +1342,10 @@ class TransitReporter():
         gtfs_store.close()
 
         # join all the others with the month being equivalent
-        df = pd.merge(transit, fares, how='left', on=['MONTH'],  sort=True, suffixes=('', '_FARE')) 
+        df = pd.merge(bart, transit, how='left', on=['MONTH'],  sort=True, suffixes=('', '_PERFREPORT')) 
+        df = pd.merge(df, fares, how='left', on=['MONTH'],  sort=True, suffixes=('', '_FARE')) 
         df = pd.merge(df, acs, how='left', on=['MONTH'],  sort=True, suffixes=('', '_ACS')) 
         df = pd.merge(df, muni, how='left', on=['MONTH'],  sort=True, suffixes=('', '_MUNI')) 
-        df = pd.merge(df, bart, how='left', on=['MONTH'],  sort=True, suffixes=('', '_BART')) 
 
         # do the first one twice so we get the suffixes right
         df = pd.merge(df, gtfs_bart, how='left', on=['MONTH'],  sort=True, suffixes=('', '_NOT_USED')) 
@@ -1616,15 +1650,15 @@ class TransitReporter():
         months.T.to_excel(self.writer, sheet_name=sheetName, 
                             startrow=self.row, startcol=7, header=False, index=False) 
         self.row += 1       
-
         
         # TRANSIT STATISTICAL SUMMARY DATA
         measures = [('Monthly Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', int_format),
                     ('Monthly Ridership', 'PASSENGERS', 'Transit Stat Summary', 'FY', int_format), 
                     ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', int_format), 
                     ('Average Weekday Ridership', 'APC_ON', 'APCs/Faregate', 'Monthly', int_format), 
-                    ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY/Actual', cent_format), 
-                    ('Cash Fare (nominal $)', 'FARE_GTFS', 'GTFS', 'Actual', cent_format),  
+                    ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', cent_format),  
+                    ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY/Actual', cent_format),
+                    ('Weekday Stops', 'STOPS_GTFS', 'GTFS', 'Actual', int_format),  
                     ('Weekday Service Miles', 'SERVMILES_S_GTFS', 'GTFS', 'Actual', int_format),  
                     ('Weekday Average Headway', 'HEADWAY_S_GTFS', 'GTFS', 'Actual', dec_format),  
                     ('Weekday Average Run Speed', 'RUNSPEED_S_GTFS', 'GTFS', 'Actual', dec_format),  
@@ -1719,14 +1753,42 @@ class TransitReporter():
         '''
         Writes a model estimation file for SF MUNI busses.        
         '''     
-
-        # basic performance data
-        df = self.assembleSystemPerformanceData(dow=dow, tod=tod)
-
-        # supporting data
         
+        # get a filename for the differences
+        base = os.path.splitext(estfile)
+        estfileDiff = base[0] + '_diff' + base[1]
 
+
+        # get the data
+        muni = self.assembleSystemPerformanceData(dow=dow, tod=tod)
+        multimodal = self.assembleMonthlyMultiModalData()
+        demand = self.assembleDemandData()
+                
+        # interpolate for one missing month
+        muni = muni.interpolate()
+        
+        # merge the data        
+        df = muni
+        df = pd.merge(df, multimodal, how='left', on=['MONTH'], sort=True, suffixes=('', '_MM')) 
+        df = pd.merge(df, demand, how='left', on=['MONTH'], sort=True, suffixes=('', '_DEMAND')) 
+        
+        # calcluate the diff from 12 months before
+        diff = pd.DataFrame()
+        for col in df.columns: 
+            if df[col].dtype=='object': 
+                diff[col] = df[col] + '-' + df[col].shift(12)
+            elif df[col].dtype=='datetime64[ns]':
+                diff[col] = df[col]
+            else: 
+                diff[col] = df[col] - df[col].shift(12)
+        diff = diff[12:]
+        
+        # and a bit of clean up
+        diff['MONTH_NUM'] = diff['MONTH'].apply(lambda x: x.month)
+
+        # write the data
         df.to_csv(estfile)
+        diff.to_csv(estfileDiff)
 
 
     def set_position(self, writer, worksheet, row, col):

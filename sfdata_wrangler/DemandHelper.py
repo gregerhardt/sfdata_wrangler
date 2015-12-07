@@ -41,7 +41,7 @@ def convertDateToMonth(date):
     if pd.isnull(date): 
         return pd.NaT
     else: 
-        month = ((pd.to_datetime(date)).to_period('month')).to_timestamp() 
+        month = ((pd.to_datetime(date)).to_period('M')).to_timestamp() 
         return month
 
     
@@ -55,7 +55,7 @@ class DemandHelper():
     POP_EST_YEARS = [2000,2014]
     HU_YEARS      = [2001,2014]
     ACS_YEARS     = [2005,2014]
-    LODES_YEARS   = [2002,2013]
+    LODES_YEARS   = [2002,2013]  
     
     # a list of output field and inputfield tuples for each table
     ACS_EQUIV = {'B01003' : [('POP',   'Estimate; Total')
@@ -895,8 +895,14 @@ class DemandHelper():
         # factor is based on the ratio of QCEW to WAC
         if lodesType=='WAC': 
             self.setLODEStoQCEWFactors(monthly, outstore)
-        scaled = self.scaleLODEStoQCEW(monthly, lodesType, outstore, wrkemp)
-        
+
+        if lodesType=='RAC' or lodesType=='WAC': 
+            scaled = self.scaleLODEStoQCEW(monthly, lodesType, outstore, wrkemp)        
+        elif lodesType=='OD': 
+            scaled = monthly
+            for wrkemp in wrkempList: 
+                scaled = self.scaleLODEStoQCEW(scaled, lodesType, outstore, wrkemp)  
+
         # append to the output store
         outstore.append(key, scaled, data_columns=True)
         outstore.close()
@@ -940,9 +946,9 @@ class DemandHelper():
 
         # apply the factors
         adj = pd.merge(monthly, factors, how='left', on=['MONTH'], sort=True, suffixes=('', '_FACTOR'))  
-        
+                
         adj[wrkemp] = adj[wrkemp] * adj['TOT_FACTOR']          # total workers
-        
+                
         adj[wrkemp+'_EARN0_15'] = adj[wrkemp+'_EARN0_15']  * adj['TOT_FACTOR']
         adj[wrkemp+'_EARN15_40']= adj[wrkemp+'_EARN15_40'] * adj['TOT_FACTOR']  
         adj[wrkemp+'_EARN40P']  = adj[wrkemp+'_EARN40P']   * adj['TOT_FACTOR']

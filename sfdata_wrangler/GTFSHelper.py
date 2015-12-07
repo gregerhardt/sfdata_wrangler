@@ -163,7 +163,7 @@ class GTFSHelper():
         outstore = pd.HDFStore(outfile) 
         if outkey in outstore.keys(): 
             outstore.remove(outkey)
-            
+           
         startIndex = 0
         
         for infile in infiles: 
@@ -203,6 +203,7 @@ class GTFSHelper():
         aggregator = SFMuniDataAggregator()        
         AGGREGATION_RULES = [            
            	['TRIPS'        ,'TRIP_ID'     ,aggregator.countUnique, 'system', 'int64', 0],
+           	['STOPS'        ,'STOP_ID'     ,aggregator.countUnique, 'system', 'int64', 0],
            	['TRIP_STOPS'   ,'TRIP_STOPS'  ,'sum',  'system', 'int64', 0],
            	['FARE'         ,'FARE'        ,'mean', 'system', 'float64', 0],
            	['HEADWAY_S'    ,'HEADWAY_S'   ,'mean', 'system', 'float64', 0],
@@ -236,7 +237,7 @@ class GTFSHelper():
                 print ' Processing ', date
                 
                 # some calculations
-                month = ((pd.to_datetime(date)).to_period('month')).to_timestamp() 
+                month = ((pd.to_datetime(date)).to_period('M')).to_timestamp() 
                 if (date.weekday()==5):
                     dow=2
                 elif (date.weekday()==6):
@@ -280,6 +281,7 @@ class GTFSHelper():
         aggregator = SFMuniDataAggregator()        
         AGGREGATION_RULES = [            
            	['TRIPS'        ,'TRIPS'       ,'mean', 'system', 'int64',   0],
+           	['STOPS'        ,'STOPS'       ,'mean', 'system', 'int64',   0],
            	['TRIP_STOPS'   ,'TRIP_STOPS'  ,'mean', 'system', 'int64',   0],
            	['FARE'         ,'FARE'        ,'mean', 'system', 'float64', 0],
            	['HEADWAY_S'    ,'HEADWAY_S'   ,'mean', 'system', 'float64', 0],

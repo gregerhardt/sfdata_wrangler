@@ -18,6 +18,7 @@ __license__     = """
     along with sfdata_wrangler.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import numpy as np
 import pandas as pd
 import glob
 
@@ -128,13 +129,21 @@ class MultiModalHelper():
 
         # get the annual data
         annual = outstore.select('transitAnnual')
+                
+        # extrapolate to get the last fiscal year of monthly data        
+        index = np.max(annual.index.tolist()) + 1
+        month = annual['MONTH'].max() + pd.DateOffset(months=11)
+        lastRow = pd.DataFrame({'MONTH' : [month]}, index=[index])
+        
+        annual = annual.append(lastRow)        
+        
         
         # expand to a monthly, using backfill to keep same values for whole year
         monthly = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
         monthly = monthly.resample('M', fill_method='ffill')
         monthly['MONTH'] = monthly.index
         monthly['MONTH'] = monthly['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
-        
+                
         # scale annual values to monthly values
         # by default, use 1/12th.  Use better information if we have it...
         defaultFactors = [('SERVMILES_', 1.0/12.0), 
