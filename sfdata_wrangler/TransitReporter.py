@@ -842,26 +842,40 @@ class TransitReporter():
         
 
 
-    def assembleDemandData(self):
+    def assembleDemandData(self, fips):
         '''
         Calculates the fields used in the  performance reports
         and stores them in an HDF datastore. 
         '''   
         # open and join the input fields
         demand_store = pd.HDFStore(self.demand_file)
+        multimodal_store = pd.HDFStore(self.multimodal_file)
         
-        population = demand_store.select('countyPop')
-        acs        = demand_store.select('countyACS')
-        hu         = demand_store.select('countyHousingUnits')
-        employment = demand_store.select('countyEmp')
-        lodesWAC   = demand_store.select('lodesWAC')
-        lodesRAC   = demand_store.select('lodesRAC')
-        lodesOD    = demand_store.select('lodesOD')
-        autoOpCost = demand_store.select('autoOpCost')
-        tolls      = demand_store.select('tollCost')
-        parkingCost= demand_store.select('parkingCost')
-        transitFare= demand_store.select('transitFare')
-
+        if fips=='Total': 
+            population = demand_store.select('totalPop')
+            acs        = demand_store.select('totalACS')
+            hu         = demand_store.select('countyHousingUnits', where="FIPS=fips")
+            employment = demand_store.select('totalEmp')
+            lodesWAC   = demand_store.select('lodesWACtotal')
+            lodesRAC   = demand_store.select('lodesRACtotal')
+            lodesOD    = demand_store.select('lodesODtotal')
+            autoOpCost = demand_store.select('autoOpCost')
+            tolls      = demand_store.select('tollCost')
+            parkingCost= demand_store.select('parkingCost')
+            transitFare= multimodal_store.select('transitFare')
+        else: 
+            population = demand_store.select('countyPop', where="FIPS=fips")
+            acs        = demand_store.select('countyACS', where="FIPS=fips")
+            hu         = demand_store.select('countyHousingUnits', where="FIPS=fips")
+            employment = demand_store.select('countyEmp', where="FIPS=fips")
+            lodesWAC   = demand_store.select('lodesWAC', where="FIPS=fips")
+            lodesRAC   = demand_store.select('lodesRAC', where="FIPS=fips")
+            lodesOD    = demand_store.select('lodesOD', where="FIPS=fips")
+            autoOpCost = demand_store.select('autoOpCost')
+            tolls      = demand_store.select('tollCost')
+            parkingCost= demand_store.select('parkingCost')
+            transitFare= multimodal_store.select('transitFare')
+            
         demand_store.close()
         
         # start with the population, which has the longest time-series, 
@@ -906,63 +920,67 @@ class TransitReporter():
         return df
 
         
-    def writeDemandReport(self, xlsfile, comments=None):
+    def writeDemandReport(self, xlsfile, fipsList, comments=None):
         '''
         Writes a drivers of demand for all months to the specified excel file.        
         '''    
         
         timestring = str(pd.Timestamp(datetime.datetime.now()))
         timestring = timestring.split('.')[0]
-        sheetName = 'Drivers of Demand'
  
         # establish the writer        
         self.writer = pd.ExcelWriter(xlsfile, engine='xlsxwriter',
                         datetime_format='mmm-yyyy')        
-                                
-        # get the actual data
-        df = self.assembleDemandData()    
-                    
-        # Write the month as the column headers
-        months = df[['MONTH']]
-        months.T.to_excel(self.writer, sheet_name=sheetName,  
-                                startrow=10, startcol=7, header=False, index=False)
-                    
+        
+        fipsList.append(('Total', 'Total'))
+        
+        # create a tab for each county
+        for fips, countyName in fipsList: 
     
-        # note that we have to call the pandas function first to get the
-        # excel sheet created properly, so now we can access that
-        worksheet = self.writer.sheets[sheetName]
-            
-        # set up the formatting, with defaults
-        bold = self.writer.book.add_format({'bold': 1})        
-            
-        # set the column widths
-        worksheet.set_column(0, 0, 1)
-        worksheet.set_column(1, 1, 3, bold)
-        worksheet.set_column(2, 2, 45)
-        worksheet.set_column(3, 3, 17)
-        worksheet.set_column(4, 4, 15)
-        worksheet.set_column(5, 5, 10)
-        worksheet.set_column(6, 6, 25)                    
-            
-        # write the header
-        worksheet.write(1, 1, 'San Francisco Drivers of Demand Report', bold)
-        worksheet.write(3, 1, 'Input Specification', bold)
-        worksheet.write(4, 2, 'Geographic Extent: ')
-        worksheet.write(4, 3, 'San Francisco County')
-        worksheet.write(5, 2, 'Temporal Resolution: ')
-        worksheet.write(5, 3, 'Monthly')
-        worksheet.write(6, 2, 'Report Generated on: ')
-        worksheet.write(6, 3, timestring)
-        worksheet.write(7, 2, 'Comments: ')      
-        worksheet.write(8, 3, comments)        
-            
-        # Use formulas to calculate the differences
-        self.writeDemandValues(df, months, sheetName)
-        self.writeDemandDifferenceFormulas(months, sheetName)
-        self.writeDemandPercentDifferenceFormulas(months, sheetName)    
-            
-        # freeze so we can see what's happening
-        worksheet.freeze_panes(0, 7)
+            # get the actual data
+            df = self.assembleDemandData(fips)    
+                        
+            # Write the month as the column headers
+            months = df[['MONTH']]
+            months.T.to_excel(self.writer, sheet_name=countyName,  
+                                    startrow=10, startcol=7, header=False, index=False)
+                        
+        
+            # note that we have to call the pandas function first to get the
+            # excel sheet created properly, so now we can access that
+            worksheet = self.writer.sheets[countyName]
+                
+            # set up the formatting, with defaults
+            bold = self.writer.book.add_format({'bold': 1})        
+                
+            # set the column widths
+            worksheet.set_column(0, 0, 1)
+            worksheet.set_column(1, 1, 3, bold)
+            worksheet.set_column(2, 2, 45)
+            worksheet.set_column(3, 3, 17)
+            worksheet.set_column(4, 4, 15)
+            worksheet.set_column(5, 5, 10)
+            worksheet.set_column(6, 6, 25)                    
+                
+            # write the header
+            worksheet.write(1, 1, 'Drivers of Demand Report', bold)
+            worksheet.write(3, 1, 'Input Specification', bold)
+            worksheet.write(4, 2, 'Geographic Extent: ')
+            worksheet.write(4, 3, countyName)
+            worksheet.write(5, 2, 'Temporal Resolution: ')
+            worksheet.write(5, 3, 'Monthly')
+            worksheet.write(6, 2, 'Report Generated on: ')
+            worksheet.write(6, 3, timestring)
+            worksheet.write(7, 2, 'Comments: ')      
+            worksheet.write(8, 3, comments)        
+                
+            # Use formulas to calculate the differences
+            self.writeDemandValues(df, months, countyName)
+            self.writeDemandDifferenceFormulas(months, countyName)
+            self.writeDemandPercentDifferenceFormulas(months, countyName)    
+                
+            # freeze so we can see what's happening
+            worksheet.freeze_panes(0, 7)
             
         self.writer.save()
     

@@ -182,7 +182,10 @@ CPI_FILE       = "C:/CASA/Data/CPI/SeriesReport-20150908105105_8887b6.xlsx"
 
 TRANSIT_ANNUAL_DIR = "C:/CASA/Data/TransitStatisticalSummary"
 
-FIPS = '06075'
+FIPS = [('06001' , 'Alameda County'), 
+        ('06013' , 'Contra Costa County'), 
+        ('06075' , 'San Francisco County'), 
+        ('06081' , 'San Mateo County')]
 
 # OUTPUT FILES--change as needed
 CLEANED_OUTFILE       = "D:/Output/sfmuni_cleaned.h5"    
@@ -198,7 +201,7 @@ MONTHLY_TS_OUTFILE   = "D:/Output/sfmuni_monthly_ts.h5"
 
 GTFS_OUTFILE = "C:/CASA/PerformanceReports/gtfs.h5"
 CLIPPER_OUTFILE = "D:/Output/clipper3.h5"
-DEMAND_OUTFILE = "C:/CASA/PerformanceReports/DriversOfDemand/drivers_of_demand.h5"
+DEMAND_OUTFILE = "C:/CASA/PerformanceReports/drivers_of_demand.h5"
 MULTIMODAL_OUTFILE = "C:/CASA/PerformanceReports/multimodal.h5"
 
 MULTIMODAL_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MultiModalReport.xlsx"
@@ -206,7 +209,7 @@ DEMAND_REPORT_XLSFILE = "C:/CASA/PerformanceReports/DriversOfDemandReport.xlsx"
 MUNI_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MuniPerformanceReport.xlsx"
 REPORT_ROUTEPLOTS = "C:/CASA/PerformanceReports/RoutePlots.html"
 
-MUNI_ESTIMATION_FILE = "C:/CASA/ModelEstimation/MuniBusCountyLevel/data/MuniEstimationFile.csv"
+MUNI_ESTIMATION_FILE = "C:/CASA/ModelEstimation/MuniBusCountyLevel/Try2/data/MuniEstimationFile.csv"
 
 
 # main function call
@@ -261,7 +264,7 @@ if __name__ == "__main__":
     if 'gtfs' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         gtfsHelper = GTFSHelper() 
-        gtfsHelper.processFiles(RAW_GTFS_FILES, GTFS_OUTFILE, 'sfmuni')
+        #gtfsHelper.processFiles(RAW_GTFS_FILES, GTFS_OUTFILE, 'sfmuni')
         gtfsHelper.processFiles(BART_GTFS_FILES, GTFS_OUTFILE, 'bart')
         print 'Finished processing GTFS data ', (datetime.datetime.now() - startTime) 
         
@@ -280,27 +283,27 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         demandHelper = DemandHelper()
 
-        #demandHelper.processCensusPopulationEstimates(CENSUS_POPEST_PRE2010_FILE, 
-        #                                              CENSUS_POPEST_POST2010_FILE, 
-        #                                              FIPS, 
-        #                                              DEMAND_OUTFILE)      
+        demandHelper.processCensusPopulationEstimates(CENSUS_POPEST_PRE2010_FILE, 
+                                                      CENSUS_POPEST_POST2010_FILE, 
+                                                      FIPS, 
+                                                      DEMAND_OUTFILE)      
         
-        #demandHelper.processCensusSampleData(ACS_DIR, CENSUS2000_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+        demandHelper.processCensusSampleData(ACS_DIR, CENSUS2000_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
         
-        demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILES, CENSUS2010_FILE, FIPS, DEMAND_OUTFILE)          
+        demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILES, CENSUS2010_FILE, DEMAND_OUTFILE)          
 
-        #demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+        demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
 
-        #demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        #demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        #demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
                                                              
-        #demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
-        #                           MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
+        demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
+                                   MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
-        #demandHelper.processParkingCosts(PARKING_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
+        demandHelper.processParkingCosts(PARKING_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
-        #demandHelper.processTollCosts(TOLL_FILE, CPI_FILE, DEMAND_OUTFILE)
+        demandHelper.processTollCosts(TOLL_FILE, CPI_FILE, DEMAND_OUTFILE)
         
 
         print 'Finished processing drivers of demand data ', (datetime.datetime.now() - startTime) 
@@ -314,7 +317,7 @@ if __name__ == "__main__":
         mmHelper.processAnnualTransitData(TRANSIT_ANNUAL_DIR, CPI_FILE, MULTIMODAL_OUTFILE)    
         mmHelper.processMonthlyTransitData(CPI_FILE, MULTIMODAL_OUTFILE)    
         mmHelper.processTransitFares(CASH_FARE_FILE, CPI_FILE, MULTIMODAL_OUTFILE)
-        mmHelper.processBARTEntryExits(BART_ENTRY_EXIT_DIR, MULTIMODAL_OUTFILE, 'bart_weekday')
+        #mmHelper.processBARTEntryExits(BART_ENTRY_EXIT_DIR, MULTIMODAL_OUTFILE, 'bart_weekday')
 
 
     # create performance reports
@@ -328,9 +331,11 @@ if __name__ == "__main__":
                                    multimodal_file=MULTIMODAL_OUTFILE)
         reporter.writeSystemReport(MUNI_REPORT_XLSFILE, dow=1)
 
-        reporter.writeDemandReport(DEMAND_REPORT_XLSFILE)
+        reporter.writeDemandReport(DEMAND_REPORT_XLSFILE, FIPS)
 
         reporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE)
+
+        reporter.writeSFMuniEstimationFile(MUNI_ESTIMATION_FILE)
         
         
         #reporter.createRoutePlot(REPORT_ROUTEPLOTS, 

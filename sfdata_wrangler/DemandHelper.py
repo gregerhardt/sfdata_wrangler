@@ -308,7 +308,7 @@ class DemandHelper():
         '''   
     
     
-    def processCensusPopulationEstimates(self, pre2010File, post2010File, fips, outfile): 
+    def processCensusPopulationEstimates(self, pre2010File, post2010File, fipsList, outfile): 
         """ 
         Reads the Census annual population estimates, which are published
         at a county level, interpolates them to monthly values, and writes
@@ -317,7 +317,7 @@ class DemandHelper():
         pre2010File - file containing intercensal (retrospective) population 
                       estimates between 2000 and 2010
         post2010File - file containing postcensal population estimates
-        fips     - the  FIPS codes to process, as string
+        fipsList     - the  FIPS codes to process, as (code, countyName)
         outfile - the HDF output file to write to
         
         """
@@ -327,49 +327,71 @@ class DemandHelper():
         keys = outstore.keys()
         if '/countyPop' in keys: 
             outstore.remove('countyPop')
-
-        # create the output file for annual data
-        annual = pd.DataFrame({'YEAR': range(self.POP_EST_YEARS[0], self.POP_EST_YEARS[1]+1)})
-        annual['POP'] = 0
-        annual.index = range(self.POP_EST_YEARS[0], self.POP_EST_YEARS[1]+1)
-        
-        # get raw data, pre-2010, and copy to annual file
-        pre2010_raw = pd.read_csv(pre2010File)
-        fips_state = fips[:2]
-        fips_county = fips[2:]
-        pre2010_raw = pre2010_raw[(pre2010_raw['STATE']==int(fips_state)) 
-                                & (pre2010_raw['COUNTY']==int(fips_county))]
-        pre2010_raw.index = range(0, len(pre2010_raw))
-        
-        for year in range(2000, 2010): 
-            annual.at[year,'POP'] = pre2010_raw.at[0, 'POPESTIMATE' + str(year)]
+        if '/totalPop' in keys: 
+            outstore.remove('totalPop')
             
+            
+        # count for unique index
+        nrows = 0
         
-        # get raw data, post-2010
-        post2010_raw = pd.read_csv(post2010File, skiprows=1)
-        post2010_raw = post2010_raw[post2010_raw['Id2']==int(fips)]
-        post2010_raw.index = range(0, len(post2010_raw))
-        
-        for year in range(2010, self.POP_EST_YEARS[1]+1): 
-            annual.at[year,'POP'] = post2010_raw.at[0, 'Population Estimate (as of July 1) - ' + str(year)]
+        # loop through counties    
+        for fips, countyName in fipsList: 
 
-        # convert data to monthly
-        monthly = self.convertAnnualToMonthly(annual)
-                        
-        # append to the output store
-        outstore.append('countyPop', monthly, data_columns=True)
+            # create the output file for annual data
+            annual = pd.DataFrame({'YEAR': range(self.POP_EST_YEARS[0], self.POP_EST_YEARS[1]+1)})
+            annual['POP'] = 0
+            annual.index = range(self.POP_EST_YEARS[0], self.POP_EST_YEARS[1]+1)
+                    
+            # get raw data, pre-2010, and copy to annual file
+            pre2010_raw = pd.read_csv(pre2010File)
+            fips_state = fips[:2]
+            fips_county = fips[2:]
+            pre2010_raw = pre2010_raw[(pre2010_raw['STATE']==int(fips_state)) 
+                                    & (pre2010_raw['COUNTY']==int(fips_county))]
+            pre2010_raw.index = range(0, len(pre2010_raw))
+            
+            for year in range(2000, 2010): 
+                annual.at[year,'POP'] = pre2010_raw.at[0, 'POPESTIMATE' + str(year)]
+                
+            
+            # get raw data, post-2010
+            post2010_raw = pd.read_csv(post2010File, skiprows=1)
+            post2010_raw = post2010_raw[post2010_raw['Id2']==int(fips)]
+            post2010_raw.index = range(0, len(post2010_raw))
+            
+            for year in range(2010, self.POP_EST_YEARS[1]+1): 
+                annual.at[year,'POP'] = post2010_raw.at[0, 'Population Estimate (as of July 1) - ' + str(year)]
+    
+            # convert data to monthly
+            monthly = self.convertAnnualToMonthly(annual)
+
+            # set the fips code and unique index
+            monthly['FIPS'] = fips
+            monthly.index = pd.Series(range(nrows,nrows+len(monthly))) 
+            nrows += len(monthly)
+                                        
+            # append to the output store
+            outstore.append('countyPop', monthly, data_columns=True)
+        
+        # calculate the totals
+        df = outstore.select('countyPop')
+        totals = df.groupby(['MONTH']).aggregate('sum')
+        totals = totals.reset_index()
+        outstore.append('totalPop', totals, data_columns=True)
+        
+        # close
         outstore.close()
 
 
 
-    def processCensusSampleData(self, acsDir, census2000Dir, fips, cpiFile, outfile): 
+    def processCensusSampleData(self, acsDir, census2000Dir, fipsList, cpiFile, outfile): 
         """ 
         Reads raw Census Sample (2000 long form and 2005+ ACS)
         data and converts it to a clean list format. 
         
         acsDir   - directory containing raw ACS data files
         census2000Dir - directory containing Census 2000 data
-        fips     - the  FIPS codes to process, as string
+        fipsList     - the  FIPS codes to process, as (code, countyName)
         cpiFile  - file containing consumer price index data
         outfile  - the HDF output file to write to
         
@@ -382,48 +404,90 @@ class DemandHelper():
             outstore.remove('countyACS')
         if '/countyACSannual' in keys: 
             outstore.remove('countyACSannual')
+        if '/totalACS' in keys: 
+            outstore.remove('totalACS')
+        if '/totalACSannual' in keys: 
+            outstore.remove('totalACSannual')
         
-        # get the data
-        census2000 = self.getCensus2000Table(census2000Dir, fips)
-        acsAnnual = self.getACSAnnualTable(acsDir, fips)
-        annual = census2000.append(acsAnnual)
+        # for unique index
+        nyears = 0
+        nmonths = 0
+        
+        
+        for fips, countyName in fipsList: 
                 
-        # convert data to monthly
-        monthly = self.convertAnnualToMonthly(annual, censusYears=[2000])
-        
-        # adjust household incomes for inflation
-        dfcpi = self.getCPIFactors(cpiFile)
-        monthly = pd.merge(monthly, dfcpi, how='left', on=['MONTH'], sort=True)  
-        monthly['MEDIAN_HHINC_2010USD'] = monthly['MEDIAN_HHINC'] * monthly['CPI_FACTOR']
-        
-        # calculate mode shares for journey to work data - totals
-        modes    = ['DA', 'SR', 'TRANSIT', 'WALK', 'OTHER', 'HOME']
-        monthly['total'] = 0.0
-        for mode in modes: 
-            monthly['total'] = monthly['total'] + monthly['JTW_' + mode]
-        for mode in modes: 
-            monthly['JTW_' + mode + '_SHARE'] = monthly['JTW_' + mode] / monthly['total']
-        monthly.drop('total', axis=1)
-                
-        # calculate mode shares for journey to work data - by segment
-        prefixes = ['JTW_0VEH_', 'JTW_1PVEH_', 'JTW_EARN0_50_', 'JTW_EARN50P_']
-        modes    = ['DA', 'SR', 'TRANSIT', 'WALK_OTHER', 'HOME']
-        for prefix in prefixes:
+            # get the data
+            census2000 = self.getCensus2000Table(census2000Dir, fips)
+            acsAnnual = self.getACSAnnualTable(acsDir, fips)
+            annual = census2000.append(acsAnnual)
+                                
+            # convert data to monthly
+            monthly = self.convertAnnualToMonthly(annual, censusYears=[2000])
+            
+            # adjust household incomes for inflation
+            dfcpi = self.getCPIFactors(cpiFile)
+            monthly = pd.merge(monthly, dfcpi, how='left', on=['MONTH'], sort=True)  
+            monthly['MEDIAN_HHINC_2010USD'] = monthly['MEDIAN_HHINC'] * monthly['CPI_FACTOR']
+            
+            # for calculating weighted average across counties
+            monthly['HH_TIMES_INC'] = monthly['HH'] * monthly['MEDIAN_HHINC_2010USD']
+            
+            # calculate mode shares for journey to work data - totals
+            modes    = ['DA', 'SR', 'TRANSIT', 'WALK', 'OTHER', 'HOME']
             monthly['total'] = 0.0
             for mode in modes: 
-                monthly['total'] = monthly['total'] + monthly[prefix + mode]
+                monthly['total'] = monthly['total'] + monthly['JTW_' + mode]
             for mode in modes: 
-                monthly[prefix + mode + '_SHARE'] = monthly[prefix + mode] / monthly['total']
+                monthly['JTW_' + mode + '_SHARE'] = monthly['JTW_' + mode] / monthly['total']
             monthly.drop('total', axis=1)
+                    
+            # calculate mode shares for journey to work data - by segment
+            prefixes = ['JTW_0VEH_', 'JTW_1PVEH_', 'JTW_EARN0_50_', 'JTW_EARN50P_']
+            modes    = ['DA', 'SR', 'TRANSIT', 'WALK_OTHER', 'HOME']
+            for prefix in prefixes:
+                monthly['total'] = 0.0
+                for mode in modes: 
+                    monthly['total'] = monthly['total'] + monthly[prefix + mode]
+                for mode in modes: 
+                    monthly[prefix + mode + '_SHARE'] = monthly[prefix + mode] / monthly['total']
+                monthly.drop('total', axis=1)
+    
+            # get the july data as the annual measures for each year
+            monthly['YEAR'] = monthly['MONTH'].apply(lambda x: x.year)
+            monthly['M'] = monthly['MONTH'].apply(lambda x: x.month)
+            annual = monthly[monthly['M']==7]
+            
+            # set the fips code
+            annual['FIPS'] = fips
+            monthly['FIPS'] = fips
+            
+            # set unique index
+            annual.index = pd.Series(range(nyears,nyears+len(annual))) 
+            nyears += len(annual)
 
-        # get the july data as the annual measures for each year
-        monthly['YEAR'] = monthly['MONTH'].apply(lambda x: x.year)
-        monthly['M'] = monthly['MONTH'].apply(lambda x: x.month)
-        annual = monthly[monthly['M']==7]
+            monthly.index = pd.Series(range(nmonths,nmonths+len(monthly))) 
+            nmonths += len(monthly)
+            
+            # append to the output store
+            outstore.append('countyACS', monthly, data_columns=True)
+            outstore.append('countyACSannual', annual, data_columns=True)
+            
+            
+        # calculate the totals
+        df = outstore.select('countyACS')
+        totals = df.groupby(['MONTH']).aggregate('sum')
+        totals = totals.reset_index()
+        totals['MEDIAN_HHINC_2010USD'] = totals['HH_TIMES_INC'] / totals['HH']
+        outstore.append('totalACS', totals, data_columns=True)    
+            
+        df = outstore.select('countyACSannual')   
+        totals = df.groupby(['MONTH']).aggregate('sum')
+        totals = totals.reset_index()
+        totals['MEDIAN_HHINC_2010USD'] = totals['HH_TIMES_INC'] / totals['HH']
+        outstore.append('totalACSannual', totals, data_columns=True)
         
-        # append to the output store
-        outstore.append('countyACS', monthly, data_columns=True)
-        outstore.append('countyACSannual', annual, data_columns=True)
+
+        # close
         outstore.close()
         
         
@@ -432,9 +496,9 @@ class DemandHelper():
         Fills a table of annual Census 2000 data (1 row). 
         
         census2000Dir - directory containing raw data files
-        fullFips     - the  FIPS codes to process, as string
+        fullFips      - the  FIPS code of interest
         
-        """
+        """      
         
         # create the output file for annual data, with blanks for 2001-2004
         years = range(2000, 2005)
@@ -492,7 +556,7 @@ class DemandHelper():
         Fills a table of annual ACS data. 
         
         acsDir - directory containing raw data files
-        fips     - the  FIPS codes to process, as string
+        fips   - the  FIPS code of interest
         
         """
         
@@ -557,14 +621,18 @@ class DemandHelper():
         return annual
         
 
-    def processHousingUnitsData(self, completionsFiles, census2010File, fips, outfile): 
+    def processHousingUnitsData(self, completionsFiles, census2010File, outfile): 
         """ 
         Reads raw housing completions data and converts it to a clean list format. 
         
         infile   - input csv file
         outfile  - the HDF output file to write to
+        fipsList     - the  FIPS codes to process, as (code, countyName)
         
         """
+        
+        # San Francisco only
+        fips = '06075'
         
         # remove the existing key so we don't overwrite
         outstore = pd.HDFStore(outfile)
@@ -572,70 +640,77 @@ class DemandHelper():
         if '/countyHousingUnits' in keys: 
             outstore.remove('countyHousingUnits')
         
+        # count for unique index
+        nrows = 0
+                    
         # create the output container
         numYears = self.HU_YEARS[1] - self.HU_YEARS[0] + 1
         months = pd.date_range(str(self.HU_YEARS[0]-1) + '-12-31', 
                 periods=12*numYears, freq='M') + pd.DateOffset(days=1)
         dfout = pd.DataFrame({'YEAR': months.year, 'MONTH': months, 'NETUNITS':0})
-    
+        
         # read and append each file
         for infile in completionsFiles: 
     
             # read the data
             df = pd.read_csv(infile)
-            
+                
             # if the year is not in the columns, fill it in as appropriate
             if not 'YEAR' in df.columns: 
                 basename = os.path.basename(infile)
                 year = int(basename[:4])
                 df['YEAR'] = year
-            
+                
             # convert the dates
             df['ACTUAL_DATE'] = df['ACTDATE'].apply(convertToDate)
             df['MONTH'] = df['ACTUAL_DATE'].apply(convertDateToMonth)
-            
+                
             # split the records between those with an exact date, and 
             # those that only have a year
             dfExact = df[df['MONTH'].apply(pd.notnull)]
             dfNotExact = df[df['MONTH'].apply(pd.isnull)]        
-            
+                
             #group and resample to monthly
             monthlyAgg = dfExact.groupby('MONTH').aggregate(sum)
             monthlyAgg = monthlyAgg.reset_index()
             annualAgg = dfNotExact.groupby('YEAR').aggregate(sum)
             annualAgg = annualAgg.reset_index()
-            
+                
             # merge the data.  If missing on RHS, then they are zeros. 
             dfout = pd.merge(dfout, monthlyAgg, how='left', on=['MONTH'], sort=True, suffixes=('', '_MONTHLY')) 
             dfout = pd.merge(dfout, annualAgg, how='left', on=['YEAR'], sort=True, suffixes=('', '_ANNUAL')) 
             dfout = dfout.fillna(0)
-            
+                
             # accumulate the totals, distributing annual data throughout the year
             dfout['NETUNITS'] += dfout['NETUNITS_MONTHLY']
             dfout['NETUNITS'] += dfout['NETUNITS_ANNUAL'] / 12
-            
+                
             dfout = dfout[['YEAR', 'MONTH', 'NETUNITS']]
-        
-        
+            
+            
         # get the housing units from the Census 2010 data
         units2010 = self.getCensus2010HousingUnits(census2010File, fips)
         dfout = pd.merge(dfout, units2010, how='left', on=['MONTH'], sort=True, suffixes=('', '_2010')) 
-        
+            
         # fill in the totals
         units = dfout['UNITS'].tolist()
         net = dfout['NETUNITS'].tolist()
-        
+            
         for i in range(1, len(units)):
             if (pd.notnull(units[i-1])):
                 units[i] = round(units[i-1] + net[i-1],0)
         for i in range(len(units)-1, -1, -1):
             if (pd.isnull(units[i])):
                 units[i] = round(units[i+1] - net[i],0)
-        
+            
         dfout['UNITS'] = units
-                                        
+
+        # these data are for San Francisco only
+        dfout['FIPS'] = fips
+                                            
         # write the output
-        outstore.append('countyHousingUnits', dfout, data_columns=True)        
+        outstore.append('countyHousingUnits', dfout, data_columns=True)   
+
         outstore.close()
         
 
@@ -645,6 +720,7 @@ class DemandHelper():
         100% enumeration.  
 
         census2010File - the file for DP01 summary file at county level. 
+        fips           - the  FIPS code of interest
         """        
         
         fips = int(fips)
@@ -662,12 +738,12 @@ class DemandHelper():
         return dfout
         
 
-    def processQCEWData(self, inputDir, fips, cpiFile, outfile): 
+    def processQCEWData(self, inputDir, fipsList, cpiFile, outfile): 
         """ 
         Reads raw QCEW data and converts it to a clean list format. 
         
         inputDir - directory containing raw data files
-        fips     - the  FIPS codes to process, as string
+        fipsList     - the  FIPS codes to process, as (code, countyName)
         outfile  - the HDF output file to write to
         
         """
@@ -677,91 +753,115 @@ class DemandHelper():
         keys = outstore.keys()
         if '/countyEmp' in keys: 
             outstore.remove('countyEmp')
-        
-        # create an empty dataframe with the right fields
-        dfout = pd.DataFrame()
-        
-        # get the appropriate data
-        pattern = inputDir + '*.q1-q4.by_area/*.q1-q4 ' + fips + '*.csv'
-        infiles = glob.glob(pattern)
+        if '/totalEmp' in keys: 
+            outstore.remove('totalEmp')
+       
+        # count for unique index
+        nrows = 0
             
-        for infile in infiles: 
-            print 'Reading QCEW data in ' + infile
+        for fips, countyName in fipsList: 
+                 
+            # create an empty dataframe with the right fields
+            dfout = pd.DataFrame()
+            
+            # get the appropriate data
+            pattern = inputDir + '*.q1-q4.by_area/*.q1-q4 ' + fips + '*.csv'
+            infiles = glob.glob(pattern)
                 
-            df_allrows = pd.read_csv(infile)
-            
-            # first get the average earnings for all industries
-            # own_code 0 is all ownership categories
-            dfin = df_allrows[(df_allrows['own_code']==0) & (df_allrows['industry_title']=='Total, all industries')]
-            
-            year = dfin['year'][0]
-            months = pd.date_range(str(year-1) + '-12-31', periods=12, freq='M') + pd.DateOffset(days=1)
+            for infile in infiles: 
+                print 'Reading QCEW data in ' + infile
+                    
+                df_allrows = pd.read_csv(infile)
+                
+                # first get the average earnings for all industries
+                # own_code 0 is all ownership categories
+                dfin = df_allrows[(df_allrows['own_code']==0) & (df_allrows['industry_title']=='Total, all industries')]
+                
+                year = dfin['year'][0]
+                months = pd.date_range(str(year-1) + '-12-31', periods=12, freq='M') + pd.DateOffset(days=1)
+    
+                df = pd.DataFrame({'MONTH': months})
+                df['AVG_MONTHLY_EARNINGS'] = np.NaN
+                
+                # copy the earnings data into straight file and convert weekly to monthly
+                df.at[0,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==1]['avg_wkly_wage']   # jan
+                df.at[3,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==2]['avg_wkly_wage']   # mar
+                df.at[6,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==3]['avg_wkly_wage']   # jun
+                df.at[9,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==4]['avg_wkly_wage']   # oct            
+                df['AVG_MONTHLY_EARNINGS'] = df['AVG_MONTHLY_EARNINGS'] * (13.0 / 3.0)
+                
+                # for each industry, fill in the columns as appropriate
+                industry_equiv = [
+                    ('TOTEMP',         '10'),                # Total, all industries
+                    ('RETAIL_EMP',  '44-45'),                # Retail trade
+                    ('EDHEALTH_EMP', '1025'),                # Education and health services
+                    ('LEISURE_EMP',  '1026')                 # Leisure and hospitality    
+                    ]                                        
+    
+                for col, industry_code in industry_equiv:                
+                    df[col] = 0
+                    
+                    # I need to add it up for the specific ownership titles
+                    # own_code indicates type of government or private sector.  >0 is all (excluding sum of them all)
+                    dfin = df_allrows[(df_allrows['own_code']>0) & (df_allrows['industry_code']==industry_code)]
+                    
+                    # group across ownership categories
+                    grouped = dfin.groupby('qtr')
+                    agg = grouped.agg('sum')
+                    
+                    # fill in the actual column values
+                    df.at[0,col] = agg.at[1,'month1_emplvl']   # jan
+                    df.at[1,col] = agg.at[1,'month2_emplvl']   # feb
+                    df.at[2,col] = agg.at[1,'month3_emplvl']   # mar
+                    df.at[3,col] = agg.at[2,'month1_emplvl']   # apr
+                    df.at[4,col] = agg.at[2,'month2_emplvl']   # may
+                    df.at[5,col] = agg.at[2,'month3_emplvl']   # jun
+                    df.at[6,col] = agg.at[3,'month1_emplvl']   # jul
+                    df.at[7,col] = agg.at[3,'month2_emplvl']   # aug
+                    df.at[8,col] = agg.at[3,'month3_emplvl']   # sep
+                    df.at[9,col] = agg.at[4,'month1_emplvl']   # oct
+                    df.at[10,col]= agg.at[4,'month2_emplvl']   # nov
+                    df.at[11,col]= agg.at[4,'month3_emplvl']   # dec
+                
+                # calculate OTHER_EMP based on the difference from the total
+                df['OTHER_EMP'] = df['TOTEMP'] - df['RETAIL_EMP'] - df['EDHEALTH_EMP'] - df['LEISURE_EMP']
+                
+                # append to the full dataframe
+                dfout = dfout.append(df, ignore_index=True)
+                
+            # interpolate from quarterly to monthly values
+            dfout['AVG_MONTHLY_EARNINGS'] = dfout['AVG_MONTHLY_EARNINGS'].interpolate()
+                
+            # adjust for inflation
+            dfcpi  = self.getCPIFactors(cpiFile)
+            dfjoin = pd.merge(dfout, dfcpi, how='left', on=['MONTH'], sort=True)  
+            dfout['AVG_MONTHLY_EARNINGS_2010USD'] = dfjoin['AVG_MONTHLY_EARNINGS'] * dfjoin['CPI_FACTOR']
 
-            df = pd.DataFrame({'MONTH': months})
-            df['AVG_MONTHLY_EARNINGS'] = np.NaN
-            
-            # copy the earnings data into straight file and convert weekly to monthly
-            df.at[0,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==1]['avg_wkly_wage']   # jan
-            df.at[3,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==2]['avg_wkly_wage']   # mar
-            df.at[6,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==3]['avg_wkly_wage']   # jun
-            df.at[9,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==4]['avg_wkly_wage']   # oct            
-            df['AVG_MONTHLY_EARNINGS'] = df['AVG_MONTHLY_EARNINGS'] * (13.0 / 3.0)
-            
-            # for each industry, fill in the columns as appropriate
-            industry_equiv = [
-                ('TOTEMP',         '10'),                # Total, all industries
-                ('RETAIL_EMP',  '44-45'),                # Retail trade
-                ('EDHEALTH_EMP', '1025'),                # Education and health services
-                ('LEISURE_EMP',  '1026')                 # Leisure and hospitality    
-                ]                                        
+            # for calculating a weighted average of earnings
+            dfout['EMP_TIMES_EARNINGS'] = dfout['TOTEMP'] * dfout['AVG_MONTHLY_EARNINGS_2010USD']
+                
+            # set the fips code and a unqiue index
+            dfout['FIPS'] = fips
+            dfout.index = pd.Series(range(nrows,nrows+len(dfout))) 
+            nrows += len(dfout)
+                    
+            # write the output
+            outstore.append('countyEmp', dfout, data_columns=True)        
 
-            for col, industry_code in industry_equiv:                
-                df[col] = 0
-                
-                # I need to add it up for the specific ownership titles
-                # own_code indicates type of government or private sector.  >0 is all (excluding sum of them all)
-                dfin = df_allrows[(df_allrows['own_code']>0) & (df_allrows['industry_code']==industry_code)]
-                
-                # group across ownership categories
-                grouped = dfin.groupby('qtr')
-                agg = grouped.agg('sum')
-                
-                # fill in the actual column values
-                df.at[0,col] = agg.at[1,'month1_emplvl']   # jan
-                df.at[1,col] = agg.at[1,'month2_emplvl']   # feb
-                df.at[2,col] = agg.at[1,'month3_emplvl']   # mar
-                df.at[3,col] = agg.at[2,'month1_emplvl']   # apr
-                df.at[4,col] = agg.at[2,'month2_emplvl']   # may
-                df.at[5,col] = agg.at[2,'month3_emplvl']   # jun
-                df.at[6,col] = agg.at[3,'month1_emplvl']   # jul
-                df.at[7,col] = agg.at[3,'month2_emplvl']   # aug
-                df.at[8,col] = agg.at[3,'month3_emplvl']   # sep
-                df.at[9,col] = agg.at[4,'month1_emplvl']   # oct
-                df.at[10,col]= agg.at[4,'month2_emplvl']   # nov
-                df.at[11,col]= agg.at[4,'month3_emplvl']   # dec
-            
-            # calculate OTHER_EMP based on the difference from the total
-            df['OTHER_EMP'] = df['TOTEMP'] - df['RETAIL_EMP'] - df['EDHEALTH_EMP'] - df['LEISURE_EMP']
-            
-            # append to the full dataframe
-            dfout = dfout.append(df, ignore_index=True)
-            
-        # interpolate from quarterly to monthly values
-        dfout['AVG_MONTHLY_EARNINGS'] = dfout['AVG_MONTHLY_EARNINGS'].interpolate()
-            
-        # adjust for inflation
-        dfcpi  = self.getCPIFactors(cpiFile)
-        dfjoin = pd.merge(dfout, dfcpi, how='left', on=['MONTH'], sort=True)  
-        dfout['AVG_MONTHLY_EARNINGS_2010USD'] = dfjoin['AVG_MONTHLY_EARNINGS'] * dfjoin['CPI_FACTOR']
-                
-        # write the output
-        outstore.append('countyEmp', dfout, data_columns=True)        
+        # calculate the totals
+        df = outstore.select('countyEmp')
+        totals = df.groupby(['MONTH']).aggregate('sum')
+        totals = totals.reset_index()
+        totals['AVG_MONTHLY_EARNINGS_2010USD'] = totals['EMP_TIMES_EARNINGS'] / totals['TOTEMP'] 
+        outstore.append('totalEmp', totals, data_columns=True)
+
+        # close
         outstore.close()
         
 
 
         
-    def processLODES(self, inputDir, lodesType, xwalkFile, fips, outfile): 
+    def processLODES(self, inputDir, lodesType, xwalkFile, fipsList, outfile): 
         '''
         Processes data from the LODES (LEHD Origin-Destination Employment Statistics)
         files.  Processed for SF county as a whole.
@@ -770,141 +870,166 @@ class DemandHelper():
         lodesType - RAC, WAC or OD
                     OD file processed specifically for intra-county vs inter-county flows
         xwalkFile - file containing the geography crosswalk from LODES
-        fips - fips code for SF county
+        fipsList     - the  FIPS codes to process, as (code, countyName)
         outfile - HDF file to write to
         '''
-        
         # set characteristics for later
-        fips = int(fips)
         key = 'lodes' + lodesType
-        
+        totalKey = 'lodes' + lodesType + 'total'
+            
         if lodesType=='RAC': 
             geoCol = 'h_geocode'
             wrkemp = 'WORKERS'
             filePattern = inputDir + '/RAC/ca_rac_S000_JT00_'
-            
+                
         elif lodesType=='WAC':
             geoCol = 'w_geocode'
             wrkemp = 'EMP'
             filePattern = inputDir + '/WAC/ca_wac_S000_JT00_'
-            
+                
         elif lodesType=='OD':
             hgeoCol = 'h_geocode'
             wgeoCol = 'w_geocode'
             wrkempList = ['INTRA', 'IN', 'OUT']
             filePattern = inputDir + '/OD/ca_od_main_JT00_'
+                
             
-        
-        # remove the existing key so we don't overwrite
+        # remove the existing keys
         outstore = pd.HDFStore(outfile)
         keys = outstore.keys()
         if '/' + key in keys: 
             outstore.remove(key)
-            
+        if '/' + totalKey in keys: 
+            outstore.remove(totalKey)
+        if lodesType=='WAC': 
+            if '/lodesFactors' in keys: 
+                outstore.remove('lodesFactors')
+                
         # read the geography crosswalk
         xwalk = pd.read_csv(xwalkFile)
         xwalk['cty'] = xwalk['cty'].astype(int)
-        
-        # create the output file for annual data
-        years = range(self.LODES_YEARS[0], self.LODES_YEARS[1]+1)
-        annual = pd.DataFrame({'YEAR': years})
-        annual.index = years
-        
-        if lodesType=='RAC' or lodesType=='WAC': 
-            annual[wrkemp] = np.NaN          # total workers
             
-            annual[wrkemp+'_EARN0_15'] = np.NaN  # Number of workers with earnings $1250/month or less
-            annual[wrkemp+'_EARN15_40']= np.NaN  # Number of workers with earnings $1251/month to $3333/month
-            annual[wrkemp+'_EARN40P']  = np.NaN  # Number of workers with earnings greater than $3333/month
-            
-            annual[wrkemp+'_RETAIL']   = np.NaN  # Number of workers in retail sector
-            annual[wrkemp+'_EDHEALTH'] = np.NaN  # Number of workers in education and health sector
-            annual[wrkemp+'_LEISURE']  = np.NaN  # Number of workers in leisure and hospitality sector
-            annual[wrkemp+'_OTHER']    = np.NaN  # Number of workers in other sectors
+        # unique count for index
+        nrows = 0
         
-        elif lodesType=='OD': 
-            for wrkemp in wrkempList: 
+        # loop through counties
+        for fips, countyName in fipsList: 
+            fipsInt = int(fips)
+            
+            # create the output file for annual data
+            years = range(self.LODES_YEARS[0], self.LODES_YEARS[1]+1)
+            annual = pd.DataFrame({'YEAR': years})
+            annual.index = years
+            
+            if lodesType=='RAC' or lodesType=='WAC': 
                 annual[wrkemp] = np.NaN          # total workers
                 
                 annual[wrkemp+'_EARN0_15'] = np.NaN  # Number of workers with earnings $1250/month or less
                 annual[wrkemp+'_EARN15_40']= np.NaN  # Number of workers with earnings $1251/month to $3333/month
                 annual[wrkemp+'_EARN40P']  = np.NaN  # Number of workers with earnings greater than $3333/month
                 
-        
-        # get the data for each year
-        for year in years: 
+                annual[wrkemp+'_RETAIL']   = np.NaN  # Number of workers in retail sector
+                annual[wrkemp+'_EDHEALTH'] = np.NaN  # Number of workers in education and health sector
+                annual[wrkemp+'_LEISURE']  = np.NaN  # Number of workers in leisure and hospitality sector
+                annual[wrkemp+'_OTHER']    = np.NaN  # Number of workers in other sectors
             
-            # read the data and aggregate to county level
-            infile = filePattern + str(year) + '.csv' 
-            if os.path.isfile(infile):
+            elif lodesType=='OD': 
+                for wrkemp in wrkempList: 
+                    annual[wrkemp] = np.NaN          # total workers
                     
-                print 'Reading LODES data in ' + infile            
-                df = pd.read_csv(infile)            
+                    annual[wrkemp+'_EARN0_15'] = np.NaN  # Number of workers with earnings $1250/month or less
+                    annual[wrkemp+'_EARN15_40']= np.NaN  # Number of workers with earnings $1251/month to $3333/month
+                    annual[wrkemp+'_EARN40P']  = np.NaN  # Number of workers with earnings greater than $3333/month
+                    
+            
+            # get the data for each year
+            for year in years: 
                 
-                # one dimensional processing for RAC and WAC
-                if lodesType=='RAC' or lodesType=='WAC': 
-                    df = pd.merge(df, xwalk, how='left', left_on=geoCol, right_on='tabblk2010')            
-                    df = df[df['cty']==fips]            
-                    agg = df.groupby('cty').agg('sum')
-                    
-                    # copy over the appropriate fields
-                    annual.at[year, wrkemp] = agg.at[fips, 'C000']        
-                    
-                    annual.at[year, wrkemp+'_EARN0_15'] = agg.at[fips, 'CE01']
-                    annual.at[year, wrkemp+'_EARN15_40']= agg.at[fips, 'CE02'] 
-                    annual.at[year, wrkemp+'_EARN40P']  = agg.at[fips, 'CE03'] 
-                    
-                    annual.at[year, wrkemp+'_RETAIL']   = agg.at[fips, 'CNS07'] 
-                    annual.at[year, wrkemp+'_EDHEALTH'] = agg.at[fips, 'CNS15'] + agg.at[fips, 'CNS16'] 
-                    annual.at[year, wrkemp+'_LEISURE']  = agg.at[fips, 'CNS17'] + agg.at[fips, 'CNS18'] 
-                    annual.at[year, wrkemp+'_OTHER']    = (annual.at[year, wrkemp] 
-                                                        -annual.at[year, wrkemp+'_RETAIL']
-                                                        -annual.at[year, wrkemp+'_EDHEALTH']
-                                                        -annual.at[year, wrkemp+'_LEISURE']
-                                                        )
-                
-                # for OD, keep different values for each option
-                elif lodesType=='OD': 
-                    df = pd.merge(df, xwalk, how='left', left_on=hgeoCol, right_on='tabblk2010')   
-                    df = pd.merge(df, xwalk, how='left', left_on=wgeoCol, right_on='tabblk2010', suffixes=('_h', '_w'))           
-           
-                    for wrkemp in wrkempList:               
+                # read the data and aggregate to county level
+                infile = filePattern + str(year) + '.csv' 
+                if os.path.isfile(infile):
                         
-                        # intra-county
-                        if wrkemp == 'INTRA': 
-                            selected = df[(df['cty_h']==fips) & (df['cty_w']==fips)]                             
-                            agg = selected.groupby('cty_h').agg('sum')
-                        elif wrkemp == 'IN': 
-                            selected = df[(df['cty_h']!=fips) & (df['cty_w']==fips)]                             
-                            agg = selected.groupby('cty_w').agg('sum')
-                        elif wrkemp == 'OUT': 
-                            selected = df[(df['cty_h']==fips) & (df['cty_w']!=fips)]                             
-                            agg = selected.groupby('cty_h').agg('sum')
+                    print 'Reading LODES data in ' + infile            
+                    df = pd.read_csv(infile)            
+                    
+                    # one dimensional processing for RAC and WAC
+                    if lodesType=='RAC' or lodesType=='WAC': 
+                        df = pd.merge(df, xwalk, how='left', left_on=geoCol, right_on='tabblk2010')            
+                        df = df[df['cty']==fipsInt]            
+                        agg = df.groupby('cty').agg('sum')
                         
                         # copy over the appropriate fields
-                        annual.at[year, wrkemp] = agg.at[fips, 'S000']        
+                        annual.at[year, wrkemp] = agg.at[fipsInt, 'C000']        
                         
-                        annual.at[year, wrkemp+'_EARN0_15'] = agg.at[fips, 'SE01']
-                        annual.at[year, wrkemp+'_EARN15_40']= agg.at[fips, 'SE02'] 
-                        annual.at[year, wrkemp+'_EARN40P']  = agg.at[fips, 'SE03'] 
+                        annual.at[year, wrkemp+'_EARN0_15'] = agg.at[fipsInt, 'CE01']
+                        annual.at[year, wrkemp+'_EARN15_40']= agg.at[fipsInt, 'CE02'] 
+                        annual.at[year, wrkemp+'_EARN40P']  = agg.at[fipsInt, 'CE03'] 
+                        
+                        annual.at[year, wrkemp+'_RETAIL']   = agg.at[fipsInt, 'CNS07'] 
+                        annual.at[year, wrkemp+'_EDHEALTH'] = agg.at[fipsInt, 'CNS15'] + agg.at[fipsInt, 'CNS16'] 
+                        annual.at[year, wrkemp+'_LEISURE']  = agg.at[fipsInt, 'CNS17'] + agg.at[fipsInt, 'CNS18'] 
+                        annual.at[year, wrkemp+'_OTHER']    = (annual.at[year, wrkemp] 
+                                                            -annual.at[year, wrkemp+'_RETAIL']
+                                                            -annual.at[year, wrkemp+'_EDHEALTH']
+                                                            -annual.at[year, wrkemp+'_LEISURE']
+                                                            )
+                    
+                    # for OD, keep different values for each option
+                    elif lodesType=='OD': 
+                        df = pd.merge(df, xwalk, how='left', left_on=hgeoCol, right_on='tabblk2010')   
+                        df = pd.merge(df, xwalk, how='left', left_on=wgeoCol, right_on='tabblk2010', suffixes=('_h', '_w'))           
+            
+                        for wrkemp in wrkempList:               
+                            
+                            # intra-county
+                            if wrkemp == 'INTRA': 
+                                selected = df[(df['cty_h']==fipsInt) & (df['cty_w']==fipsInt)]                             
+                                agg = selected.groupby('cty_h').agg('sum')
+                            elif wrkemp == 'IN': 
+                                selected = df[(df['cty_h']!=fipsInt) & (df['cty_w']==fipsInt)]                             
+                                agg = selected.groupby('cty_w').agg('sum')
+                            elif wrkemp == 'OUT': 
+                                selected = df[(df['cty_h']==fipsInt) & (df['cty_w']!=fipsInt)]                             
+                                agg = selected.groupby('cty_h').agg('sum')
+                            
+                            # copy over the appropriate fields
+                            annual.at[year, wrkemp] = agg.at[fipsInt, 'S000']        
+                            
+                            annual.at[year, wrkemp+'_EARN0_15'] = agg.at[fipsInt, 'SE01']
+                            annual.at[year, wrkemp+'_EARN15_40']= agg.at[fipsInt, 'SE02'] 
+                            annual.at[year, wrkemp+'_EARN40P']  = agg.at[fipsInt, 'SE03'] 
+                        
+            # convert data to monthly
+            monthly = self.convertAnnualToMonthly(annual)
+            monthly['FIPS'] = fips
+                        
+            # scale to be consistent with QCEW data
+            # factor is based on the ratio of QCEW to WAC
+            if lodesType=='WAC': 
+                self.setLODEStoQCEWFactors(monthly, outstore)
+    
+            if lodesType=='RAC' or lodesType=='WAC': 
+                scaled = self.scaleLODEStoQCEW(monthly, lodesType, outstore, wrkemp)        
+            elif lodesType=='OD': 
+                scaled = monthly
+                for wrkemp in wrkempList: 
+                    scaled = self.scaleLODEStoQCEW(scaled, lodesType, outstore, wrkemp)  
         
-        # convert data to monthly
-        monthly = self.convertAnnualToMonthly(annual)
+            # set the fips code and a unqiue index
+            scaled['FIPS'] = fips
+            scaled.index = pd.Series(range(nrows,nrows+len(scaled))) 
+            nrows += len(scaled)
+                                                            
+            # append to the output store
+            outstore.append(key, scaled, data_columns=True)
         
-        # scale to be consistent with QCEW data
-        # factor is based on the ratio of QCEW to WAC
-        if lodesType=='WAC': 
-            self.setLODEStoQCEWFactors(monthly, outstore)
+        # totals
+        df = outstore.select(key)
+        totals = df.groupby(['MONTH']).aggregate('sum')
+        totals = totals.reset_index()
+        outstore.append(totalKey, totals, data_columns=True)
 
-        if lodesType=='RAC' or lodesType=='WAC': 
-            scaled = self.scaleLODEStoQCEW(monthly, lodesType, outstore, wrkemp)        
-        elif lodesType=='OD': 
-            scaled = monthly
-            for wrkemp in wrkempList: 
-                scaled = self.scaleLODEStoQCEW(scaled, lodesType, outstore, wrkemp)  
-
-        # append to the output store
-        outstore.append(key, scaled, data_columns=True)
+        # close
         outstore.close()
         
 
@@ -917,19 +1042,17 @@ class DemandHelper():
         qcew = outstore.select('countyEmp')
         
         # calculate the factors
-        factors = pd.merge(wac, qcew, how='left', on=['MONTH'], sort=True, suffixes=('_WAC', '_QCEW'))  
+        factors = pd.merge(wac, qcew, how='left', on=['MONTH', 'FIPS'], sort=True, suffixes=('_WAC', '_QCEW'))  
         factors['TOT_FACTOR']     = 1.0 * factors['TOTEMP'] / factors['EMP']
         factors['RETAIL_FACTOR']  = 1.0 * factors['RETAIL_EMP'] / factors['EMP_RETAIL'] 
         factors['EDHEALTH_FACTOR']= 1.0 * factors['EDHEALTH_EMP'] / factors['EMP_EDHEALTH'] 
         factors['LEISURE_FACTOR'] = 1.0 * factors['LEISURE_EMP'] / factors['EMP_LEISURE'] 
         factors['OTHER_FACTOR']   = 1.0 * factors['OTHER_EMP'] / factors['EMP_OTHER'] 
         
-        factors = factors[['MONTH', 'TOT_FACTOR', 'RETAIL_FACTOR', 'EDHEALTH_FACTOR', 'LEISURE_FACTOR', 'OTHER_FACTOR']]
+        factors = factors[['MONTH', 'FIPS', 'TOT_FACTOR', 'RETAIL_FACTOR', 'EDHEALTH_FACTOR', 'LEISURE_FACTOR', 'OTHER_FACTOR']]
         
         # write the data
         keys = outstore.keys()
-        if '/lodesFactors' in keys: 
-            outstore.remove('lodesFactors')
         outstore.append('lodesFactors', factors, data_columns=True)
         
 
@@ -943,9 +1066,9 @@ class DemandHelper():
 
         # get the factors, written above
         factors = store.select('lodesFactors')
-
+        
         # apply the factors
-        adj = pd.merge(monthly, factors, how='left', on=['MONTH'], sort=True, suffixes=('', '_FACTOR'))  
+        adj = pd.merge(monthly, factors, how='left', on=['MONTH', 'FIPS'], sort=True, suffixes=('', '_FACTOR'))  
                 
         adj[wrkemp] = adj[wrkemp] * adj['TOT_FACTOR']          # total workers
                 
@@ -1192,18 +1315,24 @@ class DemandHelper():
         annual.loc[extraStartYear] = np.NaN
         annual.at[extraStartYear, 'YEAR'] = extraStartYear
         for col in annual.columns:
-            annual.at[extraStartYear, col] =(annual.at[extraStartYear+1, col] - 
-                                       (annual.at[extraStartYear+2, col] 
-                                       -annual.at[extraStartYear+1, col]))
+            if np.dtype(annual[col]) == np.dtype('O'): 
+                annual.at[extraStartYear, col] = annual.at[extraStartYear+1, col]
+            else: 
+                annual.at[extraStartYear, col] =(annual.at[extraStartYear+1, col] - 
+                                        (annual.at[extraStartYear+2, col] 
+                                        -annual.at[extraStartYear+1, col]))
 
         # extrapolate the final year to get the last 6 months of data
         extraEndYear = int(annual['YEAR'].max() + 1)
         annual.loc[extraEndYear] = np.NaN
         annual.at[extraEndYear, 'YEAR'] = extraEndYear
         for col in annual.columns:
-            annual.at[extraEndYear, col] =(annual.at[extraEndYear-1, col] + 
-                                       (annual.at[extraEndYear-1, col] 
-                                       -annual.at[extraEndYear-2, col]))
+            if np.dtype(annual[col]) == np.dtype('O'): 
+                annual.at[extraStartYear, col] = annual.at[extraEndYear-1, col]
+            else: 
+                annual.at[extraEndYear, col] =(annual.at[extraEndYear-1, col] + 
+                                        (annual.at[extraEndYear-1, col] 
+                                        -annual.at[extraEndYear-2, col]))
         
         # expand to monthly, and interpolate values
         annual = annual.sort('YEAR')
