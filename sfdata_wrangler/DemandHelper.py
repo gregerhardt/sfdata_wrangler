@@ -335,7 +335,7 @@ class DemandHelper():
         nrows = 0
         
         # loop through counties    
-        for fips, countyName in fipsList: 
+        for fips, countyName, abbreviation in fipsList: 
 
             # create the output file for annual data
             annual = pd.DataFrame({'YEAR': range(self.POP_EST_YEARS[0], self.POP_EST_YEARS[1]+1)})
@@ -414,7 +414,7 @@ class DemandHelper():
         nmonths = 0
         
         
-        for fips, countyName in fipsList: 
+        for fips, countyName, abbreviation in fipsList: 
                 
             # get the data
             census2000 = self.getCensus2000Table(census2000Dir, fips)
@@ -627,7 +627,6 @@ class DemandHelper():
         
         infile   - input csv file
         outfile  - the HDF output file to write to
-        fipsList     - the  FIPS codes to process, as (code, countyName)
         
         """
         
@@ -759,13 +758,13 @@ class DemandHelper():
         # count for unique index
         nrows = 0
             
-        for fips, countyName in fipsList: 
+        for fips, countyName, abbreviation in fipsList: 
                  
             # create an empty dataframe with the right fields
             dfout = pd.DataFrame()
             
             # get the appropriate data
-            pattern = inputDir + '*.q1-q4.by_area/*.q1-q4 ' + fips + '*.csv'
+            pattern = inputDir + '*.q1-q*.by_area/*.q1-q* ' + fips + '*.csv'
             infiles = glob.glob(pattern)
                 
             for infile in infiles: 
@@ -783,12 +782,21 @@ class DemandHelper():
                 df = pd.DataFrame({'MONTH': months})
                 df['AVG_MONTHLY_EARNINGS'] = np.NaN
                 
+                # check which quarters are included in the file
+                quarters = dfin['qtr'].unique()
+                
                 # copy the earnings data into straight file and convert weekly to monthly
-                df.at[0,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==1]['avg_wkly_wage']   # jan
-                df.at[3,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==2]['avg_wkly_wage']   # mar
-                df.at[6,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==3]['avg_wkly_wage']   # jun
-                df.at[9,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==4]['avg_wkly_wage']   # oct            
-                df['AVG_MONTHLY_EARNINGS'] = df['AVG_MONTHLY_EARNINGS'] * (13.0 / 3.0)
+                if 1 in quarters: 
+                    df.at[0,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==1]['avg_wkly_wage']   # jan
+                if 2 in quarters:     
+                    df.at[3,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==2]['avg_wkly_wage']   # mar
+                if 3 in quarters: 
+                    df.at[6,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==3]['avg_wkly_wage']   # jun
+                if 4 in quarters: 
+                    df.at[9,'AVG_MONTHLY_EARNINGS'] = dfin[dfin['qtr']==4]['avg_wkly_wage']   # oct        
+
+                #TODO  check on this.  
+                df['AVG_MONTHLY_EARNINGS'] = df['AVG_MONTHLY_EARNINGS'] * (12.0 / 3.0)
                 
                 # for each industry, fill in the columns as appropriate
                 industry_equiv = [
@@ -799,7 +807,7 @@ class DemandHelper():
                     ]                                        
     
                 for col, industry_code in industry_equiv:                
-                    df[col] = 0
+                    df[col] = np.NaN
                     
                     # I need to add it up for the specific ownership titles
                     # own_code indicates type of government or private sector.  >0 is all (excluding sum of them all)
@@ -810,18 +818,22 @@ class DemandHelper():
                     agg = grouped.agg('sum')
                     
                     # fill in the actual column values
-                    df.at[0,col] = agg.at[1,'month1_emplvl']   # jan
-                    df.at[1,col] = agg.at[1,'month2_emplvl']   # feb
-                    df.at[2,col] = agg.at[1,'month3_emplvl']   # mar
-                    df.at[3,col] = agg.at[2,'month1_emplvl']   # apr
-                    df.at[4,col] = agg.at[2,'month2_emplvl']   # may
-                    df.at[5,col] = agg.at[2,'month3_emplvl']   # jun
-                    df.at[6,col] = agg.at[3,'month1_emplvl']   # jul
-                    df.at[7,col] = agg.at[3,'month2_emplvl']   # aug
-                    df.at[8,col] = agg.at[3,'month3_emplvl']   # sep
-                    df.at[9,col] = agg.at[4,'month1_emplvl']   # oct
-                    df.at[10,col]= agg.at[4,'month2_emplvl']   # nov
-                    df.at[11,col]= agg.at[4,'month3_emplvl']   # dec
+                    if 1 in quarters: 
+                        df.at[0,col] = agg.at[1,'month1_emplvl']   # jan
+                        df.at[1,col] = agg.at[1,'month2_emplvl']   # feb
+                        df.at[2,col] = agg.at[1,'month3_emplvl']   # mar
+                    if 2 in quarters: 
+                        df.at[3,col] = agg.at[2,'month1_emplvl']   # apr
+                        df.at[4,col] = agg.at[2,'month2_emplvl']   # may
+                        df.at[5,col] = agg.at[2,'month3_emplvl']   # jun
+                    if 3 in quarters: 
+                        df.at[6,col] = agg.at[3,'month1_emplvl']   # jul
+                        df.at[7,col] = agg.at[3,'month2_emplvl']   # aug
+                        df.at[8,col] = agg.at[3,'month3_emplvl']   # sep
+                    if 4 in quarters: 
+                        df.at[9,col] = agg.at[4,'month1_emplvl']   # oct
+                        df.at[10,col]= agg.at[4,'month2_emplvl']   # nov
+                        df.at[11,col]= agg.at[4,'month3_emplvl']   # dec
                 
                 # calculate OTHER_EMP based on the difference from the total
                 df['OTHER_EMP'] = df['TOTEMP'] - df['RETAIL_EMP'] - df['EDHEALTH_EMP'] - df['LEISURE_EMP']
@@ -839,7 +851,10 @@ class DemandHelper():
 
             # for calculating a weighted average of earnings
             dfout['EMP_TIMES_EARNINGS'] = dfout['TOTEMP'] * dfout['AVG_MONTHLY_EARNINGS_2010USD']
-                
+            
+            # only keep non-missing data
+            dfout = dfout[dfout['TOTEMP']>0]
+            
             # set the fips code and a unqiue index
             dfout['FIPS'] = fips
             dfout.index = pd.Series(range(nrows,nrows+len(dfout))) 
@@ -913,7 +928,7 @@ class DemandHelper():
         nrows = 0
         
         # loop through counties
-        for fips, countyName in fipsList: 
+        for fips, countyName, abbreviation in fipsList: 
             fipsInt = int(fips)
             
             # create the output file for annual data
@@ -1111,6 +1126,9 @@ class DemandHelper():
         dfout = pd.merge(fuelPrice, fleetEfficiency, how='left', on=['MONTH'], sort=True)  
         dfout = pd.merge(dfout, irsMileageRate, how='left', on=['MONTH'], sort=True)  
         
+        # expand fleet efficiency to the end of the series
+        dfout['FLEET_EFFICIENCY'] = dfout['FLEET_EFFICIENCY'].interpolate()
+        
         # calculate the average cost per mile
         dfout['FUEL_COST'] = dfout['FUEL_PRICE'] / dfout['FLEET_EFFICIENCY']
         dfout['FUEL_COST_2010USD'] = dfout['FUEL_PRICE_2010USD'] / dfout['FLEET_EFFICIENCY']
@@ -1181,6 +1199,12 @@ class DemandHelper():
         # copy the data of interest, converting from cents to dollars
         df['MONTH'] = df['PeriodStart'].apply(pd.to_datetime)
         df['IRS_MILEAGE_RATE'] = df['Medical/Moving'] / 100.0
+        
+        # extrapolate to get the last fiscal year of monthly data        
+        index = np.max(df.index.tolist()) + 1
+        month = df['MONTH'].max() + pd.DateOffset(months=11)
+        lastRow = pd.DataFrame({'MONTH' : [month]}, index=[index])
+        df = df.append(lastRow)
         
         # adjust the rate for inflation
         dfcpi = self.getCPIFactors(cpiFile)
@@ -1298,7 +1322,7 @@ class DemandHelper():
         dfcpi['CPI_FACTOR'] = base / dfcpi['CPI']
         
         dfcpi = dfcpi[['MONTH', 'CPI', 'CPI_FACTOR']]
-        
+                
         return dfcpi
 
 

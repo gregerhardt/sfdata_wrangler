@@ -49,7 +49,7 @@ class TransitReporter():
         self.col = None
 
 
-    def assembleSystemPerformanceData(self, dow=1, tod='Daily'):
+    def assembleSystemPerformanceData(self, fips, dow=1, tod='Daily'):
         '''
         Calculates the fields used in the system performance reports
         and stores them in an HDF datastore. 
@@ -66,9 +66,9 @@ class TransitReporter():
             trips = trip_store.select('system_tod', where='DOW=dow & TOD=tod')
             ts = ts_store.select('system_tod_s', where='DOW=dow & TOD=tod')    
 
-        employment = demand_store.select('countyEmp')
-        population = demand_store.select('countyPop')
-        fuelPrice  = demand_store.select('fuelPrice')
+        employment = demand_store.select('countyEmp', where='FIPS=fips')
+        population = demand_store.select('countyPop', where='FIPS=fips')
+        autoOpCost = demand_store.select('autoOpCost')
 
         trip_store.close()
         ts_store.close()
@@ -135,12 +135,12 @@ class TransitReporter():
         df = pd.merge(df, population, how='left', on=['MONTH'], sort=True)  
         
         # fuelPrice includes FUEL_PRICE and FUEL_PRICE_2010USD
-        df = pd.merge(df, fuelPrice, how='left', on=['MONTH'], sort=True)  
+        df = pd.merge(df, autoOpCost, how='left', on=['MONTH'], sort=True)  
         
         return df
 
         
-    def writeSystemReport(self, xlsfile, 
+    def writeSystemReport(self, xlsfile, fips, 
                         geography='All Busses', dow=1, comments=None):
         '''
         Writes a performance report for all months to the specified excel file.        
@@ -169,7 +169,7 @@ class TransitReporter():
         for tod in tods: 
                 
             # get the actual data
-            df = self.assembleSystemPerformanceData(dow=dow, tod=tod)    
+            df = self.assembleSystemPerformanceData(fips=fips, dow=dow, tod=tod)    
                     
             # Write the month as the column headers
             months = df[['MONTH']]
@@ -878,12 +878,12 @@ class TransitReporter():
             
         demand_store.close()
         
-        # start with the population, which has the longest time-series, 
+        # start with the employment, which has the longest time-series, 
         # and join all the others with the month being equivalent
-        df = population
+        df = employment
+        df = pd.merge(df, population, how='left', on=['MONTH'], sort=True, suffixes=('', '_POP')) 
         df = pd.merge(df, acs, how='left', on=['MONTH'], sort=True, suffixes=('', '_ACS')) 
         df = pd.merge(df, hu, how='left', on=['MONTH'], sort=True, suffixes=('', '_HU')) 
-        df = pd.merge(df, employment, how='left', on=['MONTH'], sort=True, suffixes=('', '_QCEW')) 
         df = pd.merge(df, lodesWAC, how='left', on=['MONTH'], sort=True, suffixes=('', '_WAC')) 
         df = pd.merge(df, lodesRAC, how='left', on=['MONTH'], sort=True, suffixes=('', '_RAC')) 
         df = pd.merge(df, lodesOD, how='left', on=['MONTH'], sort=True, suffixes=('', '_OD')) 
@@ -932,10 +932,10 @@ class TransitReporter():
         self.writer = pd.ExcelWriter(xlsfile, engine='xlsxwriter',
                         datetime_format='mmm-yyyy')        
         
-        fipsList.append(('Total', 'Total'))
+        fipsList.append(('Total', 'Total', 'Total'))
         
         # create a tab for each county
-        for fips, countyName in fipsList: 
+        for fips, countyName, abbreviation in fipsList: 
     
             # get the actual data
             df = self.assembleDemandData(fips)    
@@ -1313,7 +1313,7 @@ class TransitReporter():
         
         transit = mm_store.select('transitAnnual')
         fares = mm_store.select('transitFareAnnual')
-        acs = demand_store.select('countyACSannual')
+        acs = demand_store.select('totalACSannual')
         
         mm_store.close()
         demand_store.close()
@@ -1339,14 +1339,14 @@ class TransitReporter():
         
         transit = mm_store.select('transitMonthly')
         fares = mm_store.select('transitFare')
-        acs = demand_store.select('countyACS')
+        acs = demand_store.select('totalACS')
         bart = mm_store.select('bart_weekday', where="FROM='Entries' and TO='Exits'")
         
         # schedule data
         gtfs_bart     = gtfs_store.select('bartMonthly', where='DOW=1 and ROUTE_TYPE=1')
         gtfs_munibus  = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=3')
         gtfs_munirail = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=0')
-        gtfs_municc   = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=5')        
+        gtfs_municc   = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=5')     
         
         # more specific data
         ts = ts_store.select('system_day_s', where='DOW=1') 
@@ -1767,20 +1767,20 @@ class TransitReporter():
 
                         
         
-    def writeSFMuniEstimationFile(self, estfile, dow=1, tod='Daily'):
+    def writeSFMuniEstimationFile(self, estfile, fips, dow=1, tod='Daily'):
         '''
         Writes a model estimation file for SF MUNI busses.        
         '''     
-        
+                
         # get a filename for the differences
         base = os.path.splitext(estfile)
         estfileDiff = base[0] + '_diff' + base[1]
 
 
         # get the data
-        muni = self.assembleSystemPerformanceData(dow=dow, tod=tod)
+        muni = self.assembleSystemPerformanceData(fips, dow=dow, tod=tod)
         multimodal = self.assembleMonthlyMultiModalData()
-        demand = self.assembleDemandData()
+        demand = self.assembleDemandData(fips)
                 
         # interpolate for one missing month
         muni = muni.interpolate()
@@ -1807,6 +1807,55 @@ class TransitReporter():
         # write the data
         df.to_csv(estfile)
         diff.to_csv(estfileDiff)
+
+
+    def writeBARTEstimationFile(self, estfile, fipsList):
+        '''
+        Writes a model estimation file for BART ridership       
+        '''     
+        
+        # get a filename for the differences
+        base = os.path.splitext(estfile)
+        estfileDiff = base[0] + '_diff' + base[1]
+
+
+        # get the basic data, including the 4-county total demand data
+        multimodal = self.assembleMonthlyMultiModalData()
+        demand = self.assembleDemandData('Total')
+                
+        # merge the data      
+        df = pd.merge(multimodal, demand, how='left', on=['MONTH'], sort=True, suffixes=('', '_DEMAND')) 
+        
+        # now, merge the county-specific demand data
+        for fips, countyName, abbreviation in fipsList: 
+            demand = self.assembleDemandData(fips)
+            df = pd.merge(df, demand, how='left', on=['MONTH'], sort=True, suffixes=('', '_' + abbreviation)) 
+        
+        # additional fields
+        for col in demand.columns: 
+            if col+'_Total' in df.columns: 
+                if (df[col+'_Total'].dtype==np.float64) or (df[col+'_Total'].dtype==np.int64) : 
+                    df[col+'_3COUNTY'] = df[col+'_Total'] - df[col+'_SFC']
+                    df[col+'_SFSHARE'] = df[col+'_SFC'] / df[col+'_Total'] 
+        
+        # calcluate the diff from 12 months before
+        diff = pd.DataFrame()
+        for col in df.columns: 
+            if df[col].dtype=='object': 
+                diff[col] = df[col] + '-' + df[col].shift(12)
+            elif df[col].dtype=='datetime64[ns]':
+                diff[col] = df[col]
+            else: 
+                diff[col] = df[col] - df[col].shift(12)
+        diff = diff[12:]
+        
+        # and a bit of clean up
+        diff['MONTH_NUM'] = diff['MONTH'].apply(lambda x: x.month)
+
+        # write the data
+        df.to_csv(estfile)
+        diff.to_csv(estfileDiff)
+
 
 
     def set_position(self, writer, worksheet, row, col):

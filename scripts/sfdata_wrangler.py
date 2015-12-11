@@ -182,10 +182,10 @@ CPI_FILE       = "C:/CASA/Data/CPI/SeriesReport-20150908105105_8887b6.xlsx"
 
 TRANSIT_ANNUAL_DIR = "C:/CASA/Data/TransitStatisticalSummary"
 
-FIPS = [('06001' , 'Alameda County'), 
-        ('06013' , 'Contra Costa County'), 
-        ('06075' , 'San Francisco County'), 
-        ('06081' , 'San Mateo County')]
+FIPS = [('06001' , 'Alameda County', 'AC'), 
+        ('06013' , 'Contra Costa County', 'CCC'), 
+        ('06075' , 'San Francisco County', 'SFC'), 
+        ('06081' , 'San Mateo County', 'SMC')]
 
 # OUTPUT FILES--change as needed
 CLEANED_OUTFILE       = "D:/Output/sfmuni_cleaned.h5"    
@@ -210,6 +210,7 @@ MUNI_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MuniPerformanceReport.xlsx"
 REPORT_ROUTEPLOTS = "C:/CASA/PerformanceReports/RoutePlots.html"
 
 MUNI_ESTIMATION_FILE = "C:/CASA/ModelEstimation/MuniBusCountyLevel/Try2/data/MuniEstimationFile.csv"
+BART_ESTIMATION_FILE = "C:/CASA/ModelEstimation/BARTCountyLevel/Try1/data/BARTEstimationFile.csv"
 
 
 # main function call
@@ -283,20 +284,20 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         demandHelper = DemandHelper()
 
-        demandHelper.processCensusPopulationEstimates(CENSUS_POPEST_PRE2010_FILE, 
-                                                      CENSUS_POPEST_POST2010_FILE, 
-                                                      FIPS, 
-                                                      DEMAND_OUTFILE)      
+        #demandHelper.processCensusPopulationEstimates(CENSUS_POPEST_PRE2010_FILE, 
+        #                                              CENSUS_POPEST_POST2010_FILE, 
+        #                                              FIPS, 
+        #                                              DEMAND_OUTFILE)      
         
-        demandHelper.processCensusSampleData(ACS_DIR, CENSUS2000_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+        #demandHelper.processCensusSampleData(ACS_DIR, CENSUS2000_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
         
-        demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILES, CENSUS2010_FILE, DEMAND_OUTFILE)          
+        #demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILES, CENSUS2010_FILE, DEMAND_OUTFILE)          
 
         demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
 
-        demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-        demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
+        #demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
                                                              
         demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
                                    MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
@@ -329,13 +330,17 @@ if __name__ == "__main__":
                                    demand_file=DEMAND_OUTFILE,
                                    gtfs_file=GTFS_OUTFILE, 
                                    multimodal_file=MULTIMODAL_OUTFILE)
-        reporter.writeSystemReport(MUNI_REPORT_XLSFILE, dow=1)
+        reporter.writeSystemReport(MUNI_REPORT_XLSFILE, fips='06075', dow=1)
 
         reporter.writeDemandReport(DEMAND_REPORT_XLSFILE, FIPS)
 
         reporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE)
 
-        reporter.writeSFMuniEstimationFile(MUNI_ESTIMATION_FILE)
+        # demand data only for SF county
+        reporter.writeSFMuniEstimationFile(MUNI_ESTIMATION_FILE, fips='06075')
+
+        # demand data for all counties
+        reporter.writeBARTEstimationFile(BART_ESTIMATION_FILE, FIPS)
         
         
         #reporter.createRoutePlot(REPORT_ROUTEPLOTS, 

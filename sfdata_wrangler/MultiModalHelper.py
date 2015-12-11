@@ -212,6 +212,7 @@ class MultiModalHelper():
         df = pd.merge(df, df_fy, how='left', on='FISCAL_YEAR', sort=True, suffixes=('', '_FY')) 
         for mode in modes: 
             if mode != 'CALTRAIN': 
+                df['FARE_RATIO_' + mode] = df['FARE_RATIO_' + mode].interpolate()
                 df['AVG_FARE_' + mode] = df['CASH_FARE_' + mode] * df['FARE_RATIO_' + mode]
         
         # keep only needed fields
