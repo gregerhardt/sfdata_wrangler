@@ -159,9 +159,9 @@ class GTFSHelper():
         Processes the list of GTFS files and stores
         them in an HDF format.   
         """
-
+        
         outstore = pd.HDFStore(outfile) 
-        if outkey in outstore.keys(): 
+        if '/' + outkey in outstore.keys(): 
             outstore.remove(outkey)
            
         startIndex = 0
@@ -195,7 +195,7 @@ class GTFSHelper():
         """
         
         outstore = pd.HDFStore(outfile) 
-        if outkey in outstore.keys(): 
+        if '/' + outkey in outstore.keys(): 
             outstore.remove(outkey)
 
         # determine the system totals, grouped by schedule dates
@@ -236,14 +236,17 @@ class GTFSHelper():
             for date, servicePeriodsForDate in servicePeriodsEachDate:     
                 print ' Processing ', date
                 
-                # some calculations
+                # current month
                 month = ((pd.to_datetime(date)).to_period('M')).to_timestamp() 
-                if (date.weekday()==5):
-                    dow=2
-                elif (date.weekday()==6):
-                    dow=3
-                else: 
-                    dow=1
+                
+                # figure out the day of week based on the schedule in operation
+                dow = 1
+                for period in servicePeriodsForDate:   
+                    servIdString = str(period.service_id).strip().upper()        
+                    if servIdString=='SAT' or servIdString=='2': 
+                        dow = 2
+                    if servIdString=='SUN' or servIdString=='3': 
+                        dow = 3
         
                 # select and append the appropriate aggregated records for this date
                 for period in servicePeriodsForDate:   
@@ -273,7 +276,7 @@ class GTFSHelper():
         print 'Calculating monthly totals'
         
         outstore = pd.HDFStore(outfile) 
-        if outkey in outstore.keys(): 
+        if '/' + outkey in outstore.keys(): 
             outstore.remove(outkey)
 
         # determine the system totals, grouped by schedule dates
