@@ -162,6 +162,62 @@ class MultiModalHelper():
         outstore.close()
 
 
+    def extrapolateMonthlyServiceMiles(self, gtfsFile, outfile): 
+        """ 
+        Converts the annual multi-modal data to monthly measures.   
+
+        cpiFile - contains consumer price index data
+        outfile  - the HDF output file to write to        
+        """
+        
+        # remove the existing key so we don't overwrite
+        outstore = pd.HDFStore(outfile)
+        keys = outstore.keys()
+        if '/exrapolatedServiceMiles' in keys: 
+            outstore.remove('exrapolatedServiceMiles')
+        
+        # get the more detailed GTFS data
+        gtfs_store = pd.HDFStore(gtfsFile)
+        gtfs_bart     = gtfs_store.select('bartMonthly', where='DOW=1 and ROUTE_TYPE=1')
+        gtfs_munibus  = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=3')
+        gtfs_munirail = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=0')
+        gtfs_municc   = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=5')  
+        
+        # get the monthly service miles from the stat summary, and merge with BART so we 
+        # get the key names right below...
+        monthlyServMiles = outstore.select('transitMonthly')        
+        monthlyServMiles = pd.merge(monthlyServMiles, gtfs_bart, how='left', on=['MONTH'],  sort=True, suffixes=('', '_NOT_USED')) 
+        
+        # create an empty dataframe
+        extrapolated = pd.DataFrame({'MONTH' : []})
+        
+        # loop through each mode
+        modes = [('BART', gtfs_bart), 
+                 ('MUNI_BUS', gtfs_munibus), 
+                 ('MUNI_RAIL', gtfs_munirail), 
+                 ('MUNI_CC', gtfs_municc)]        
+                 
+        for name, gtfs in modes: 
+            
+            # merge the two files
+            df = pd.merge(monthlyServMiles, gtfs, how='outer', on='MONTH', suffixes=('', '_' + name))
+    
+            # calculate the ratio of daily to monthly service miles
+            df['RATIO'] = df['SERVMILES_S_'+name] / df['SERVMILES_' + name]
+            df['RATIO'] = df['RATIO'].ffill().bfill()
+            df['SERVMILES_E_'+name] = np.where(df['SERVMILES_S_'+name]>0, 
+                                                df['SERVMILES_S_'+name], 
+                                                df['RATIO'] * df['SERVMILES_'+name])
+            
+            # only keep relevant fields
+            df = df[['MONTH', 'SERVMILES_E_'+name]]
+            extrapolated = pd.merge(extrapolated, df, how='outer', on='MONTH')
+                    
+        # append to the output store
+        outstore.append('/exrapolatedServiceMiles', extrapolated, data_columns=True)
+        outstore.close()
+        
+
     def processTransitFares(self, cashFareFile, cpiFile, outfile): 
         """ 
         Processes the cash transit fares into a monthly list format. 

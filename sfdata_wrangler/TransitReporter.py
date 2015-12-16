@@ -1348,6 +1348,9 @@ class TransitReporter():
         gtfs_munirail = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=0')
         gtfs_municc   = gtfs_store.select('sfmuniMonthly', where='DOW=1 and ROUTE_TYPE=5')     
         
+        # extrapolated schedule data
+        servmiles_extrapolated = mm_store.select('exrapolatedServiceMiles')
+        
         # more specific data
         ts = ts_store.select('system_day_s', where='DOW=1') 
         muni = ts[['MONTH']].copy()
@@ -1371,6 +1374,9 @@ class TransitReporter():
         df = pd.merge(df, gtfs_munibus, how='left', on=['MONTH'],  sort=True, suffixes=('', '_GTFS_MUNI_BUS')) 
         df = pd.merge(df, gtfs_munirail, how='left', on=['MONTH'],  sort=True, suffixes=('', '_GTFS_MUNI_RAIL')) 
         df = pd.merge(df, gtfs_municc, how='left', on=['MONTH'],  sort=True, suffixes=('', '_GTFS_MUNI_CC')) 
+        
+        # merge extrapolated service miles
+        df = pd.merge(df, servmiles_extrapolated, how='left', on=['MONTH'], sort=True, suffixes=('', '_EXTRAP'))
         
         return df
 
@@ -1671,13 +1677,13 @@ class TransitReporter():
         
         # TRANSIT STATISTICAL SUMMARY DATA
         measures = [('Monthly Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', int_format),
-                    ('Monthly Ridership', 'PASSENGERS', 'Transit Stat Summary', 'FY', int_format), 
                     ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', int_format), 
                     ('Average Weekday Ridership', 'APC_ON', 'APCs/Faregate', 'Monthly', int_format), 
                     ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', cent_format),  
                     ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY/Actual', cent_format),
                     ('Weekday Stops', 'STOPS_GTFS', 'GTFS', 'Actual', int_format),  
-                    ('Weekday Service Miles', 'SERVMILES_S_GTFS', 'GTFS', 'Actual', int_format),  
+                    ('Weekday Service Miles', 'SERVMILES_S_GTFS', 'GTFS', 'Actual', int_format), 
+                    ('Weekday Service Miles-Extrapolated', 'SERVMILES_E', 'Stat Summary/GTFS', 'Monthly', int_format),   
                     ('Weekday Average Headway', 'HEADWAY_S_GTFS', 'GTFS', 'Actual', dec_format),  
                     ('Weekday Average Run Speed', 'RUNSPEED_S_GTFS', 'GTFS', 'Actual', dec_format),  
                     ('Weekday Average Total Speed', 'TOTSPEED_S_GTFS', 'GTFS', 'Actual', dec_format),  
@@ -1691,7 +1697,10 @@ class TransitReporter():
                  ('BART', 'BART'),
                  ('Caltrain', 'CALTRAIN')
                 ]
-                        
+        
+        for c in df.columns: 
+            print c               
+                                                                                            
         for header, measure, source, tempRes, format in measures: 
             worksheet.write(self.row, 1, header, bold)
             self.row += 1
@@ -1707,6 +1716,8 @@ class TransitReporter():
                             row_offset=ROW_OFFSET, col_offset=COL_OFFSET, max_col=max_col,
                             source=source, tempRes=tempRes, geogRes='System', format=format, 
                             formulaType=formulaType)
+                else: 
+                    print measure + '_' + mode + ' not found'
 
 
         # MODE SHARES        
