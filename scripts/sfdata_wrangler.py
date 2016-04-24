@@ -209,8 +209,8 @@ DEMAND_REPORT_XLSFILE = "C:/CASA/PerformanceReports/DriversOfDemandReport.xlsx"
 MUNI_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MuniPerformanceReport.xlsx"
 REPORT_ROUTEPLOTS = "C:/CASA/PerformanceReports/RoutePlots.html"
 
-MUNI_ESTIMATION_FILE = "C:/CASA/ModelEstimation/MuniBusCountyLevel/Try2/data/MuniEstimationFile.csv"
-BART_ESTIMATION_FILE = "C:/CASA/ModelEstimation/BARTCountyLevel/Try1/data/BARTEstimationFile.csv"
+MUNI_ESTIMATION_FILE = "C:/CASA/ModelEstimation/MuniExPost/data/MuniForecastFile.csv"
+BART_ESTIMATION_FILE = "C:/CASA/ModelEstimation/BartExPost/data/BARTForecastFile.csv"
 
 
 # main function call
@@ -265,7 +265,7 @@ if __name__ == "__main__":
     if 'gtfs' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         gtfsHelper = GTFSHelper() 
-        #gtfsHelper.processFiles(RAW_GTFS_FILES, GTFS_OUTFILE, 'sfmuni')
+        gtfsHelper.processFiles(RAW_GTFS_FILES, GTFS_OUTFILE, 'sfmuni')
         gtfsHelper.processFiles(BART_GTFS_FILES, GTFS_OUTFILE, 'bart')
         print 'Finished processing GTFS data ', (datetime.datetime.now() - startTime) 
         
@@ -302,9 +302,9 @@ if __name__ == "__main__":
         demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
                                    MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
-        demandHelper.processParkingCosts(PARKING_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
+        #demandHelper.processParkingCosts(PARKING_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
-        demandHelper.processTollCosts(TOLL_FILE, CPI_FILE, DEMAND_OUTFILE)
+        #demandHelper.processTollCosts(TOLL_FILE, CPI_FILE, DEMAND_OUTFILE)
         
 
         print 'Finished processing drivers of demand data ', (datetime.datetime.now() - startTime) 
@@ -315,10 +315,11 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
         mmHelper = MultiModalHelper()
 
-        mmHelper.processAnnualTransitData(TRANSIT_ANNUAL_DIR, CPI_FILE, MULTIMODAL_OUTFILE)    
-        mmHelper.processMonthlyTransitData(CPI_FILE, MULTIMODAL_OUTFILE)    
-        mmHelper.processTransitFares(CASH_FARE_FILE, CPI_FILE, MULTIMODAL_OUTFILE)
-        #mmHelper.processBARTEntryExits(BART_ENTRY_EXIT_DIR, MULTIMODAL_OUTFILE, 'bart_weekday')
+        #mmHelper.processAnnualTransitData(TRANSIT_ANNUAL_DIR, CPI_FILE, MULTIMODAL_OUTFILE)    
+        #mmHelper.processMonthlyTransitData(CPI_FILE, MULTIMODAL_OUTFILE)      
+        #mmHelper.extrapolateMonthlyServiceMiles(GTFS_OUTFILE, MULTIMODAL_OUTFILE) 
+        #mmHelper.processTransitFares(CASH_FARE_FILE, CPI_FILE, MULTIMODAL_OUTFILE)
+        mmHelper.processBARTEntryExits(BART_ENTRY_EXIT_DIR, MULTIMODAL_OUTFILE)
 
 
     # create performance reports
@@ -330,17 +331,17 @@ if __name__ == "__main__":
                                    demand_file=DEMAND_OUTFILE,
                                    gtfs_file=GTFS_OUTFILE, 
                                    multimodal_file=MULTIMODAL_OUTFILE)
-        reporter.writeSystemReport(MUNI_REPORT_XLSFILE, fips='06075', dow=1)
+        #reporter.writeSystemReport(MUNI_REPORT_XLSFILE, fips='06075', dow=1)
 
-        reporter.writeDemandReport(DEMAND_REPORT_XLSFILE, FIPS)
+        #reporter.writeDemandReport(DEMAND_REPORT_XLSFILE, FIPS)
 
-        reporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE)
+        reporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE, fips='06075')
 
         # demand data only for SF county
-        reporter.writeSFMuniEstimationFile(MUNI_ESTIMATION_FILE, fips='06075')
+        #reporter.writeSFMuniEstimationFile(MUNI_ESTIMATION_FILE, fips='06075')
 
         # demand data for all counties
-        reporter.writeBARTEstimationFile(BART_ESTIMATION_FILE, FIPS)
+        #reporter.writeBARTEstimationFile(BART_ESTIMATION_FILE, FIPS)
         
         
         #reporter.createRoutePlot(REPORT_ROUTEPLOTS, 

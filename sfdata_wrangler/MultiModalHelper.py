@@ -328,20 +328,19 @@ class MultiModalHelper():
         return dfcpi
 
 
-    def processBARTEntryExits(self, indir, outfile, outkey):
+    def processBARTEntryExits(self, indir, outfile):
         """
         Read data, cleans it, processes it, and writes it to an HDF5 file.
         
         indir - the year will be appended here        
         outfile - output file name in h5 format
-        outkey - write to this key
         """
         
         # initialize a few things
         numRecords = 0
         outstore = pd.HDFStore(outfile) 
-        if outkey in outstore.keys(): 
-            outstore.remove(outkey)        
+        if '/bart_weekday' in outstore.keys(): 
+            outstore.remove('bart_weekday')        
         
         # loop through each directly and get the right files
         dirs = glob.glob(indir + '*/')
@@ -380,7 +379,7 @@ class MultiModalHelper():
                     numRecords += len(df)
                     
                     # append the data
-                    outstore.append(outkey, df, data_columns=True)
+                    outstore.append('bart_weekday', df, data_columns=True)
         
         outstore.close()
         

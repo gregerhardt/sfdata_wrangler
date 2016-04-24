@@ -761,10 +761,13 @@ class TransitReporter():
         #create the plot
         bk.output_file(outfile)        
         stop_labels = before['STOPNAME'].tolist()     
-        p = bk.figure(plot_width=1000, # in units of px
-                      plot_height=650,  
+        p = bk.figure(#plot_width=1000, # in units of px
+                      #plot_height=650,  
+                      plot_width=2000, # in units of px
+                      plot_height=1300, 
                       title=title, 
-                      title_text_font_size='12pt', 
+                      #title_text_font_size='12pt', 
+                      title_text_font_size='24pt', 
                       x_range = stop_labels                 
                       )    
                
@@ -826,16 +829,22 @@ class TransitReporter():
         
         # do some formatting
         p.yaxis.axis_label = "Passengers"
-        p.yaxis.axis_label_text_font_size='12pt'
+        #p.yaxis.axis_label_text_font_size='12pt'
+        p.yaxis.axis_label_text_font_size='24pt'
+        #
+        p.yaxis.major_label_text_font_size = '16pt'
         
         p.xaxis.axis_label = "Stop"
-        p.xaxis.axis_label_text_font_size='12pt'
+        #p.xaxis.axis_label_text_font_size='12pt'
+        p.xaxis.axis_label_text_font_size='24pt'
         
         p.xaxis.major_label_orientation = np.pi / 2.0
-        p.xaxis.major_label_text_font_size = '8pt'
+        #p.xaxis.major_label_text_font_size = '8pt'
+        p.xaxis.major_label_text_font_size = '16pt'
         
         p.legend.orientation = "top_left"
-        
+        #
+        p.legend.label_text_font_size = '16pt'
         
         # and write the output
         bk.show(p)
@@ -1302,7 +1311,7 @@ class TransitReporter():
         
 
 
-    def assembleAnnualMultiModalData(self):
+    def assembleAnnualMultiModalData(self, fips):
         '''
         Calculates the fields used in the system performance reports
         and stores them in an HDF datastore. 
@@ -1313,7 +1322,7 @@ class TransitReporter():
         
         transit = mm_store.select('transitAnnual')
         fares = mm_store.select('transitFareAnnual')
-        acs = demand_store.select('totalACSannual')
+        acs = demand_store.select('countyACSannual', where="FIPS=fips")
         
         mm_store.close()
         demand_store.close()
@@ -1326,7 +1335,7 @@ class TransitReporter():
         return df
 
 
-    def assembleMonthlyMultiModalData(self):
+    def assembleMonthlyMultiModalData(self, fips):
         '''
         Calculates the fields used in the system performance reports
         and stores them in an HDF datastore. 
@@ -1339,7 +1348,7 @@ class TransitReporter():
         
         transit = mm_store.select('transitMonthly')
         fares = mm_store.select('transitFare')
-        acs = demand_store.select('totalACS')
+        acs = demand_store.select('countyACS', where="FIPS=fips")
         bart = mm_store.select('bart_weekday', where="FROM='Entries' and TO='Exits'")
         
         # schedule data
@@ -1381,7 +1390,7 @@ class TransitReporter():
         return df
 
         
-    def writeMultiModalReport(self, xlsfile, comments=None):
+    def writeMultiModalReport(self, xlsfile, fips, comments=None):
         '''
         Writes a drivers of demand for all months to the specified excel file.        
         '''    
@@ -1390,19 +1399,19 @@ class TransitReporter():
         self.writer = pd.ExcelWriter(xlsfile, engine='xlsxwriter',
                         datetime_format='mmm-yyyy')        
         
-        self.writeAnnualMultiModalSheet(sheetName='Fiscal Year', comments=comments)
-        self.writeMonthlyMultiModalSheet(sheetName='Monthly', comments=comments)
+        self.writeAnnualMultiModalSheet(fips=fips, sheetName='Fiscal Year', comments=comments)
+        self.writeMonthlyMultiModalSheet(fips=fips, sheetName='Monthly', comments=comments)
         
         self.writer.save()
 
     
-    def writeAnnualMultiModalSheet(self, sheetName, comments=None):         
+    def writeAnnualMultiModalSheet(self, fips, sheetName, comments=None):         
                     
         timestring = str(pd.Timestamp(datetime.datetime.now()))
         timestring = timestring.split('.')[0]
 
         # get the actual data
-        df = self.assembleAnnualMultiModalData()    
+        df = self.assembleAnnualMultiModalData(fips)    
 
         # Write the month as the column headers
         years = df[['FISCAL_YEAR']]
@@ -1492,11 +1501,11 @@ class TransitReporter():
 
         
         # TRANSIT STATISTICAL SUMMARY DATA
-        measures = [('Annual Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', int_format), 
-                    ('Annual Ridership', 'PASSENGERS', 'Transit Stat Summary', 'FY', int_format), 
-                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', int_format), 
-                    ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY', cent_format), 
-                    ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', cent_format), 
+        measures = [('Annual Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', 'System', int_format), 
+                    ('Annual Ridership', 'PASSENGERS', 'Transit Stat Summary', 'FY', 'System', int_format), 
+                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', 'System', int_format), 
+                    ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY', 'System', cent_format), 
+                    ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', 'System', cent_format), 
                     ]
         
         modes = [('Muni Bus+Rail', 'MUNI'), 
@@ -1507,7 +1516,7 @@ class TransitReporter():
                  ('Caltrain', 'CALTRAIN')
                 ]
                 
-        for header, measure, source, tempRes, format in measures: 
+        for header, measure, source, tempRes, geogRes, format in measures: 
             worksheet.write(self.row, 1, header, bold)
             self.row += 1
                 
@@ -1516,12 +1525,12 @@ class TransitReporter():
 
                     if formulaType=='values':
                         self.write_row(label=label, data=df[[measure + '_' + mode]], 
-                            source=source, tempRes=tempRes, geogRes='System', format=format)
+                            source=source, tempRes=tempRes, geogRes=geogRes, format=format)
 
                     else: 
                         self.write_difference_row(label=label, 
                             row_offset=ROW_OFFSET, col_offset=COL_OFFSET, max_col=max_col,
-                            source=source, tempRes=tempRes, geogRes='System', format=format, 
+                            source=source, tempRes=tempRes, geogRes=geogRes, format=format, 
                             formulaType=formulaType)
 
         # MODE SHARES        
@@ -1580,13 +1589,13 @@ class TransitReporter():
                                 formulaType=formulaType)
 
 
-    def writeMonthlyMultiModalSheet(self, sheetName, comments=None):         
+    def writeMonthlyMultiModalSheet(self, fips, sheetName, comments=None):         
                     
         timestring = str(pd.Timestamp(datetime.datetime.now()))
         timestring = timestring.split('.')[0]
 
         # get the actual data
-        df = self.assembleMonthlyMultiModalData()    
+        df = self.assembleMonthlyMultiModalData(fips)    
 
         # Write the month as the column headers
         periods = df[['MONTH']]
@@ -1676,17 +1685,17 @@ class TransitReporter():
         self.row += 1       
         
         # TRANSIT STATISTICAL SUMMARY DATA
-        measures = [('Monthly Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', int_format),
-                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', int_format), 
-                    ('Average Weekday Ridership', 'APC_ON', 'APCs/Faregate', 'Monthly', int_format), 
-                    ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', cent_format),  
-                    ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY/Actual', cent_format),
-                    ('Weekday Stops', 'STOPS_GTFS', 'GTFS', 'Actual', int_format),  
-                    ('Weekday Service Miles', 'SERVMILES_S_GTFS', 'GTFS', 'Actual', int_format), 
-                    ('Weekday Service Miles-Extrapolated', 'SERVMILES_E', 'Stat Summary/GTFS', 'Monthly', int_format),   
-                    ('Weekday Average Headway', 'HEADWAY_S_GTFS', 'GTFS', 'Actual', dec_format),  
-                    ('Weekday Average Run Speed', 'RUNSPEED_S_GTFS', 'GTFS', 'Actual', dec_format),  
-                    ('Weekday Average Total Speed', 'TOTSPEED_S_GTFS', 'GTFS', 'Actual', dec_format),  
+        measures = [('Monthly Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', 'System', int_format),
+                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', 'System', int_format), 
+                    ('Average Weekday Ridership', 'APC_ON', 'APCs/Faregate', 'Monthly', 'Stop', int_format), 
+                    ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', 'System', cent_format),  
+                    ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY/Actual', 'System', cent_format),
+                    ('Weekday Stops', 'STOPS_GTFS', 'GTFS', 'Actual', 'Route/Stop', int_format),  
+                    ('Weekday Service Miles', 'SERVMILES_S_GTFS', 'GTFS', 'Actual', 'Route/Stop', int_format), 
+                    ('Weekday Service Miles-Extrapolated', 'SERVMILES_E', 'Stat Summary/GTFS', 'Monthly', 'System', int_format),   
+                    ('Weekday Average Headway', 'HEADWAY_S_GTFS', 'GTFS', 'Actual', 'Route/Stop', dec_format),  
+                    ('Weekday Average Run Speed', 'RUNSPEED_S_GTFS', 'GTFS', 'Actual', 'Route/Stop', dec_format),  
+                    ('Weekday Average Total Speed', 'TOTSPEED_S_GTFS', 'GTFS', 'Actual', 'Route/Stop', dec_format),  
                     ]
         
         
@@ -1697,11 +1706,8 @@ class TransitReporter():
                  ('BART', 'BART'),
                  ('Caltrain', 'CALTRAIN')
                 ]
-        
-        for c in df.columns: 
-            print c               
-                                                                                            
-        for header, measure, source, tempRes, format in measures: 
+                                                                           
+        for header, measure, source, tempRes, geogRes, format in measures: 
             worksheet.write(self.row, 1, header, bold)
             self.row += 1
                 
@@ -1709,15 +1715,13 @@ class TransitReporter():
                 if measure + '_' + mode in df.columns:                     
                     if formulaType=='values':
                         self.write_row(label=label, data=df[[measure + '_' + mode]], 
-                            source=source, tempRes=tempRes, geogRes='System', format=format)
+                            source=source, tempRes=tempRes, geogRes=geogRes, format=format)
 
                     else: 
                         self.write_difference_row(label=label, 
                             row_offset=ROW_OFFSET, col_offset=COL_OFFSET, max_col=max_col,
-                            source=source, tempRes=tempRes, geogRes='System', format=format, 
+                            source=source, tempRes=tempRes, geogRes=geogRes, format=format, 
                             formulaType=formulaType)
-                else: 
-                    print measure + '_' + mode + ' not found'
 
 
         # MODE SHARES        
@@ -1800,6 +1804,24 @@ class TransitReporter():
         df = muni
         df = pd.merge(df, multimodal, how='left', on=['MONTH'], sort=True, suffixes=('', '_MM')) 
         df = pd.merge(df, demand, how='left', on=['MONTH'], sort=True, suffixes=('', '_DEMAND')) 
+        #df = pd.merge(df, demand, how='right', on=['MONTH'], sort=True, suffixes=('', '_DEMAND')) 
+        
+        # more additional fields
+        df['CASH_FARE_INC_MUNI'] = df['CASH_FARE_2010USD_MUNI'] / df['MEDIAN_HHINC_2010USD']
+        df['AVG_FARE_INC_MUNI']  = df['AVG_FARE_2010USD_MUNI'] / df['MEDIAN_HHINC_2010USD']
+        df['FUEL_PRICE_INC']     = df['FUEL_PRICE_2010USD'] / df['MEDIAN_HHINC_2010USD']
+        df['FUEL_COST_INC']      = df['FUEL_COST_2010USD'] / df['MEDIAN_HHINC_2010USD']
+        df['IRS_RATE_INC']       = df['IRS_MILEAGE_RATE_2010USD'] / df['MEDIAN_HHINC_2010USD']
+
+        df['CASUAL_CARPOOL'] = np.where(df['TOLL_BB_CARPOOL_2010USD']>0, 0, 1)
+        
+        df['BART_STRIKE'] = 0
+        df['BART_STRIKE'] = np.where(df['MONTH']==pd.to_datetime('2013-07-01'), 1, df['BART_STRIKE'])
+        df['BART_STRIKE'] = np.where(df['MONTH']==pd.to_datetime('2013-10-01'), 1, df['BART_STRIKE'])
+
+        df['BART_STRIKE_DAYS'] = 0
+        df['BART_STRIKE_DAYS'] = np.where(df['MONTH']==pd.to_datetime('2013-07-01'), 4, df['BART_STRIKE_DAYS'])
+        df['BART_STRIKE_DAYS'] = np.where(df['MONTH']==pd.to_datetime('2013-10-01'), 3, df['BART_STRIKE_DAYS'])
         
         # calcluate the diff from 12 months before
         diff = pd.DataFrame()
@@ -1825,17 +1847,17 @@ class TransitReporter():
         Writes a model estimation file for BART ridership       
         '''     
         
-        # get a filename for the differences
-        base = os.path.splitext(estfile)
-        estfileDiff = base[0] + '_diff' + base[1]
-
-
         # get the basic data, including the 4-county total demand data
         multimodal = self.assembleMonthlyMultiModalData()
         demand = self.assembleDemandData('Total')
+        muni = self.assembleSystemPerformanceData(fips='06075', dow=1, tod='Daily')
                 
+        # interpolate for one missing month
+        muni = muni.interpolate()
+        
         # merge the data      
         df = pd.merge(multimodal, demand, how='left', on=['MONTH'], sort=True, suffixes=('', '_DEMAND')) 
+        df = pd.merge(df, demand, how='left', on=['MONTH'], sort=True, suffixes=('', '_MUNI_BUS')) 
         
         # now, merge the county-specific demand data
         for fips, countyName, abbreviation in fipsList: 
@@ -1848,24 +1870,21 @@ class TransitReporter():
                 if (df[col+'_Total'].dtype==np.float64) or (df[col+'_Total'].dtype==np.int64) : 
                     df[col+'_3COUNTY'] = df[col+'_Total'] - df[col+'_SFC']
                     df[col+'_SFSHARE'] = df[col+'_SFC'] / df[col+'_Total'] 
+                    
+        # more additional fields
+        df['CASUAL_CARPOOL'] = np.where(df['TOLL_BB_CARPOOL_2010USD']>0, 0, 1)
         
-        # calcluate the diff from 12 months before
-        diff = pd.DataFrame()
-        for col in df.columns: 
-            if df[col].dtype=='object': 
-                diff[col] = df[col] + '-' + df[col].shift(12)
-            elif df[col].dtype=='datetime64[ns]':
-                diff[col] = df[col]
-            else: 
-                diff[col] = df[col] - df[col].shift(12)
-        diff = diff[12:]
+        df['BART_STRIKE'] = 0
+        df['BART_STRIKE'] = np.where(df['MONTH']==pd.to_datetime('2013-07-01'), 1, df['BART_STRIKE'])
+        df['BART_STRIKE'] = np.where(df['MONTH']==pd.to_datetime('2013-10-01'), 1, df['BART_STRIKE'])
         
-        # and a bit of clean up
-        diff['MONTH_NUM'] = diff['MONTH'].apply(lambda x: x.month)
+        df['BART_STRIKE_DAYS'] = 0
+        df['BART_STRIKE_DAYS'] = np.where(df['MONTH']==pd.to_datetime('2013-07-01'), 4, df['BART_STRIKE_DAYS'])
+        df['BART_STRIKE_DAYS'] = np.where(df['MONTH']==pd.to_datetime('2013-10-01'), 3, df['BART_STRIKE_DAYS'])
+        
 
         # write the data
         df.to_csv(estfile)
-        diff.to_csv(estfileDiff)
 
 
 
