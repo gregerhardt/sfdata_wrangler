@@ -209,8 +209,8 @@ DEMAND_REPORT_XLSFILE = "C:/CASA/PerformanceReports/DriversOfDemandReport.xlsx"
 MUNI_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MuniPerformanceReport.xlsx"
 REPORT_ROUTEPLOTS = "C:/CASA/PerformanceReports/RoutePlots.html"
 
-MUNI_ESTIMATION_FILE = "C:/CASA/ModelEstimation/MuniExPost/data/MuniForecastFile.csv"
-BART_ESTIMATION_FILE = "C:/CASA/ModelEstimation/BartExPost/data/BARTForecastFile.csv"
+MUNI_ESTIMATION_FILE = "C:/CASA/ModelEstimation/PostViva/data/MuniForecastFile.csv"
+BART_ESTIMATION_FILE = "C:/CASA/ModelEstimation/PostViva/data/BARTForecastFile.csv"
 
 
 # main function call
@@ -289,18 +289,18 @@ if __name__ == "__main__":
         #                                              FIPS, 
         #                                              DEMAND_OUTFILE)      
         
-        #demandHelper.processCensusSampleData(ACS_DIR, CENSUS2000_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+        demandHelper.processCensusSampleData(ACS_DIR, CENSUS2000_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
         
         #demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILES, CENSUS2010_FILE, DEMAND_OUTFILE)          
 
-        demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
+        #demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
 
         #demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
         #demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
         #demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
                                                              
-        demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
-                                   MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
+        #demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
+        #                           MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
         #demandHelper.processParkingCosts(PARKING_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
 
@@ -335,13 +335,13 @@ if __name__ == "__main__":
 
         #reporter.writeDemandReport(DEMAND_REPORT_XLSFILE, FIPS)
 
-        reporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE, fips='06075')
+        #reporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE, fips='06075')
 
         # demand data only for SF county
-        #reporter.writeSFMuniEstimationFile(MUNI_ESTIMATION_FILE, fips='06075')
+        reporter.writeSFMuniEstimationFile(MUNI_ESTIMATION_FILE, fips='06075')
 
         # demand data for all counties
-        #reporter.writeBARTEstimationFile(BART_ESTIMATION_FILE, FIPS)
+        reporter.writeBARTEstimationFile(BART_ESTIMATION_FILE, FIPS)
         
         
         #reporter.createRoutePlot(REPORT_ROUTEPLOTS, 

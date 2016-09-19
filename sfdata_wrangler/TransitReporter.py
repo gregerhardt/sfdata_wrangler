@@ -1794,7 +1794,7 @@ class TransitReporter():
 
         # get the data
         muni = self.assembleSystemPerformanceData(fips, dow=dow, tod=tod)
-        multimodal = self.assembleMonthlyMultiModalData()
+        multimodal = self.assembleMonthlyMultiModalData(fips)
         demand = self.assembleDemandData(fips)
                 
         # interpolate for one missing month
@@ -1848,7 +1848,7 @@ class TransitReporter():
         '''     
         
         # get the basic data, including the 4-county total demand data
-        multimodal = self.assembleMonthlyMultiModalData()
+        multimodal = self.assembleMonthlyMultiModalData(fips='06075')
         demand = self.assembleDemandData('Total')
         muni = self.assembleSystemPerformanceData(fips='06075', dow=1, tod='Daily')
                 

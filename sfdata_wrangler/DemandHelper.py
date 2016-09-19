@@ -231,16 +231,54 @@ class DemandHelper():
                                                        'Estimate; Worked at home: - 3 vehicles available',
                                                        'Estimate; Worked at home: - 4 vehicles available',
                                                        'Estimate; Worked at home: - 5 vehicles available']),
+                            ], 
+                            
+                 # population by age and gender
+                 'S0101'  : [('MALE_PCT0_19',    ['Male; Estimate; AGE - Under 5 years',
+                                              'Male; Estimate; AGE - 5 to 9 years',
+                                              'Male; Estimate; AGE - 10 to 14 years',
+                                              'Male; Estimate; AGE - 15 to 19 years']),                                              
+                             ('MALE_PCT20_29',   ['Male; Estimate; AGE - 20 to 24 years',
+                                              'Male; Estimate; AGE - 25 to 29 years']),                                              
+                             ('MALE_PCT30_64',   ['Male; Estimate; AGE - 30 to 34 years',
+                                              'Male; Estimate; AGE - 35 to 39 years',
+                                              'Male; Estimate; AGE - 40 to 44 years',
+                                              'Male; Estimate; AGE - 45 to 49 years',
+                                              'Male; Estimate; AGE - 50 to 54 years',
+                                              'Male; Estimate; AGE - 55 to 59 years',
+                                              'Male; Estimate; AGE - 60 to 64 years']),                             
+                             ('MALE_PCT65P',      'Male; Estimate; SELECTED AGE CATEGORIES - 65 years and over'), 
+
+                             ('FEMALE_PCT0_19',  ['Female; Estimate; AGE - Under 5 years',
+                                              'Female; Estimate; AGE - 5 to 9 years',
+                                              'Female; Estimate; AGE - 10 to 14 years',
+                                              'Female; Estimate; AGE - 15 to 19 years']),                                              
+                             ('FEMALE_PCT20_29', ['Female; Estimate; AGE - 20 to 24 years',
+                                              'Female; Estimate; AGE - 25 to 29 years']),                                              
+                             ('FEMALE_PCT30_64', ['Female; Estimate; AGE - 30 to 34 years',
+                                              'Female; Estimate; AGE - 35 to 39 years',
+                                              'Female; Estimate; AGE - 40 to 44 years',
+                                              'Female; Estimate; AGE - 45 to 49 years',
+                                              'Female; Estimate; AGE - 50 to 54 years',
+                                              'Female; Estimate; AGE - 55 to 59 years',
+                                              'Female; Estimate; AGE - 60 to 64 years']),                             
+                             ('FEMALE_PCT65P',    'Female; Estimate; SELECTED AGE CATEGORIES - 65 years and over'), 
+                             
+                             ('MALE',         'Male; Estimate; Total population'),
+                             ('FEMALE',       'Female; Estimate; Total population'),
+                             ('MEDIAN_AGE',   'Total; Estimate; SUMMARY INDICATORS - Median age (years)')
                             ]
+                            
                 }
 
     
     
     # a list of output field and inputfield tuples for each table  in Census 2000
     CENSUS2000_EQUIV = {
-                 'DP01' :  [('POP',  'Number; Total population'), 
-                            ('HH',   'Number; HOUSEHOLDS BY TYPE - Total households'), 
-                            ('UNITS_ACS','Number; HOUSING OCCUPANCY - Total housing units'), 
+                 'DP01' :  [('POP',          'Number; Total population'), 
+                            ('HH',           'Number; HOUSEHOLDS BY TYPE - Total households'), 
+                            ('UNITS_ACS',    'Number; HOUSING OCCUPANCY - Total housing units'),                              
+                            ('MEDIAN_AGE',   'Number; Total population - SEX AND AGE - Median age (years)')
                             ], 
                  'DP03'   : [('WORKERS',      'Number; EMPLOYMENT STATUS - Population 16 years and over - In labor force - Civilian labor force - Employed'), 
                              ('MEDIAN_HHINC', 'Number; INCOME IN 1999 - Families - Median family income (dollars)'), 
@@ -406,6 +444,56 @@ class DemandHelper():
                                                        'TAB35X44',
                                                        'TAB35X55',
                                                        'TAB35X66'])
+                            ], 
+                            
+                 # population by age and gender
+                 'SF1_P012':[('MALE0_19',   ['Male: - Under 5 years',
+                                              'Male: - 5 to 9 years',
+                                              'Male: - 10 to 14 years',
+                                              'Male: - 15 to 17 years',
+                                              'Male: - 18 and 19 years']),                                              
+                             ('MALE20_29',   ['Male: - 20 years',
+                                              'Male: - 21 years',
+                                              'Male: - 22 to 24 years',
+                                              'Male: - 25 to 29 years']),                                              
+                             ('MALE30_64',   ['Male: - 30 to 34 years',
+                                              'Male: - 35 to 39 years',
+                                              'Male: - 40 to 44 years',
+                                              'Male: - 45 to 49 years',
+                                              'Male: - 50 to 54 years',
+                                              'Male: - 55 to 59 years',
+                                              'Male: - 60 and 61 years',
+                                              'Male: - 62 to 64 years']),                             
+                             ('MALE65P',     ['Male: - 65 and 66 years', 
+                                              'Male: - 67 to 69 years', 
+                                              'Male: - 70 to 74 years', 
+                                              'Male: - 75 to 79 years', 
+                                              'Male: - 80 to 84 years', 
+                                              'Male: - 85 years and over']), 
+
+                             ('FEMALE0_19',  ['Female: - Under 5 years',
+                                              'Female: - 5 to 9 years',
+                                              'Female: - 10 to 14 years',
+                                              'Female: - 15 to 17 years',
+                                              'Female: - 18 and 19 years']),                                              
+                             ('FEMALE20_29', ['Female: - 20 years',
+                                              'Female: - 21 years',
+                                              'Female: - 22 to 24 years',
+                                              'Female: - 25 to 29 years']),                                              
+                             ('FEMALE30_64', ['Female: - 30 to 34 years',
+                                              'Female: - 35 to 39 years',
+                                              'Female: - 40 to 44 years',
+                                              'Female: - 45 to 49 years',
+                                              'Female: - 50 to 54 years',
+                                              'Female: - 55 to 59 years',
+                                              'Female: - 60 and 61 years',
+                                              'Female: - 62 to 64 years']),                             
+                             ('FEMALE65P',   ['Female: - 65 and 66 years', 
+                                              'Female: - 67 to 69 years', 
+                                              'Female: - 70 to 74 years', 
+                                              'Female: - 75 to 79 years', 
+                                              'Female: - 80 to 84 years', 
+                                              'Female: - 85 years and over'])
                             ]
                 }
 
@@ -710,6 +798,10 @@ class DemandHelper():
                         newName = newName.replace('(IN YYYY INFLATION-ADJUSTED DOLLARS) - Total households -', '(IN YYYY INFLATION-ADJUSTED DOLLARS) -')
                         newName = newName.replace('Total: - ', '')
                         newName = newName.replace('or more vehicles available', 'vehicles available')
+                        newName = newName.replace('Total population - AGE', 'AGE')                      
+                        newName = newName.replace('Total population - SELECTED AGE CATEGORIES', 'SELECTED AGE CATEGORIES') 
+                        newName = newName.replace('Total population - SUMMARY INDICATORS', 'SUMMARY INDICATORS') 
+                        
                         colNames[oldName] = newName
                     df = df.rename(columns=colNames) 
                     
@@ -726,7 +818,19 @@ class DemandHelper():
                                 annual.at[year, outfield] += float(df.at[fips, infield])                                
                         else: 
                             annual.at[year, outfield] = df.at[fips, infields]
-                            
+                    
+                    # deal with sepcial case for age, to convert percents to total counts
+                    if table=='S0101': 
+                        annual['MALE0_19']  = annual['MALE'] * annual['MALE_PCT0_19'] / 100.  
+                        annual['MALE20_29'] = annual['MALE'] * annual['MALE_PCT20_29'] / 100.  
+                        annual['MALE30_64'] = annual['MALE'] * annual['MALE_PCT30_64'] / 100.  
+                        annual['MALE65P']   = annual['MALE'] * annual['MALE_PCT65P'] / 100. 
+                        
+                        annual['FEMALE0_19']  = annual['FEMALE'] * annual['FEMALE_PCT0_19'] / 100.  
+                        annual['FEMALE20_29'] = annual['FEMALE'] * annual['FEMALE_PCT20_29'] / 100.  
+                        annual['FEMALE30_64'] = annual['FEMALE'] * annual['FEMALE_PCT30_64'] / 100.  
+                        annual['FEMALE65P']   = annual['FEMALE'] * annual['FEMALE_PCT65P'] / 100.      
+                                                
         return annual
         
 
