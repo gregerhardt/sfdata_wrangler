@@ -139,7 +139,7 @@ class TaxiDataHelper():
             chunk['x'], chunk['y'] = zip(*x_y)
             
             # keep only the points within the city bounds
-            chunk['in_sf'] = x_y.apply(HwyNetwork.isInSanFranciscoBox, index=chunk.index)
+            chunk['in_sf'] = x_y.apply(HwyNetwork.isInSanFranciscoBox)
             chunk = chunk[chunk['in_sf']==True]
         
             # convert to timedate formats
