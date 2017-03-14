@@ -21,8 +21,9 @@ __license__     = """
 import pandas as pd
 import numpy as np
 import datetime
-
-import transitfeed  
+import sys
+sys.path.append('C:\Workspace\TransitFeed\transitfeed-master\transitfeed')
+import loader  
 from pyproj import Proj
 from shapely.geometry import Point, LineString  
             
@@ -150,7 +151,7 @@ class GTFSHelper():
         """
         Sets up the transit feed. 
         """
-        tfl = transitfeed.Loader(feed_path=gtfs_file)
+        tfl = loader(feed_path=gtfs_file)
         self.schedule = tfl.Load()
         
         
@@ -167,7 +168,7 @@ class GTFSHelper():
         startIndex = 0
         
         for infile in infiles: 
-            print '\n\nReading ', infile
+            print ('\n\nReading ', infile)
             
             self.establishTransitFeed(infile)
             servicePeriods = self.schedule.GetServicePeriodList()        
@@ -220,7 +221,7 @@ class GTFSHelper():
 
         # use the GTFS files to determine the service in operation for each date
         for infile in infiles: 
-            print '\n\nReading ', infile
+            print ('\n\nReading ', infile)
             
             self.establishTransitFeed(infile)
 
@@ -234,7 +235,7 @@ class GTFSHelper():
             servicePeriodsEachDate = self.schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate + pd.DateOffset(days=1)) 
             
             for date, servicePeriodsForDate in servicePeriodsEachDate:     
-                print ' Processing ', date
+                print (' Processing ', date)
                 
                 # current month
                 month = ((pd.to_datetime(date)).to_period('M')).to_timestamp() 
@@ -273,7 +274,7 @@ class GTFSHelper():
         
         """
         
-        print 'Calculating monthly totals'
+        print ('Calculating monthly totals')
         
         outstore = pd.HDFStore(outfile) 
         if '/' + outkey in outstore.keys(): 
@@ -492,7 +493,7 @@ class GTFSHelper():
                         i += 1
                                     
         # convert to data frame 
-        print "service_id %s has %i trip-stop records" % (period.service_id, len(data))
+        print ("service_id %s has %i trip-stop records" % (period.service_id, len(data)))
         df = pd.DataFrame(data)    
 
         # calculate the headways, based on difference in previous bus on 

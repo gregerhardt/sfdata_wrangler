@@ -115,7 +115,7 @@ class TaxiDataHelper():
         outfile - output file name in h5 format
         """
         
-        print datetime.datetime.now(), 'Converting raw data in file: ', infile
+        print (datetime.datetime.now(), 'Converting raw data in file: ', infile)
         
         # set up the reader
         reader = pd.read_csv(infile,  
@@ -134,7 +134,7 @@ class TaxiDataHelper():
             rowsRead    += len(chunk)
         
             # convert to x y coordinates
-            lon_lat = pd.Series(zip(chunk['longitude'], chunk['latitude']), index=chunk.index)
+            lon_lat = pd.Series(list(zip(chunk['longitude'], chunk['latitude'])), index=chunk.index)
             x_y = lon_lat.apply(HwyNetwork.convertLongitudeLatitudeToXY)
             chunk['x'], chunk['y'] = zip(*x_y)
             
@@ -143,18 +143,19 @@ class TaxiDataHelper():
             chunk = chunk[chunk['in_sf']==True]
         
             # convert to timedate formats
-            chunk['date'] = pd.to_datetime(chunk['time'],format="%Y-%m-%d",exact=False)  
+            chunk['date_string'] = chunk['time'].str.split(' ').str[0]
+            chunk['date'] = pd.to_datetime(chunk['date_string'],format="%Y-%m-%d",exact=False)
             chunk['time'] = pd.to_datetime(chunk['time'],format="%Y-%m-%d %H:%M:%S")  
             
             # sort and assign a unique index
-            chunk.sort(['date','cab_id','time'], inplace=True)
+            chunk.sort_values(['date','cab_id','time'], inplace=True)
             chunk.index = rowsWritten + pd.Series(range(0,len(chunk)))
             
             # write the data
             store.append(outkey, chunk, data_columns=True)
 
             rowsWritten += len(chunk)
-            print 'Read %i rows and kept %i rows.' % (rowsRead, rowsWritten)
+            print ('Read %i rows and kept %i rows.' % (rowsRead, rowsWritten))
             
         # close the writer
         store.close()
@@ -174,24 +175,25 @@ class TaxiDataHelper():
         # get the list of dates and cab_ids to process
         dates = store.select_column(inkey, 'date').unique()
         dates.sort()
+        print (dates)
         cab_ids = store.select_column(inkey, 'cab_id').unique()
         cab_ids.sort()
         
         # for testing only
         #cab_ids = cab_ids[:5]
 
-        print 'Retrieved a total of %i days to process' % len(dates)
+        print ('Retrieved a total of %i days to process' % len(dates))
         
         # loop through the dates and cab_ids
         for date in dates: 
-            print 'Processing ', date            
+            print ('Processing ', date)            
             for cab_id in cab_ids:
-                print 'Processing cab_id ', cab_id
+                print ('Processing cab_id ', cab_id)
                     
                 # get the data and sort
                 query = 'date==Timestamp(date) & cab_id==' + str(cab_id)
                 df = store.select('points', where=query)                          
-                df.sort(['time'], inplace=True)
+                df.sort_values(['time'], inplace=True)
                                     
                 if (len(df)>0):
                         
@@ -217,7 +219,7 @@ class TaxiDataHelper():
                             pos1 = Position(last_row['x'],last_row['y'])
                             pos2 = Position(row['x'], row['y'])
                             feet = HwyNetwork.distanceInFeet(pos1, pos2)
-
+                            
                             seconds = (row['time'] - last_row['time']).total_seconds()
                             speed = (feet / seconds) * 0.681818
                                 
@@ -236,7 +238,7 @@ class TaxiDataHelper():
                         
                     # make a backwards pass to clean up the first and last
                     # GPS point of the trip, which can be stationary       
-                    df.sort(['time'], ascending=[0], inplace=True) 
+                    df.sort_values(['time'], ascending=[0], inplace=True) 
                     first_row = True
                     last_row = 'none'
                     for i, row in df.iterrows():
@@ -261,7 +263,7 @@ class TaxiDataHelper():
                         last_row = row
                     
                     # now make another forward pass to group into trips                  
-                    df.sort(['time'], inplace=True) 
+                    df.sort_values(['time'], inplace=True) 
                     first_row = True
                     last_row = 'none'
                     df['trip_id'] = -1
@@ -331,12 +333,12 @@ class TaxiDataHelper():
         dates = store.select_column(inkey, 'date').unique()
         dates.sort()
 
-        print 'Retrieved a total of %i days to process' % len(dates)
+        print ('Retrieved a total of %i days to process' % len(dates))
         
         # loop through the dates 
         rowsWritten = 0
         for date in dates: 
-            print 'Processing ', date
+            print ('Processing ', date)
             
             # get the data and sort
             gps_df = store.select(inkey, where='date==Timestamp(date)')  
@@ -347,7 +349,7 @@ class TaxiDataHelper():
             for group in groups:                
                 (cab_id, trip_id, status) = group[0]
                 if (cab_id != last_cab_id):
-                    print '    Processing cab_id: ', cab_id
+                    print ('    Processing cab_id: ', cab_id)
                 
                 # group[0] is the index, group[1] is the records
                 traj = Trajectory(hwynet, group[1])
@@ -476,8 +478,7 @@ class TaxiDataHelper():
             currentTime = currentTime + datetime.timedelta(seconds=tt)
         
         return (link_ids2, traversalRatios2, startTimes, travelTimes2)
-
-
+    
 
     def aggregateLinkTravelTimes(self, storefile, inkey, outkey):
         """
@@ -496,11 +497,11 @@ class TaxiDataHelper():
         dates = store.select_column(inkey, 'date').unique()
         dates.sort()
 
-        print 'Retrieved a total of %i days to process' % len(dates)
+        print ('Retrieved a total of %i days to process' % len(dates))
         
         # loop through the dates and cab_ids
         for date in dates: 
-            print 'Processing ', date            
+            print ('Processing ', date)            
                     
             # get the data--only include cases where we traverse most of the link
             df = store.select(inkey, where='date==Timestamp(date) and traversal_ratio>0.75')  
@@ -533,4 +534,8 @@ class TaxiDataHelper():
             
             # write the data
             store.append(outkey, aggregated, data_columns=True)
+            
+            #convert the taxi.h5 file to a text file
+            import h5py
+            np.savetxt('taxi.txt',h5py.File('taxi.h5'),'%g',' ')
 

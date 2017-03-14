@@ -19,8 +19,11 @@ __license__     = """
 
 import sys
 
+sys.path.append('C:/Anaconda/Lib/site-packages/qtpy')
+
 from qtpandas import DataFrameWidget
-from PySide import QtGui
+from qtpy import QtGui
+from qtpy import QtWidgets
 
 class DataFrameViewer():
     """ 
@@ -37,11 +40,11 @@ class DataFrameViewer():
         """
         
         # need to initialize an application
-        app = QtGui.QApplication(sys.argv)
+        app = QtWidgets.QApplication(sys.argv)
         app.aboutToQuit.connect(app.deleteLater)
 
         # Create the widget and set the DataFrame
-        mw = QtGui.QWidget()
+        mw = QtWidgets
         df_withIndexView = df.reset_index()
         mw.widget = DataFrameWidget(df_withIndexView)
 

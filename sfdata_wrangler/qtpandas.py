@@ -7,9 +7,8 @@ adapted from pandas.sandbox.qtpandas,
 modified by Gregory D. Erhardt for SFCTA
 
 '''
-from PySide.QtCore import QAbstractTableModel, Qt, QModelIndex
-from PySide.QtGui import (
-        QApplication, QDialog, QVBoxLayout, QTableView, QWidget)
+from qtpy.QtCore import QAbstractTableModel, Qt, QModelIndex
+from qtpy.QtWidgets import QApplication, QDialog, QVBoxLayout, QTableView, QWidget
 QVariant = lambda value=None: value
 
 from pandas import DataFrame, Index

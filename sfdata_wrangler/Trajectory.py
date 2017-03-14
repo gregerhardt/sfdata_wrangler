@@ -72,7 +72,7 @@ def path_feature_vector(hwynet, path, tt):
     """  
     
     if (path==None or len(path.links)==0):
-        return [-sys.maxint, 0]
+        return [-sys.maxsize, 0]
         
     else: 
         path_tt = hwynet.getPathFreeFlowTTInSecondsWithTurnPenalties(path)
@@ -202,10 +202,10 @@ class Trajectory():
             viterbi.computeAssignments()
         except (ValueError):
             for f in self.features:
-                print f
+                print (f)
             for t in self.transitions:
-                print t
-            print self.THETA
+                print (t)
+            print (self.THETA)
             raise 
 
         # The indexes of the most likely elements of the trajectory
@@ -243,7 +243,7 @@ class Trajectory():
             
             # it is only a path if i is odd, otherwise its a state collection
             if ((i%2) == 1): 
-                j = (i-1) / 2
+                j = (i-1) // 2
                 path = self.candidatePaths[j][self.most_likely_indices[i]]
                 elements.append(path)
         
@@ -291,12 +291,12 @@ class Trajectory():
             # it is a state if i is even, and a path if i is odd
             if ((i%2) == 0): 
                 elementType = 'state'
-                j = i/2
+                j = i//2
                 candidates = self.candidatePoints[j].states 
                 attribute = self.candidatePoints[j].time 
             if ((i%2) == 1): 
                 elementType = 'path'
-                j = (i-1) / 2
+                j = (i-1) // 2
                 candidates = self.candidatePaths[j]
                 attribute = self.traveltimes[j]
 

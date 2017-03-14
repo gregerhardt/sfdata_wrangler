@@ -736,6 +736,7 @@ class TransitReporter():
         
         # get the data
         ts_store = pd.HDFStore(self.ts_file) 
+   
         if tod=='Daily': 
             before = ts_store.select('rs_day', where="MONTH=Timestamp(month1) & DOW=dow & ROUTE_SHORT_NAME=route_short_name & DIR=dir") 
             after  = ts_store.select('rs_day', where="MONTH=Timestamp(month2) & DOW=dow & ROUTE_SHORT_NAME=route_short_name & DIR=dir") 
@@ -743,22 +744,27 @@ class TransitReporter():
             before = ts_store.select('rs_tod', where="MONTH=Timestamp(month1) & DOW=dow & TOD=tod & ROUTE_SHORT_NAME=route_short_name & DIR=dir") 
             after  = ts_store.select('rs_tod', where="MONTH=Timestamp(month2) & DOW=dow & TOD=tod & ROUTE_SHORT_NAME=route_short_name & DIR=dir")  
         ts_store.close()
-        
+
         # re-calculate the load after averaging
         load = 0.0
         for i, row in before.iterrows():
-            load -= row['OFF']
-            load += row['ON']
+            if not np.isnan(row['OFF']): 
+                load -= row['OFF']
+            if not np.isnan(row['ON']): 
+                load += row['ON']
             before.at[i, 'LOAD_DEP'] = load
             
         load = 0.0
         for i, row in after.iterrows():
-            load -= row['OFF']
-            load += row['ON']
+            if not np.isnan(row['OFF']): 
+                load -= row['OFF']
+            if not np.isnan(row['ON']): 
+                load += row['ON']
             after.at[i, 'LOAD_DEP'] = load
             
                                         
         #create the plot
+        outfile = outfile+'_' + str(dir) + '_' + route_short_name + '_' +str(tod)+'.html'
         bk.output_file(outfile)        
         stop_labels = before['STOPNAME'].tolist()     
         p = bk.figure(#plot_width=1000, # in units of px
@@ -842,7 +848,7 @@ class TransitReporter():
         #p.xaxis.major_label_text_font_size = '8pt'
         p.xaxis.major_label_text_font_size = '16pt'
         
-        p.legend.orientation = "top_left"
+        p.legend.orientation = "vertical"
         #
         p.legend.label_text_font_size = '16pt'
         

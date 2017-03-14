@@ -182,10 +182,10 @@ class Visualizer():
             df['observations'+h].replace(to_replace=np.nan, value=0, inplace=True)
             
             # calculate some extra fields
-            length_tt_fftt = pd.Series(zip(df['LENGTH'], df['tt_mean'+h], df['FFTIME']))
+            length_tt_fftt = pd.Series(list(zip(df['LENGTH'], df['tt_mean'+h], df['FFTIME'])))
             df['speed'+h] = length_tt_fftt.apply(calculateSpeed)
                 
-            tt_fftt = pd.Series(zip(df['tt_mean'+h], df['FFTIME']))
+            tt_fftt = pd.Series(list(zip(df['tt_mean'+h], df['FFTIME'])))
             df['tt_ratio'+h] = tt_fftt.apply(calculateTravelTimeRatio)
                 
             # map the link colors based on the travel time ratio
@@ -231,7 +231,7 @@ class Visualizer():
             yvals = row['Y']
 
             for (x1, x2, y1, y2) \
-                in zip(xvals[:-1], xvals[1:], yvals[:-1], yvals[1:]):
+                in list(zip(xvals[:-1], xvals[1:], yvals[:-1], yvals[1:])):
                 
                 xmid.append((x1+x2)/2.0)
                 ymid.append((y1+y2)/2.0)

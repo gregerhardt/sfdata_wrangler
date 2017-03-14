@@ -239,7 +239,7 @@ class SFMuniDataHelper():
         outfile - output file name in h5 format
         """
         
-        print datetime.datetime.now(), 'Converting raw data in file: ', infile
+        print (datetime.datetime.now(), 'Converting raw data in file: ', infile)
         
         # convert column specs 
         colnames = []       
@@ -324,7 +324,7 @@ class SFMuniDataHelper():
             for r in chunk['ROUTE_AVL'].unique(): 
                 if not r in self.routeEquiv.index: 
                     missingRouteIds.add(r)
-                    print 'ROUTE_AVL id ', r, ' not found in route equivalency file'
+                    print ('ROUTE_AVL id ', r, ' not found in route equivalency file')
                 
             # convert to timedate formats
             arrTimeInt = pd.Series(zip(chunk['DATE_INT'], chunk['ARRIVAL_TIME_INT']), index=chunk.index)   
@@ -353,32 +353,32 @@ class SFMuniDataHelper():
                     min_itemsize=stringLengths)
             except ValueError: 
                 store = pd.HDFStore(outfile)
-                print 'Structure of HDF5 file is: '
-                print store.sample.dtypes
+                print ('Structure of HDF5 file is: ')
+                print (store.sample.dtypes)
                 store.close()
-                print 'Structure of current dataframe is: '
-                print df.dtypes
+                print ('Structure of current dataframe is: ')
+                print (df.dtypes)
                 raise  
             except TypeError: 
-                print 'Structure of current dataframe is: '
+                print ('Structure of current dataframe is: ')
                 types = df.dtypes
                 for type in types:
-                    print type
+                    print (type)
                 raise
 
             rowsWritten += len(df)
-            print datetime.datetime.now(), ' Read %i rows and kept %i rows.' % (rowsRead, rowsWritten)
+            print (datetime.datetime.now(), ' Read %i rows and kept %i rows.' % (rowsRead, rowsWritten))
 
         if len(missingRouteIds) > 0: 
-            print 'The following AVL route IDs are missing from the routeEquiv file:'
+            print ('The following AVL route IDs are missing from the routeEquiv file:')
             for missing in missingRouteIds: 
-                print '  ', missing
+                print ('  ', missing)
             
         # close the writer
         store.close()
 
         
-    def getWrapAroundTime(self, (dateInt, timeInt)):
+    def getWrapAroundTime(self, dateInt, timeInt):
         """
         Converts a string in the format '%H%M%S' to a datetime object.
         Accounts for the convention where service after midnight is counted
@@ -398,7 +398,7 @@ class SFMuniDataHelper():
         try: 
             time = pd.to_datetime(datetimeString, format="%m%d%y %H%M%S")
         except ValueError:
-            print 'Count not convert ', datetimeString
+            print ('Count not convert ', datetimeString)
             time = pd.NaT
             
         if nextDay: 
