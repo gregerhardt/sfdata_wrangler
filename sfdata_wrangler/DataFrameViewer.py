@@ -19,8 +19,6 @@ __license__     = """
 
 import sys
 
-sys.path.append('C:/Anaconda/Lib/site-packages/qtpy')
-
 from qtpandas import DataFrameWidget
 from qtpy import QtGui
 from qtpy import QtWidgets

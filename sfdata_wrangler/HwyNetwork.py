@@ -19,7 +19,6 @@ __license__     = """
 """
 
 import sys
-sys.path.append('C:\Workspace\SOURCE\dta')
 import dta
 import math
 import operator
@@ -28,22 +27,21 @@ import scipy as sp
 import pandas as pd
 from scipy.sparse import csr_matrix
 from pyproj import Proj
-sys.path.append('C:\Workspace\SOURCE\Path_inf_filter')
 from mm.path_inference.structures import State
 from mm.path_inference.structures import Path 
 
 try: 
     import rtree 
 except(WindowsError):
-    print ('Be sure libspatialindex is installed on your system  \
-    1 Download it from: http://download.osgeo.org/libspatialindex/ \
-    2. Put the DLLs in your system PATH \
-    3. Make sure the 32/64 bit DLL is consistent with running \
-       32/64 bit python.  \
-    4. rtree will look for spatialindex1_c.dll, so rename if needed \
-           from something like: spatialindex_c-64.dll. \
-    5. But keep something like spatialindex-64.dll with its original \
-                name because the first DLL will look for this one. ')
+    print "Be sure libspatialindex is installed on your system. \
+             1. Download it from: http://download.osgeo.org/libspatialindex/ \
+             2. Put the DLLs in your system PATH \
+             3. Make sure the 32/64 bit DLL is consistent with running \
+                32/64 bit python.  \
+             4. rtree will look for spatialindex1_c.dll, so rename if needed \
+                from something like: spatialindex_c-64.dll. \
+             5. But keep something like spatialindex-64.dll with its original \
+                name because the first DLL will look for this one. " 
            
     raise
 

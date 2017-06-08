@@ -21,6 +21,7 @@ __license__     = """
 import pandas as pd
 import numpy as np
 import datetime
+
 import sys
 sys.path.append('C:\Workspace\TransitFeed\transitfeed-master\transitfeed')
 import loader  
@@ -151,7 +152,7 @@ class GTFSHelper():
         """
         Sets up the transit feed. 
         """
-        tfl = loader(feed_path=gtfs_file)
+        tfl = transitfeed.Loader(feed_path=gtfs_file)
         self.schedule = tfl.Load()
         
         

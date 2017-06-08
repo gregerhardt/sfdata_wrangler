@@ -20,18 +20,18 @@ __license__     = """
 import sys
 import datetime
 
-sys.path.append('C:\Workspace\SOURCE\sf_taxi\sfdata_wrangler')
+sys.path.append('C:/CASA/Workspace/sfdata_wrangler/sfdata_wrangler')
 
 from SFMuniDataHelper import SFMuniDataHelper
-#from GTFSHelper import GTFSHelper
-#from SFMuniDataExpander import SFMuniDataExpander
-#from SFMuniDataAggregator import SFMuniDataAggregator
-#from MultiModalHelper import MultiModalHelper
-#from DemandHelper import DemandHelper
-#from MultiModalReporter import MultiModalReporter
+from GTFSHelper import GTFSHelper
+from SFMuniDataExpander import SFMuniDataExpander
+from SFMuniDataAggregator import SFMuniDataAggregator
+from MultiModalHelper import MultiModalHelper
+from DemandHelper import DemandHelper
+from MultiModalReporter import MultiModalReporter
 from TransitReporter import TransitReporter
-#from DemandReporter import DemandReporter
-#from ClipperHelper import ClipperHelper
+from DemandReporter import DemandReporter
+from ClipperHelper import ClipperHelper
 
 
 USAGE = r"""
@@ -196,18 +196,18 @@ EXPANDED_TS_OUTFILE   = "D:/Output/sfmuni_expanded_ts_YYYY.h5"
 DAILY_TRIP_OUTFILE = "D:/Output/sfmuni_daily_trip.h5"
 DAILY_TS_OUTFILE   = "D:/Output/sfmuni_daily_ts.h5"
 
-MONTHLY_TRIP_OUTFILE = "E:\Transit_Casa\Output/sfmuni_monthly_trip.h5"
-MONTHLY_TS_OUTFILE   = "E:\Transit_Casa\Output/sfmuni_monthly_ts.h5"
+MONTHLY_TRIP_OUTFILE = "D:/Output/sfmuni_monthly_trip.h5"
+MONTHLY_TS_OUTFILE   = "D:/Output/sfmuni_monthly_ts.h5"
 
 GTFS_OUTFILE = "C:/CASA/PerformanceReports/gtfs.h5"
 CLIPPER_OUTFILE = "D:/Output/clipper3.h5"
-DEMAND_OUTFILE = "E:\Transit_Casa\Alex\Output\Performence Report/drivers_of_demand.h5"
-MULTIMODAL_OUTFILE = "E:\Transit_Casa\Alex\Output\Performence Report/multimodal.h5"
+DEMAND_OUTFILE = "C:/CASA/PerformanceReports/drivers_of_demand.h5"
+MULTIMODAL_OUTFILE = "C:/CASA/PerformanceReports/multimodal.h5"
 
-MULTIMODAL_REPORT_XLSFILE = "E:\Transit_Casa\Alex\Output\Performence Report/MultiModalReport.xlsx"
-DEMAND_REPORT_XLSFILE = "E:\Transit_Casa\Alex\Output\Performence Report/DriversOfDemandReport.xlsx"
-MUNI_REPORT_XLSFILE = "E:\Transit_Casa\Alex\Output\Performence Report/MuniPerformanceReport.xlsx"
-REPORT_ROUTEPLOTS = "E:\Transit_Casa\Alex\Output\Performence Report/RoutePlots"
+MULTIMODAL_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MultiModalReport.xlsx"
+DEMAND_REPORT_XLSFILE = "C:/CASA/PerformanceReports/DriversOfDemandReport.xlsx"
+MUNI_REPORT_XLSFILE = "C:/CASA/PerformanceReports/MuniPerformanceReport.xlsx"
+REPORT_ROUTEPLOTS = "C:/CASA/PerformanceReports/RoutePlots.html"
 
 MUNI_ESTIMATION_FILE = "C:/CASA/ModelEstimation/PostViva/data/MuniForecastFile.csv"
 BART_ESTIMATION_FILE = "C:/CASA/ModelEstimation/PostViva/data/BARTForecastFile.csv"
@@ -327,33 +327,33 @@ if __name__ == "__main__":
         startTime = datetime.datetime.now()   
                 
         reporter = TransitReporter(trip_file=MONTHLY_TRIP_OUTFILE, 
-                                  ts_file=MONTHLY_TS_OUTFILE, 
-                                  demand_file=DEMAND_OUTFILE,
-                                  gtfs_file=GTFS_OUTFILE, 
-                                  multimodal_file=MULTIMODAL_OUTFILE)
-        reporter.writeSystemReport(MUNI_REPORT_XLSFILE, fips='06075', dow=1)
+                                   ts_file=MONTHLY_TS_OUTFILE, 
+                                   demand_file=DEMAND_OUTFILE,
+                                   gtfs_file=GTFS_OUTFILE, 
+                                   multimodal_file=MULTIMODAL_OUTFILE)
+        #reporter.writeSystemReport(MUNI_REPORT_XLSFILE, fips='06075', dow=1)
 
         #reporter.writeDemandReport(DEMAND_REPORT_XLSFILE, FIPS)
 
         #reporter.writeMultiModalReport(MULTIMODAL_REPORT_XLSFILE, fips='06075')
 
         # demand data only for SF county
-        #reporter.writeSFMuniEstimationFile(MUNI_ESTIMATION_FILE, fips='06075')
+        reporter.writeSFMuniEstimationFile(MUNI_ESTIMATION_FILE, fips='06075')
 
         # demand data for all counties
-        #reporter.writeBARTEstimationFile(BART_ESTIMATION_FILE, FIPS)
+        reporter.writeBARTEstimationFile(BART_ESTIMATION_FILE, FIPS)
         
         
         #reporter.createRoutePlot(REPORT_ROUTEPLOTS, 
-                                # months=('2009-09-01', '2013-09-01'), 
-                             #    dow=1, 
-                              #   tod='Daily', 
-                              #   route_short_name='22', 
-                              #   dir=1)
+        #                         months=('2009-07-01', '2010-07-01'), 
+        #                         dow=1, 
+        #                         tod='0600-0859', 
+        #                         route_short_name=1, 
+        #                         dir=1)
 
         
-        print ('Finished performance reports in ', (datetime.datetime.now() - startTime) )
+        print('Finished performance reports in ', (datetime.datetime.now() - startTime))
 
-    print ('Run complete!  Time for a pint!')
+    print('Run complete!  Time for a pint!')
     
     

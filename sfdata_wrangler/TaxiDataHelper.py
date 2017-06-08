@@ -534,8 +534,4 @@ class TaxiDataHelper():
             
             # write the data
             store.append(outkey, aggregated, data_columns=True)
-            
-            #convert the taxi.h5 file to a text file
-            import h5py
-            np.savetxt('taxi.txt',h5py.File('taxi.h5'),'%g',' ')
 
