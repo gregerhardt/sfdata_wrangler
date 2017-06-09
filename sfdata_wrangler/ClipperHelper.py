@@ -141,12 +141,12 @@ class ClipperHelper():
         outfile - output file name in h5 format
         """
         
-        print datetime.datetime.now(), 'Converting raw data in file: ', infile
+        print(datetime.datetime.now(), 'Converting raw data in file: ', infile)
         
         # read the input data
         df = pd.read_csv(infile)
         
-        print datetime.datetime.now(), '  calculate'
+        print(datetime.datetime.now(), '  calculate')
         
         # make the tables format nicer in terms of the strings used
         df['AgencyName'] = df['AgencyName'].apply(str.strip)
@@ -200,7 +200,7 @@ class ClipperHelper():
         df.sort(sortColumns, inplace=True)               
                         
         # identify transfers
-        print datetime.datetime.now(), '  loop'
+        print(datetime.datetime.now(), '  loop')
         df['TIMEDIFF_TAGON']  = 9999
         df['TIMEDIFF_TAGOFF'] = 9999
         df['TRANSFER'] = 0
@@ -241,19 +241,19 @@ class ClipperHelper():
             last_row = row
         
         # determine how many transfers are on each linked trip
-        #print datetime.datetime.now(), '  transform'
+        #print(datetime.datetime.now(), '  transform')
         selected = df[['ClipperCardID', 'LINKED_TRIP_ID','TRANSFER']]
         transformed = selected.groupby(['ClipperCardID', 'LINKED_TRIP_ID']).transform(sum)
         df['LINKED_TRANSFERS'] = transformed['TRANSFER']
         
-        print datetime.datetime.now(), '  calculate weights' 
+        print(datetime.datetime.now(), '  calculate weights') 
         # these will represent average ridership by DOW (weekday, saturday, sunday)
         #TODO - update to match external boarding counts...        
         df['WEIGHT'] = df['DOW'].apply(clipperWeights)
         df['LINKED_WEIGHT'] = df['WEIGHT'] / (1.0+df['LINKED_TRANSFERS'])
         
         # write it to an HDF file
-        print datetime.datetime.now(), '  write'
+        print(datetime.datetime.now(), '  write')
         key = 'm' + str(100*year + month) + '01'
         store = pd.HDFStore(outfile)
         store.append(key, df, data_columns=True)

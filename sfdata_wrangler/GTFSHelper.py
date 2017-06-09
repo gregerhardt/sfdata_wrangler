@@ -23,8 +23,7 @@ import numpy as np
 import datetime
 
 import sys
-sys.path.append('C:\Workspace\TransitFeed\transitfeed-master\transitfeed')
-import loader  
+import transitfeed  
 from pyproj import Proj
 from shapely.geometry import Point, LineString  
             

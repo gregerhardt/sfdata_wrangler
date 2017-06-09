@@ -327,18 +327,13 @@ class SFMuniDataHelper():
                     print ('ROUTE_AVL id ', r, ' not found in route equivalency file')
                 
             # convert to timedate formats
-            arrTimeInt = pd.Series(zip(chunk['DATE_INT'], chunk['ARRIVAL_TIME_INT']), index=chunk.index)   
-            depTimeInt = pd.Series(zip(chunk['DATE_INT'], chunk['DEPARTURE_TIME_INT']), index=chunk.index) 
-            pulloutInt = pd.Series(zip(chunk['DATE_INT'], chunk['PULLOUT_INT']), index=chunk.index)   
-            
-            chunk['DATE']           = chunk['DATE_INT'].apply(self.getDate)    
-            chunk['ARRIVAL_TIME']   = arrTimeInt.apply(self.getWrapAroundTime)  
-            chunk['DEPARTURE_TIME'] = depTimeInt.apply(self.getWrapAroundTime)      
-            chunk['PULLOUT']        = pulloutInt.apply(self.getWrapAroundTime)  
-          
+            chunk['DATE']           = chunk['DATE_INT'].apply(self.getDate)                
+            chunk['ARRIVAL_TIME']   = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['ARRIVAL_TIME_INT']), axis=1) 
+            chunk['DEPARTURE_TIME'] = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['DEPARTURE_TIME_INT']), axis=1) 
+            chunk['PULLOUT']        = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['PULLOUT_INT']), axis=1)                       
                                                                                 
             # drop duplicates (not sure why these occur) and sort
-            chunk.drop_duplicates(cols=self.INDEX_COLUMNS, inplace=True) 
+            chunk.drop_duplicates(subset=self.INDEX_COLUMNS, inplace=True) 
             chunk.sort(self.INDEX_COLUMNS, inplace=True)
             
             # set a unique index
@@ -384,7 +379,7 @@ class SFMuniDataHelper():
         Accounts for the convention where service after midnight is counted
         with the previous day, so input times can be >24 hours. 
         """        
-        
+                
         if timeInt>= 240000:
             timeInt = timeInt - 240000
             nextDay = True

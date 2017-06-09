@@ -76,11 +76,14 @@ def updateSpeeds(speedInputs):
         return np.nan
         
 
-def getScheduleDeviation((actualTime, schedTime)):
+def getScheduleDeviation(times):
     """
-    Calculates the speed based on a tuple (servmiles, runtime)
+    Calculates schedule devation based on a tuple (actualTime, schedTime)
                                        
     """
+	
+    (actualTime, schedTime) = times
+	
     if pd.isnull(actualTime): 
         return np.nan
     elif (actualTime >= schedTime):
@@ -274,8 +277,8 @@ class SFMuniDataExpander():
             if (date>=pd.Timestamp(startDate) and date<=pd.Timestamp(endDate)):
                 self.dateList.append(date)
         
-        print 'SFMuniDataExpander set up for ', len(self.dateList), ' observed dates between ', \
-               self.dateList[0], ' and ', self.dateList[len(self.dateList)-1]
+        print('SFMuniDataExpander set up for ', len(self.dateList), ' observed dates between ', 
+               self.dateList[0], ' and ', self.dateList[len(self.dateList)-1])
     
     
     def closeStores(self):  
@@ -296,7 +299,7 @@ class SFMuniDataExpander():
         outfile - output file name in h5 format, same as AVL/APC format
         """
         
-        print datetime.datetime.now(), 'Converting raw data in file: ', gtfs_file
+        print(datetime.datetime.now(), 'Converting raw data in file: ', gtfs_file)
               
         # establish the feed, reading only the bus routes
         gtfsHelper = GTFSHelper()
@@ -318,11 +321,11 @@ class SFMuniDataExpander():
         # note that the last date is not included, hence the +1 increment
         servicePeriodsEachDate = gtfsHelper.schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate + pd.DateOffset(days=1)) 
                    
-        print 'Writing data for periods from ', gtfsStartDate, ' to ', gtfsEndDate
+        print('Writing data for periods from ', gtfsStartDate, ' to ', gtfsEndDate)
         for date, servicePeriodsForDate in servicePeriodsEachDate:           
                         
             if pd.Timestamp(date) in self.dateList:           
-                print datetime.datetime.now(), ' Processing ', date         
+                print(datetime.datetime.now(), ' Processing ', date)         
                 
                 # use a separate file for each year
                 # and write a separate table for each month and DOW
@@ -459,11 +462,11 @@ class SFMuniDataExpander():
             joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 
                                     suffixes=('', '_AVL'), sort=True)
         except KeyError:
-            print joinFields
-            print gtfs.info()
-            print gtfs.head()
-            print sfmuni.info()
-            print sfmuni.head()
+            print(joinFields)
+            print(gtfs.info())
+            print(gtfs.head())
+            print(sfmuni.info())
+            print(sfmuni.head())
             raise
 
         # calculate other derived fields
