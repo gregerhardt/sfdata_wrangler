@@ -1,3 +1,8 @@
+
+# allows python3 style print function
+from __future__ import print_function
+
+
 # -*- coding: utf-8 -*-
 __author__      = "Gregory D. Erhardt"
 __copyright__   = "Copyright 2013 SFCTA"
@@ -85,7 +90,7 @@ def calculateHeadways(df):
     ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','SEQ']
     (but not by TRIP).     
     """        
-    df.sort(['DEPARTURE_TIME_S'], inplace=True)
+    df.sort_values(['DEPARTURE_TIME_S'], inplace=True)
 
     lastDeparture = 0
     for i, row in df.iterrows():    
@@ -305,6 +310,7 @@ class GTFSHelper():
 
         outstore.close()
     
+    
     def getGTFSDataFrame(self, period, startIndex=0, route_types=range(0,100)):
         """
         Converts the schedule into a dataframe for the given period
@@ -502,7 +508,7 @@ class GTFSHelper():
         df = df.groupby(groupby, as_index=False).apply(calculateHeadways)
         
         # sorted
-        df.sort(['AGENCY_ID','ROUTE_ID','DIR','TRIP_HEADSIGN','TRIP','SEQ'], inplace=True)    
+        df.sort_values(['AGENCY_ID','ROUTE_ID','DIR','TRIP_HEADSIGN','TRIP','SEQ'], inplace=True)    
         df.index = pd.Series(range(startIndex,startIndex+len(df))) 
         
         return df

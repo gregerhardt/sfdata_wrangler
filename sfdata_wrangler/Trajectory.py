@@ -1,3 +1,8 @@
+
+# allows python3 style print function
+from __future__ import print_function
+
+
 # -*- coding: utf-8 -*-
 __author__      = "Gregory D. Erhardt"
 __copyright__   = "Copyright 2013 SFCTA"
@@ -273,7 +278,7 @@ class Trajectory():
         probabilities = self.calculateProbabilities()
                 
         outstream.write('**************************************************************\n')
-        outstream.write('Printing trajectory at ' + str(datetime.datetime.now()) + '.\n')
+        outstream.write('Printing trajectory at ' + str(datetime.datetime.now().ctime()) + '.\n')
                 
         # ids, if provited
         if (not (ids==None)): 

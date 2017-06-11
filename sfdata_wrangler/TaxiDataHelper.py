@@ -1,3 +1,8 @@
+
+# allows python3 style print function
+from __future__ import print_function
+
+
 # -*- coding: utf-8 -*-
 __author__      = "Gregory D. Erhardt"
 __copyright__   = "Copyright 2013 SFCTA"
@@ -115,7 +120,7 @@ class TaxiDataHelper():
         outfile - output file name in h5 format
         """
         
-        print (datetime.datetime.now(), 'Converting raw data in file: ', infile)
+        print (datetime.datetime.now().ctime(), 'Converting raw data in file: ', infile)
         
         # set up the reader
         reader = pd.read_csv(infile,  
@@ -174,10 +179,10 @@ class TaxiDataHelper():
         
         # get the list of dates and cab_ids to process
         dates = store.select_column(inkey, 'date').unique()
-        dates.sort()
+        dates.sort_values()
         print (dates)
         cab_ids = store.select_column(inkey, 'cab_id').unique()
-        cab_ids.sort()
+        cab_ids.sort_values()
         
         # for testing only
         #cab_ids = cab_ids[:5]
@@ -331,7 +336,7 @@ class TaxiDataHelper():
         
         # get the list of dates and cab_ids to process
         dates = store.select_column(inkey, 'date').unique()
-        dates.sort()
+        dates.sort_values()
 
         print ('Retrieved a total of %i days to process' % len(dates))
         
@@ -495,7 +500,7 @@ class TaxiDataHelper():
         
         # get the list of dates and cab_ids to process
         dates = store.select_column(inkey, 'date').unique()
-        dates.sort()
+        dates.sort_values()
 
         print ('Retrieved a total of %i days to process' % len(dates))
         

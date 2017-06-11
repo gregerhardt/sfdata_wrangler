@@ -1,3 +1,6 @@
+# allows python3 style print function
+from __future__ import print_function
+
 # -*- coding: utf-8 -*-
 __author__      = "Gregory D. Erhardt"
 __copyright__   = "Copyright 2013 SFCTA"
@@ -21,6 +24,7 @@ __license__     = """
 import pandas as pd
 import numpy as np
 import datetime
+
               
                                     
 class SFMuniDataHelper():
@@ -239,7 +243,7 @@ class SFMuniDataHelper():
         outfile - output file name in h5 format
         """
         
-        print (datetime.datetime.now(), 'Converting raw data in file: ', infile)
+        print (datetime.datetime.now().ctime(), 'Converting raw data in file: ', infile)
         
         # convert column specs 
         colnames = []       
@@ -334,7 +338,7 @@ class SFMuniDataHelper():
                                                                                 
             # drop duplicates (not sure why these occur) and sort
             chunk.drop_duplicates(subset=self.INDEX_COLUMNS, inplace=True) 
-            chunk.sort(self.INDEX_COLUMNS, inplace=True)
+            chunk.sort_values(self.INDEX_COLUMNS, inplace=True)
             
             # set a unique index
             chunk.index = rowsWritten + pd.Series(range(0,len(chunk)))
@@ -362,12 +366,12 @@ class SFMuniDataHelper():
                 raise
 
             rowsWritten += len(df)
-            print (datetime.datetime.now(), ' Read %i rows and kept %i rows.' % (rowsRead, rowsWritten))
+            print(datetime.datetime.now().ctime(), ' Read %i rows and kept %i rows.' % (rowsRead, rowsWritten))
 
         if len(missingRouteIds) > 0: 
             print ('The following AVL route IDs are missing from the routeEquiv file:')
             for missing in missingRouteIds: 
-                print ('  ', missing)
+                print('  ', missing)
             
         # close the writer
         store.close()

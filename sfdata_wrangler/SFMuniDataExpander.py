@@ -1,3 +1,8 @@
+
+# allows python3 style print function
+from __future__ import print_function
+
+
 # -*- coding: utf-8 -*-
 __author__      = "Gregory D. Erhardt"
 __copyright__   = "Copyright 2013 SFCTA"
@@ -33,7 +38,7 @@ def calculateRuntime(df):
     Calculates the runtime between trip_stops. Assumes data are grouped by: 
     ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','TRIP']
     """        
-    df.sort(['SEQ'], inplace=True)
+    df.sort_values(['SEQ'], inplace=True)
 
     firstStop = True
     lastDepartureTime = None
@@ -169,32 +174,32 @@ class SFMuniDataExpander():
     COLUMNS = [
 	['MONTH',             0, 0, 'gtfs'],        # Calendar attributes
 	['DATE',              0, 1, 'gtfs'],  
-        ['DOW',               0, 1, 'gtfs'], 
-        ['TOD',              10, 1, 'gtfs'],
-        ['AGENCY_ID',        10, 0, 'join'],        # for matching to AVL data
-        ['ROUTE_SHORT_NAME', 32, 1, 'join'], 
-        ['ROUTE_LONG_NAME',  32, 1, 'gtfs'],        # can have case/spelling differences on long name
-        ['DIR',               0, 1, 'join'], 
-        ['TRIP',              0, 1, 'join'], 
-        ['SEQ',               0, 1, 'join'], 
-        ['TRIP_STOPS',        0, 0, 'gtfs'],        # total number of trip-stops
-        ['OBSERVED',          0, 0, 'gtfs'],        # observed in AVL data?
-        ['ROUTE_TYPE',        0, 0, 'gtfs'],        # route/trip attributes 
-        ['TRIP_HEADSIGN',    64, 0, 'gtfs'], 
+    ['DOW',               0, 1, 'gtfs'], 
+    ['TOD',              10, 1, 'gtfs'],
+    ['AGENCY_ID',        10, 0, 'join'],        # for matching to AVL data
+    ['ROUTE_SHORT_NAME', 32, 1, 'join'], 
+    ['ROUTE_LONG_NAME',  32, 1, 'gtfs'],        # can have case/spelling differences on long name
+    ['DIR',               0, 1, 'join'], 
+    ['TRIP',              0, 1, 'join'], 
+    ['SEQ',               0, 1, 'join'], 
+    ['TRIP_STOPS',        0, 0, 'gtfs'],        # total number of trip-stops
+    ['OBSERVED',          0, 0, 'gtfs'],        # observed in AVL data?
+    ['ROUTE_TYPE',        0, 0, 'gtfs'],        # route/trip attributes 
+    ['TRIP_HEADSIGN',    64, 0, 'gtfs'], 
 	['HEADWAY_S' ,        0, 0, 'gtfs'], 
-        ['FARE',              0, 0, 'gtfs'], 
+    ['FARE',              0, 0, 'gtfs'], 
 	['PATTCODE'  ,       10, 0, 'avl'], 
-        ['STOPNAME',         32, 0, 'gtfs'],        # stop attributes
+    ['STOPNAME',         32, 0, 'gtfs'],        # stop attributes
 	['STOPNAME_AVL',     32, 0, 'avl' ], 
-        ['STOP_LAT',          0, 0, 'gtfs'], 
-        ['STOP_LON',          0, 0, 'gtfs'], 
-        ['SOL',               0, 0, 'gtfs'],
-        ['EOL',               0, 0, 'gtfs'],
+    ['STOP_LAT',          0, 0, 'gtfs'], 
+    ['STOP_LON',          0, 0, 'gtfs'], 
+    ['SOL',               0, 0, 'gtfs'],
+    ['EOL',               0, 0, 'gtfs'],
 	['TIMEPOINT' ,        0, 0, 'avl' ], 
-        ['ARRIVAL_TIME_S',    0, 0, 'gtfs'],        # times
+    ['ARRIVAL_TIME_S',    0, 0, 'gtfs'],        # times
 	['ARRIVAL_TIME'  ,    0, 0, 'avl'], 
 	['ARRIVAL_TIME_DEV',  0, 0, 'calculated'], 
-        ['DEPARTURE_TIME_S',  0, 0, 'gtfs'], 
+    ['DEPARTURE_TIME_S',  0, 0, 'gtfs'], 
 	['DEPARTURE_TIME' ,   0, 0, 'avl'], 
 	['DEPARTURE_TIME_DEV',0, 0, 'calculated'], 
 	['DWELL_S'   ,        0, 0, 'gtfs'], 
@@ -228,17 +233,15 @@ class SFMuniDataExpander():
 	['VC' ,               0, 0, 'calculated'],   # crowding
 	['CROWDED',           0, 0, 'calculated'], 
 	['CROWDHOURS',        0, 0, 'calculated'], 
-        ['ROUTE_ID',          0, 0, 'gtfs'],  # additional IDs 
-        ['ROUTE_AVL',         0, 0, 'avl'],   
-        ['TRIP_ID',           0, 0, 'gtfs'], 
-        ['STOP_ID',           0, 0, 'gtfs'], 
+    ['ROUTE_ID',          0, 0, 'gtfs'],  # additional IDs 
+    ['ROUTE_AVL',         0, 0, 'avl'],   
+    ['TRIP_ID',           0, 0, 'gtfs'], 
+    ['STOP_ID',           0, 0, 'gtfs'], 
 	['STOP_AVL'  ,        0, 0, 'avl'], 
-        ['BLOCK_ID',          0, 0, 'gtfs'], 
-        ['SHAPE_ID',          0, 0, 'gtfs'],
-        ['SHAPE_DIST',        0, 0, 'gtfs'],
+    ['SHAPE_DIST',        0, 0, 'gtfs'],
 	['VEHNO'     ,        0, 0, 'avl'], 
-        ['SCHED_DATES',      20, 0, 'gtfs']  # range of this GTFS schedule
-        ]
+    ['SCHED_DATES',      20, 0, 'gtfs']  # range of this GTFS schedule
+    ]
                 
     
 
@@ -288,7 +291,7 @@ class SFMuniDataExpander():
         self.sfmuni_store.close()
         self.aggregator.close()
         
-                
+               
     def expandAndWeight(self, gtfs_file):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
@@ -299,7 +302,7 @@ class SFMuniDataExpander():
         outfile - output file name in h5 format, same as AVL/APC format
         """
         
-        print(datetime.datetime.now(), 'Converting raw data in file: ', gtfs_file)
+        print(datetime.datetime.now().ctime(), 'Converting raw data in file: ', gtfs_file)
               
         # establish the feed, reading only the bus routes
         gtfsHelper = GTFSHelper()
@@ -325,12 +328,12 @@ class SFMuniDataExpander():
         for date, servicePeriodsForDate in servicePeriodsEachDate:           
                         
             if pd.Timestamp(date) in self.dateList:           
-                print(datetime.datetime.now(), ' Processing ', date)         
+                print(datetime.datetime.now().ctime(), ' Processing ', date)         
                 
                 # use a separate file for each year
                 # and write a separate table for each month and DOW
                 # format of the table name is mYYYYMMDDdX, where X is the day of week
-                month = ((pd.to_datetime(date)).to_period('month')).to_timestamp()    
+                month = ((pd.to_datetime(date)).to_period('M')).to_timestamp()    
                 trip_outstore = pd.HDFStore(getOutfile(self.trip_outfile, month))  
                 ts_outstore = pd.HDFStore(getOutfile(self.ts_outfile, month))  
                 
@@ -526,7 +529,8 @@ class SFMuniDataExpander():
                                 + joined['LOAD_DEP'] * joined['DWELL'])).values / 60.0                       
                                                 
         # keep only relevant columns, sorted
-        joined.sort(indexColumns, inplace=True)                        
+        joined.sort_values(indexColumns, inplace=True)           
+
         joined = joined[colnames]
             
         return joined

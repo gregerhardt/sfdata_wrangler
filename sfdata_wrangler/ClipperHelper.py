@@ -1,3 +1,8 @@
+
+# allows python3 style print function
+from __future__ import print_function
+
+
 # -*- coding: utf-8 -*-
 __author__      = "Gregory D. Erhardt"
 __copyright__   = "Copyright 2013 SFCTA"
@@ -83,7 +88,7 @@ class ClipperHelper():
      CircadianDayOfWeek  smallint	4	            Transaction Day of Week Integer	A day is defined as 3 am to 3 am the following day
      CircadianDayOfWeek_name  char	Wednesday	    Transaction Day of Week Name	A day is defined as 3 am to 3 am the following day
      RandomWeekID        smallint	6	            Random Integer that Identifies a Unique Day	The Year, Month, DayOfWeek, and RandomWeekID fields uniquely identify a day
-     ClipperCardID	 varbinary	D88268EA105â€¦	    Anonymized ClipperÂ® card identifierA random number representing a unique ClipperÂ® card that persists for one circadian day (3 am to 3 am)
+     ClipperCardID	 varbinary	D88268EA105	    Anonymized Clipper card identifierA random number representing a unique Clipper card that persists for one circadian day (3 am to 3 am)
      TripSequenceID	 bigint	        2	            Circadian Day Trip Sequence	
      AgencyID	         int	        1	            Transit Agency Integer	
      AgencyName	         char	        AC Transit	    Transit Agency Name	
@@ -141,12 +146,12 @@ class ClipperHelper():
         outfile - output file name in h5 format
         """
         
-        print(datetime.datetime.now(), 'Converting raw data in file: ', infile)
+        print(datetime.datetime.now().ctime(), 'Converting raw data in file: ', infile)
         
         # read the input data
         df = pd.read_csv(infile)
         
-        print(datetime.datetime.now(), '  calculate')
+        print(datetime.datetime.now().ctime(), '  calculate')
         
         # make the tables format nicer in terms of the strings used
         df['AgencyName'] = df['AgencyName'].apply(str.strip)
@@ -197,10 +202,10 @@ class ClipperHelper():
         
         # sort 
         sortColumns = ['ClipperCardID', 'TripSequenceID']
-        df.sort(sortColumns, inplace=True)               
+        df.sort_values(sortColumns, inplace=True)               
                         
         # identify transfers
-        print(datetime.datetime.now(), '  loop')
+        print(datetime.datetime.now().ctime(), '  loop')
         df['TIMEDIFF_TAGON']  = 9999
         df['TIMEDIFF_TAGOFF'] = 9999
         df['TRANSFER'] = 0
@@ -241,12 +246,12 @@ class ClipperHelper():
             last_row = row
         
         # determine how many transfers are on each linked trip
-        #print(datetime.datetime.now(), '  transform')
+        #print(datetime.datetime.now().ctime(), '  transform')
         selected = df[['ClipperCardID', 'LINKED_TRIP_ID','TRANSFER']]
         transformed = selected.groupby(['ClipperCardID', 'LINKED_TRIP_ID']).transform(sum)
         df['LINKED_TRANSFERS'] = transformed['TRANSFER']
         
-        print(datetime.datetime.now(), '  calculate weights') 
+        print(datetime.datetime.now().ctime(), '  calculate weights') 
         # these will represent average ridership by DOW (weekday, saturday, sunday)
         #TODO - update to match external boarding counts...        
         df['WEIGHT'] = df['DOW'].apply(clipperWeights)
