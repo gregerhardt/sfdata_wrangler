@@ -42,7 +42,7 @@ class SFMuniDataHelper():
     """
     
     # number of rows at top of file to skip
-    HEADERROWS = 400002
+    HEADERROWS = 2
     
     # number of rows to read at a time
     #   This affects runtime.  Tests show:
