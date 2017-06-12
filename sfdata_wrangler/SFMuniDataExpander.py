@@ -238,7 +238,6 @@ class SFMuniDataExpander():
     ['TRIP_ID',           0, 0, 'gtfs'], 
     ['STOP_ID',           0, 0, 'gtfs'], 
 	['STOP_AVL'  ,        0, 0, 'avl'], 
-    ['SHAPE_DIST',        0, 0, 'gtfs'],
 	['VEHNO'     ,        0, 0, 'avl'], 
     ['SCHED_DATES',      20, 0, 'gtfs']  # range of this GTFS schedule
     ]
@@ -313,7 +312,7 @@ class SFMuniDataExpander():
         servicePeriods = gtfsHelper.schedule.GetServicePeriodList()        
         for period in servicePeriods:   
             if int(period.service_id) in self.dow:         
-                dataframes[period.service_id]  = gtfsHelper.getGTFSDataFrame(period, route_types=[3])
+                dataframes[period.service_id]  = gtfsHelper.getGTFSDataFrame(period, route_types=[3], use_shape_dist=False)
            
         
         # loop through each date, and add the appropriate service to the database  
