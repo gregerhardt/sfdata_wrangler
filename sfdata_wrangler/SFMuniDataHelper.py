@@ -42,7 +42,7 @@ class SFMuniDataHelper():
     """
     
     # number of rows at top of file to skip
-    HEADERROWS = 2
+    HEADERROWS = 400002
     
     # number of rows to read at a time
     #   This affects runtime.  Tests show:
@@ -271,7 +271,9 @@ class SFMuniDataHelper():
                          skiprows = self.HEADERROWS, 
                          usecols  = self.COLUMNS_TO_READ, 
                          iterator = True, 
-                         chunksize= self.CHUNKSIZE)
+                         skip_blank_lines = True, 
+                         chunksize= self.CHUNKSIZE, 
+                         na_values=['ID'])             # because of headers in middle of file
 
         # establish the writer
         store = pd.HDFStore(outfile)
@@ -282,11 +284,15 @@ class SFMuniDataHelper():
         for chunk in reader:   
 
             rowsRead    += len(chunk)
+                       
+            # sometimes the header is stuck in the middle of the file.  drop those records
+            chunk = chunk.dropna(axis=0, subset=['SEQ'])
             
             # sometimes the rear-door boardings is 4 digits, in which case 
             # the remaining columns get mis-alinged
+            chunk['RDBRDNGS'] = chunk['RDBRDNGS'].astype('int64')
             chunk = chunk[chunk['RDBRDNGS']<1000]
-            
+                                    
             # because of misalinged row, it sometimes auto-detects inconsistent
             # data types, so force them as specified.  Must be in same order 
             # as above
@@ -294,9 +300,11 @@ class SFMuniDataHelper():
                 if (colnames[i] in chunk):
                     if (coltypes[i]=='object'):
                         chunk[colnames[i]] = chunk[colnames[i]].astype('str')
+                    elif (coltypes[i]=='int64'): 
+                        chunk[colnames[i]] = (chunk[colnames[i]].astype('float64')).astype('int64')
                     else: 
                         chunk[colnames[i]] = chunk[colnames[i]].astype(coltypes[i])
-            
+                                    
             # only include revenue service
             # dir codes: 0-outbound, 1-inbound, 6-pull out, 7-pull in, 8-pull mid
             chunk = chunk[chunk['DIR'] < 2]
@@ -323,7 +331,7 @@ class SFMuniDataHelper():
             chunk['AGENCY_ID']        = chunk['ROUTE_AVL'].map(self.routeEquiv['AGENCY_ID'])
             chunk['ROUTE_SHORT_NAME'] = chunk['ROUTE_AVL'].map(self.routeEquiv['ROUTE_SHORT_NAME'])
             chunk['ROUTE_LONG_NAME']  = chunk['ROUTE_AVL'].map(self.routeEquiv['ROUTE_LONG_NAME'])
-            
+                        
             # check for missing route IDs
             for r in chunk['ROUTE_AVL'].unique(): 
                 if not r in self.routeEquiv.index: 
@@ -335,11 +343,11 @@ class SFMuniDataHelper():
             chunk['ARRIVAL_TIME']   = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['ARRIVAL_TIME_INT']), axis=1) 
             chunk['DEPARTURE_TIME'] = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['DEPARTURE_TIME_INT']), axis=1) 
             chunk['PULLOUT']        = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['PULLOUT_INT']), axis=1)                       
-                                                                                
+                            
             # drop duplicates (not sure why these occur) and sort
             chunk.drop_duplicates(subset=self.INDEX_COLUMNS, inplace=True) 
             chunk.sort_values(self.INDEX_COLUMNS, inplace=True)
-            
+                        
             # set a unique index
             chunk.index = rowsWritten + pd.Series(range(0,len(chunk)))
                             
@@ -364,7 +372,7 @@ class SFMuniDataHelper():
                 for type in types:
                     print (type)
                 raise
-
+            
             rowsWritten += len(df)
             print(datetime.datetime.now().ctime(), ' Read %i rows and kept %i rows.' % (rowsRead, rowsWritten))
 
