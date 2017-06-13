@@ -24,7 +24,6 @@ __license__     = """
 import pandas as pd
 import numpy as np
 import datetime
-
               
                                     
 class SFMuniDataHelper():
@@ -45,11 +44,11 @@ class SFMuniDataHelper():
     HEADERROWS = 2
     
     # number of rows to read at a time
-    #   This affects runtime.  Tests show:
+    #   This affects runtime.  On laptop, tests show:
     #      CHUNKSIZE = 100000: runs for 35 min and still doesn't read 100,000 rows
     #      CHUNKSIZE =  10000: reads 100,000 rows in 10 minutes
     #      CHUNKSIZE =   1000: reads 100,000 rows in 10 minutes
-    CHUNKSIZE = 10000
+    CHUNKSIZE = 100000
 
     # by default, read the first 62 columns, through PULLOUT_INT
     COLUMNS_TO_READ = [i for i in range(62)]
@@ -339,11 +338,17 @@ class SFMuniDataHelper():
                     print ('ROUTE_AVL id ', r, ' not found in route equivalency file')
                 
             # convert to timedate formats
-            chunk['DATE']           = chunk['DATE_INT'].apply(self.getDate)                
-            chunk['ARRIVAL_TIME']   = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['ARRIVAL_TIME_INT']), axis=1) 
-            chunk['DEPARTURE_TIME'] = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['DEPARTURE_TIME_INT']), axis=1) 
-            chunk['PULLOUT']        = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['PULLOUT_INT']), axis=1)                       
-                            
+            #chunk['DATE']           = chunk['DATE_INT'].apply(self.getDate)              
+            #chunk['ARRIVAL_TIME']   = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['ARRIVAL_TIME_INT']), axis=1) 
+            #chunk['DEPARTURE_TIME'] = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['DEPARTURE_TIME_INT']), axis=1) 
+            #chunk['PULLOUT']        = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['PULLOUT_INT']), axis=1)
+
+            # try to do this faster
+            chunk['DATE']           = self.getDates(chunk['DATE_INT'])          
+            chunk['ARRIVAL_TIME']   = self.getWrapAroundTimes(chunk['DATE_INT'], chunk['ARRIVAL_TIME_INT'])
+            chunk['DEPARTURE_TIME'] = self.getWrapAroundTimes(chunk['DATE_INT'], chunk['DEPARTURE_TIME_INT'])
+            chunk['PULLOUT']        = self.getWrapAroundTimes(chunk['DATE_INT'], chunk['PULLOUT_INT'])
+                        
             # drop duplicates (not sure why these occur) and sort
             chunk.drop_duplicates(subset=self.INDEX_COLUMNS, inplace=True) 
             chunk.sort_values(self.INDEX_COLUMNS, inplace=True)
@@ -385,6 +390,11 @@ class SFMuniDataHelper():
         store.close()
 
         
+    def getWrapAroundTimes(self, dateIntSeries, timeIntSeries): 
+        dtSeries = zip(dateIntSeries, timeIntSeries)
+        result = [self.getWrapAroundTime(d, t) for d, t in dtSeries]
+        return result
+        
     def getWrapAroundTime(self, dateInt, timeInt):
         """
         Converts a string in the format '%H%M%S' to a datetime object.
@@ -412,7 +422,10 @@ class SFMuniDataHelper():
             time = time + pd.DateOffset(days=1)
         
         return time
-        
+    
+    def getDates(self, dateIntSeries): 
+        dateSeries = [self.getDate(d) for d in dateIntSeries]
+        return dateSeries
     
     def getDate(self, dateInt):
         """
