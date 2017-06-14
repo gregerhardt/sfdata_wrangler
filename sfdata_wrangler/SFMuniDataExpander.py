@@ -244,7 +244,7 @@ class SFMuniDataExpander():
                 
     
 
-    def __init__(self, sfmuni_file, trip_outfile, ts_outfile, 
+    def __init__(self, sfmuni_file, gtfs_outfile, trip_outfile, ts_outfile, 
                  daily_trip_outfile, daily_ts_outfile,
                  dow=[1,2,3], startDate='1900-01-01', endDate='2100-01-01', 
                  startingTripCount=1, startingTsCount=0):
@@ -258,6 +258,7 @@ class SFMuniDataExpander():
 
         # open the data stores
         self.sfmuni_store = pd.HDFStore(sfmuni_file) 
+        self.gtfs_store = pd.HDFStore(gtfs_outfile)
         
         # which days of week to run for
         self.dow = dow
@@ -288,6 +289,7 @@ class SFMuniDataExpander():
         Closes all datastores. 
         """
         self.sfmuni_store.close()
+        self.gtfs_store.close()
         self.aggregator.close()
         
                
@@ -307,22 +309,28 @@ class SFMuniDataExpander():
         gtfsHelper = GTFSHelper()
         gtfsHelper.establishTransitFeed(gtfs_file)
         
+        # get the date ranges
+        gtfsDateRange = gtfsHelper.schedule.GetDateRange()        
+        gtfsStartDate = pd.to_datetime(gtfsDateRange[0], format='%Y%m%d')
+        gtfsEndDate   = pd.to_datetime(gtfsDateRange[1], format='%Y%m%d')
+        dateRangeString = str(gtfsDateRange[0]) + '-' + str(gtfsDateRange[1])
+                
         # create dictionary with one dataframe for each service period
+        # read these from the GTFS file that was previously created
         dataframes = {}
         servicePeriods = gtfsHelper.schedule.GetServicePeriodList()        
         for period in servicePeriods:   
-            if int(period.service_id) in self.dow:         
-                dataframes[period.service_id]  = gtfsHelper.getGTFSDataFrame(period, route_types=[3], use_shape_dist=False)
-           
-        
-        # loop through each date, and add the appropriate service to the database  
-        gtfsDateRange = gtfsHelper.schedule.GetDateRange()
-        gtfsStartDate = pd.to_datetime(gtfsDateRange[0], format='%Y%m%d')
-        gtfsEndDate   = pd.to_datetime(gtfsDateRange[1], format='%Y%m%d')
+            service_id = period.service_id
+            if int(service_id) in self.dow:                
+                # only keep the busses here
+                print('Reading service_id ', service_id)
+                dataframes[service_id] = self.gtfs_store.select('sfmuni', 
+                           where="SCHED_DATES=dateRangeString & SERVICE_ID=service_id & ROUTE_TYPE=3")
             
         # note that the last date is not included, hence the +1 increment
         servicePeriodsEachDate = gtfsHelper.schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate + pd.DateOffset(days=1)) 
                    
+        # loop through each date, and add the appropriate service to the database  
         print('Writing data for periods from ', gtfsStartDate, ' to ', gtfsEndDate)
         for date, servicePeriodsForDate in servicePeriodsEachDate:           
                         
@@ -381,11 +389,14 @@ class SFMuniDataExpander():
                         # set a unique trip-stop index
                         ts.index = self.tsCount + pd.Series(range(0,len(ts)))
                         self.tsCount += len(ts)
-                            
-                        # write the trip-stops        
-                        stringLengths = self.getStringLengths(ts.columns)                                                     
+                        
+                        # not sure why it thinks SEQ is an object and not an int, but try converting
+                        ts['SEQ'] = ts['SEQ'].astype('int64')
+                        
+                        # write the trip-stops             
+                        stringLengths = self.getStringLengths(ts.columns)   
                         ts_outstore.append(outkey, ts, data_columns=True, 
-                                    min_itemsize=stringLengths)
+                                        min_itemsize=stringLengths)                            
 
                         # aggregate to TOD and daily totals, and write those
                         self.aggregator.aggregateTripsToDays(trips)
@@ -395,7 +406,7 @@ class SFMuniDataExpander():
                 trip_outstore.close()
                 ts_outstore.close()
 
-
+    
     def getSFMuniData(self, date):
         """
         Returns a dataframe with the observed SFMuni records
