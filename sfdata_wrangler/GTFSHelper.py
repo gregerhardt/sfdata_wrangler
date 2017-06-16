@@ -137,7 +137,7 @@ class GTFSHelper():
         'TRIP'            : 10,  
         'DIR'             : 10,  
         'TRIP_HEADSIGN'   : 64,  
-        'STOPNAME'        : 40,  
+        'STOPNAME'        : 64,  
         'SCHED_DATES'     : 20, 
         'ROUTE_ID'        : 10,  
         'TRIP_ID'         : 12,  
