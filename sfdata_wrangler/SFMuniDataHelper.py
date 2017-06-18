@@ -56,7 +56,7 @@ class SFMuniDataHelper():
     # specifies how to read in each column from raw input files
     #   columnName,        inputColumns, dataType, stringLength
     COLUMNS = [
-        ['SEQ',            (  0,   5),   'int64',   0],    # stop sequence
+    ['SEQ',            (  0,   5),   'int64',   0],    # stop sequence
 	['V2',             (  6,  10),   'int64',   0],    # not used
 	['STOP_AVL',       ( 10,  14),   'int64',   0],    # unique stop no	
 	['STOPNAME_AVL',   ( 15,  47),   'object', 32],    # stop name
@@ -154,7 +154,7 @@ class SFMuniDataHelper():
 	['SC',             (534, 536),   'int64',   0],   
 	['T_MILE',         (537, 543),   'int64',   0],   
 	['CARS',           (544, 547),   'int64',   0]
-        ] 
+    ] 
 
     # set the order of the columns in the resulting dataframe
     REORDERED_COLUMNS=[  
@@ -291,6 +291,9 @@ class SFMuniDataHelper():
             # the remaining columns get mis-alinged
             chunk['RDBRDNGS'] = chunk['RDBRDNGS'].astype('int64')
             chunk = chunk[chunk['RDBRDNGS']<1000]
+            
+            # drop TRIPID_2 because it creates problems and we don't use it
+            chunk.drop('TRIPID_2', axis=1, inplace=True)
                                     
             # because of misalinged row, it sometimes auto-detects inconsistent
             # data types, so force them as specified.  Must be in same order 
@@ -337,17 +340,11 @@ class SFMuniDataHelper():
                     missingRouteIds.add(r)
                     print ('ROUTE_AVL id ', r, ' not found in route equivalency file')
                 
-            # convert to timedate formats
-            #chunk['DATE']           = chunk['DATE_INT'].apply(self.getDate)              
-            #chunk['ARRIVAL_TIME']   = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['ARRIVAL_TIME_INT']), axis=1) 
-            #chunk['DEPARTURE_TIME'] = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['DEPARTURE_TIME_INT']), axis=1) 
-            #chunk['PULLOUT']        = chunk.apply(lambda row: self.getWrapAroundTime(row['DATE_INT'], row['PULLOUT_INT']), axis=1)
-
             # try to do this faster
-            chunk['DATE']           = self.getDates(chunk['DATE_INT'])          
-            chunk['ARRIVAL_TIME']   = self.getWrapAroundTimes(chunk['DATE_INT'], chunk['ARRIVAL_TIME_INT'])
-            chunk['DEPARTURE_TIME'] = self.getWrapAroundTimes(chunk['DATE_INT'], chunk['DEPARTURE_TIME_INT'])
-            chunk['PULLOUT']        = self.getWrapAroundTimes(chunk['DATE_INT'], chunk['PULLOUT_INT'])
+            chunk['DATE']           = self.getDates(chunk['DATE_INT'])  
+            chunk['ARRIVAL_TIME']   = self.getWrapAroundTimes(chunk, 'DATE_INT', 'ARRIVAL_TIME_INT')
+            chunk['DEPARTURE_TIME'] = self.getWrapAroundTimes(chunk, 'DATE_INT', 'DEPARTURE_TIME_INT')
+            chunk['PULLOUT']        = self.getWrapAroundTimes(chunk, 'DATE_INT', 'PULLOUT_INT')
                         
             # drop duplicates (not sure why these occur) and sort
             chunk.drop_duplicates(subset=self.INDEX_COLUMNS, inplace=True) 
@@ -389,48 +386,45 @@ class SFMuniDataHelper():
         # close the writer
         store.close()
 
-        
-    def getWrapAroundTimes(self, dateIntSeries, timeIntSeries): 
-        dtSeries = zip(dateIntSeries, timeIntSeries)
-        result = [self.getWrapAroundTime(d, t) for d, t in dtSeries]
-        return result
-        
-    def getWrapAroundTime(self, dateInt, timeInt):
+      
+    def getWrapAroundTimes(self, df, dateint_field, timeint_field):
         """
         Converts a string in the format '%H%M%S' to a datetime object.
         Accounts for the convention where service after midnight is counted
         with the previous day, so input times can be >24 hours. 
         """        
-                
-        if timeInt>= 240000:
-            timeInt = timeInt - 240000
-            nextDay = True
-        else: 
-            nextDay = False
             
-        dateString = "{0:0>6}".format(dateInt)  
-        timeString = "{0:0>6}".format(timeInt)      
-        datetimeString = dateString + ' ' + timeString    
+        df['nextDay'] = df[timeint_field] >= 240000
+        df[timeint_field] = np.where(df['nextDay'], df[timeint_field] - 240000, df[timeint_field])
         
+        df['dateString']    = df[dateint_field].map("{0:0>6}".format)  
+        df['timeString']    = df[timeint_field].map("{0:0>6}".format)      
+        df['datetimeString'] = df['dateString'] + ' ' + df['timeString']    
+        
+        # once in a while we get a number that won't convert
         try: 
-            time = pd.to_datetime(datetimeString, format="%m%d%y %H%M%S")
+            df['time'] = pd.to_datetime(df['datetimeString'], format="%m%d%y %H%M%S")
         except ValueError:
-            print ('Count not convert ', datetimeString)
-            time = pd.NaT
-            
-        if nextDay: 
-            time = time + pd.DateOffset(days=1)
+            df['time'] = pd.NaT
+            for i, dt in df['datetimeString'].iteritems(): 
+                try: 
+                    df.at[i,'time'] = pd.to_datetime(dt, format="%m%d%y %H%M%S")
+                except ValueError: 
+                    print ('Could not convert date time', dt)
         
-        return time
+        df['time'] = np.where(df['nextDay'], df['time'] + pd.DateOffset(days=1), df['time'])
+        
+        return df['time']
+    
     
     def getDates(self, dateIntSeries): 
-        dateSeries = [self.getDate(d) for d in dateIntSeries]
-        return dateSeries
-    
-    def getDate(self, dateInt):
         """
         Converts an integer in the format "%m%d%y" into a datetime object.
         """
-        dateString = "{0:0>6}".format(dateInt)          
-        date = pd.to_datetime(dateString, format="%m%d%y")
+        dateString = dateIntSeries.map("{0:0>6}".format)   
+        date =  pd.to_datetime(dateString, format="%m%d%y")
         return date
+    
+        dateSeries = [self.getDate(d) for d in dateIntSeries]
+        return dateSeries
+    
