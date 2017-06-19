@@ -415,7 +415,7 @@ class SFMuniDataHelper():
         for chunk in reader:   
         
             rowsRead    += len(chunk)
-                                   
+                                               
             # sometimes the header is stuck in the middle of the file.  drop those records
             chunk = chunk.dropna(axis=0, subset=['SEQ'])
             
@@ -473,6 +473,9 @@ class SFMuniDataHelper():
             chunk = chunk[chunk['STOP_AVL']<9999]
             chunk = chunk[chunk['TRIP']<9999]
             
+            # LOADCODE gets nan numbers in string, which si too long to write
+            chunk['LOADCODE'].replace(to_replace='nan', value=' ', inplace=True)
+            
             # calculate some basic data adjustments
             chunk['LON']      = -1 * chunk['LON']
             chunk['LOAD_ARR'] = chunk['LOAD_DEP'] - chunk['ON'] + chunk['OFF']
@@ -515,10 +518,6 @@ class SFMuniDataHelper():
                 store.append('sample', df, data_columns=True, 
                     min_itemsize=stringLengths)
             except ValueError: 
-                store = pd.HDFStore(outfile)
-                print ('Structure of HDF5 file is: ')
-                print (store.sample.dtypes)
-                store.close()
                 print ('Structure of current dataframe is: ')
                 print (df.dtypes)
                 raise  
