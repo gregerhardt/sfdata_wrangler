@@ -31,8 +31,7 @@ from SFMuniDataAggregator import SFMuniDataAggregator
 from GTFSHelper import GTFSHelper
             
             
-
-
+    
 def calculateRuntime(df):
     """
     Calculates the runtime between trip_stops. Assumes data are grouped by: 
@@ -52,7 +51,6 @@ def calculateRuntime(df):
         lastDepartureTime = row['DEPARTURE_TIME']
     
     return df
-    
     
 def updateTripId(df):
     """
@@ -292,7 +290,6 @@ class SFMuniDataExpander():
         self.gtfs_store.close()
         self.aggregator.close()
         
-               
     def expandAndWeight(self, gtfs_file):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
@@ -406,7 +403,6 @@ class SFMuniDataExpander():
                 trip_outstore.close()
                 ts_outstore.close()
 
-    
     def getSFMuniData(self, date):
         """
         Returns a dataframe with the observed SFMuni records
