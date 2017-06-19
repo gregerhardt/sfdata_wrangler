@@ -64,7 +64,7 @@ class SFMuniDataHelper():
 	['ON',             ( 55,  58),   'int64',   0],    # on 
 	['OFF',            ( 59,  62),   'int64',   0],    # off
 	['LOAD_DEP',       ( 63,  66),   'int64',   0],    # departing load
-	['LOADCODE',       ( 67,  67),   'object',  1],    # ADJ=*, BAL=B
+	['LOADCODE',       ( 67,  67),   'object',  2],    # ADJ=*, BAL=B
 	['DATE_INT',       ( 68,  74),   'int64',   0],    # date
 	['ROUTE_AVL',      ( 75,  79),   'int64',   0],   
 	['PATTERN',        ( 80,  86),   'object',  6],    # schedule pattern
@@ -123,7 +123,7 @@ class SFMuniDataHelper():
 	['DWELL_S',        (364, 368),   'int64',   0],    # scheduled dwell time
 	['RECOVERY_S',     (369, 374),   'float64', 0],    # scheduled EOL recovery
 	['RECOVERY',       (375, 380),   'float64', 0],    
-	['POLITICAL',      (381, 390),   'int64',   0],    # not used
+	['POLITICAL',      (381, 390),   'object',  0],    # not used
 	['DELTAA',         (391, 397),   'int64',   0],    # distance from stop at arrival
 	['DELTAD',         (398, 404),   'int64',   0],    # distance from stop at departure
 	['ECNT',           (405, 409),   'int64',   0],    # error count
@@ -131,7 +131,7 @@ class SFMuniDataHelper():
 	['DIV',            (413, 416),   'int64',   0],    # division
 	['LASTTRIP',       (417, 421),   'int64',   0],    # previous trip
 	['NEXTTRIP',       (422, 426),   'int64',   0],    # next trip
-	['V86',            (427, 430),   'int64',   0],    # not used
+	['V86',            (427, 430),   'object',  0],    # not used
 	['TRIPID_3',       (431, 441),   'int64',   0],   
 	['WCC',            (442, 445),   'int64',   0],   
 	['BRC',            (446, 449),   'int64',   0],   
@@ -156,6 +156,129 @@ class SFMuniDataHelper():
 	['CARS',           (544, 547),   'int64',   0]
     ] 
 
+    # The .tab file uses slightly different column names where there are dates and times
+    TAB_COLUMNS = [
+     'SEQ',                # stop sequence
+	 'V2',                 # not used
+	 'STOP_AVL',           # unique stop no	
+	 'STOPNAME_AVL',       # stop name
+	 'ARRIVAL_TIME_HR',    # arrival time
+	 'ARRIVAL_TIME_MIN',   
+	 'ARRIVAL_TIME_SEC',   
+	 'ON',                 # on 
+	 'OFF',                # off
+	 'LOAD_DEP',           # departing load
+	 'LOADCODE',           # ADJ=*, BAL=B
+	 'DATE_MO',            # date
+	 'DATE_DAY',           
+	 'DATE_YR',            
+	 'ROUTE_AVL',         
+	 'PATTERN',            # schedule pattern
+	 'BLOCK',              
+	 'LAT',                # latitude
+	 'LON',                # longitude 
+	 'MILES',              # odometer reading (miles)
+	 'TRIP',               # trip
+	 'DOORCYCLES',         # door cycles
+	 'DELTA',              # delta
+	 'DOW',                # day of week schedule operated: 1-weekday, 2-saturday, 3-sunday
+	 'DIR',               
+	 'SERVMILES',          # delta vehicle miles  - miles bus travels from last stop
+	 'DLPMIN',             # delta minutes
+	 'PASSMILES',          # delta passenger miles
+	 'PASSHOURS',          # delta passenger minutes
+	 'VEHNO',              # bus number
+	 'LINE',               # route (APC numeric code)
+	 'DBNN',               # data batch
+	 'ARRIVAL_TIME_S_INT', # schedule time
+	 'RUNTIME_S',          # schedule run time, in decimal minutes
+	 'RUNTIME',            # runtime from the last schedule point--ARRIVAL_TIME - DEPARTURE_TIME of previous time point. (Excludes DWELL at the time points.), in decimal minutes
+	 'ODOM',               # not used
+	 'GODOM',              # distance (GPS)
+	 'ARRIVAL_TIME_DEV',   # schedule deviation
+	 'DWELL',              # dwell time interval (decimal minutes) -- (DEPARTURE_TIME - ARRIVAL_TIME)
+	 'MSFILE',             # sign up YYMM
+	 'QC101',              # not used
+	 'QC104',              # GPS QC
+	 'QC201',              # count QC
+	 'AQC',                # assignment QC
+	 'RECORD',             # record type
+	 'WHEELCHAIR',         # wheelchair
+	 'BIKERACK',           # bike rack
+	 'SP2',                # not used
+	 'V51',                # not used
+	 'VERSN',              # import version
+	 'DEPARTURE_TIME_HR',  # departure time
+	 'DEPARTURE_TIME_MIN', 
+	 'DEPARTURE_TIME_SEC', 
+	 'UON',                # unadjusted on
+	 'UOFF',               # unadjusted off
+	 'CAPACITY',           # capacity
+	 'OVER',               # 5 over cap
+	 'NS',                 # north/south
+	 'EW',                 # east/west
+	 'MAXVEL',             # max velocity on previous link
+	 'RDBRDNGS',           # rear door boardings
+	 'DV',                 # division
+	 'PATTCODE',           # pattern code
+	 'DWDI',               # distance traveled durign dwell
+	 'RUN',                # run
+	 'SCHOOL',             # school trip
+	 'TRIPID_2',           # long trip ID
+	 'PULLOUT_HR',         # movement time
+	 'PULLOUT_MIN',        
+	 'PULLOUT_SEC',        
+	 'DEPARTURE_TIME_S_INT',  # scheduled departure time
+	 'DEPARTURE_TIME_DEV',    # schedule deviation
+	 'DWELL_S',            # scheduled dwell time
+	 'RECOVERY_S',         # scheduled EOL recovery
+	 'RECOVERY',           
+	 'POLITICAL',          # not used
+	 'DELTAA',             # distance from stop at arrival
+	 'DELTAD',             # distance from stop at departure
+	 'ECNT',               # error count
+	 'MC',                 # municipal code
+	 'DIV',                # division
+	 'LASTTRIP',           # previous trip
+	 'NEXTTRIP',           # next trip
+	 'V86',                # not used
+	 'SIGNUP',
+     'PATTTYPE',
+     'SUBTYPE',
+     'DATE',
+     'LON',
+     'RTEDIR',
+     'STOPAA',
+     'DATEC',
+     'TIMESTOP',
+     'DOORCLOSE',
+     'PULLOUT',
+     'WEEKNUM',
+     'ARTEDIR',
+     'AVEHNO',
+     'ADATEC',
+     'BTRIP',
+     'TRTXLN',
+     'ATRIP',
+     'TRIPCODE',
+     'ASTOPAA',
+     'TRIPSTOP',
+     'PATTLEN',
+     'PATTEIGHT',
+     'TRIPNAME',
+     'ATRIPNAME',
+     'RTDIRSEQ',
+     'DOORDWELL',
+     'WAITDWELL',
+     'EOL',
+     'DOORTIME',
+     'WAITTIME',
+     'TIMEPER',
+     'ROUTEA',
+     'TEPPER'    
+    ] 
+    
+    
     # set the order of the columns in the resulting dataframe
     REORDERED_COLUMNS=[  
                 # calendar attributes
@@ -263,16 +386,25 @@ class SFMuniDataHelper():
         # for tracking undefined route equivalencies
         missingRouteIds = set()
 
-        # set up the reader
-        reader = pd.read_fwf(infile,  
-                         names    = colnames, 
-                         colspecs = colspecs,
-                         skiprows = self.HEADERROWS, 
-                         usecols  = self.COLUMNS_TO_READ, 
-                         iterator = True, 
-                         skip_blank_lines = True, 
-                         chunksize= self.CHUNKSIZE, 
-                         na_values=['ID'])             # because of headers in middle of file
+        # set up the reader -- one file is a different format
+        reader = None 
+        if (infile.endswith(".TAB")): 
+            reader = pd.read_table(infile,  
+                             header   = 0,                # so we can replace names
+                             names    = self.TAB_COLUMNS, 
+                             iterator = True, 
+                             chunksize= self.CHUNKSIZE, 
+                             na_values=['NA'])                
+        else: 
+            reader = pd.read_fwf(infile,  
+                             names    = colnames, 
+                             colspecs = colspecs,
+                             skiprows = self.HEADERROWS, 
+                             usecols  = self.COLUMNS_TO_READ, 
+                             iterator = True, 
+                             skip_blank_lines = True, 
+                             chunksize= self.CHUNKSIZE, 
+                             na_values=['ID'])             # because of headers in middle of file
 
         # establish the writer
         store = pd.HDFStore(outfile)
@@ -281,9 +413,9 @@ class SFMuniDataHelper():
         rowsRead    = 0
         rowsWritten = 0
         for chunk in reader:   
-
+        
             rowsRead    += len(chunk)
-                       
+                                   
             # sometimes the header is stuck in the middle of the file.  drop those records
             chunk = chunk.dropna(axis=0, subset=['SEQ'])
             
@@ -294,7 +426,29 @@ class SFMuniDataHelper():
             
             # drop TRIPID_2 because it creates problems and we don't use it
             chunk.drop('TRIPID_2', axis=1, inplace=True)
-                                    
+            
+            # if  we have a tab column, convert the HR-MIN-SEC into INT values
+            if infile.endswith(".TAB"):                 
+                                
+                chunk['DATE_INT'] =((10000*chunk['DATE_MO'])
+                                  +   (100*chunk['DATE_DAY'])
+                                  +     (1*chunk['DATE_YR']))
+                
+                chunk['ARRIVAL_TIME_INT'] =((10000*chunk['ARRIVAL_TIME_HR'])  
+                                          +   (100*chunk['ARRIVAL_TIME_MIN']) 
+                                          +     (1*chunk['ARRIVAL_TIME_SEC']))
+
+                
+                chunk['DEPARTURE_TIME_INT'] =((10000*(chunk['DEPARTURE_TIME_HR'])  
+                                            +   (100*chunk['DEPARTURE_TIME_MIN']) 
+                                            +     (1*chunk['DEPARTURE_TIME_SEC'])))
+                
+                chunk['PULLOUT_INT'] =((10000*chunk['PULLOUT_HR'])  
+                                     +   (100*chunk['PULLOUT_MIN']) 
+                                     +     (1*chunk['PULLOUT_SEC']))
+                                     
+                chunk.replace(to_replace=' ', value='99', inplace=True)
+                
             # because of misalinged row, it sometimes auto-detects inconsistent
             # data types, so force them as specified.  Must be in same order 
             # as above
@@ -304,7 +458,7 @@ class SFMuniDataHelper():
                         chunk[colnames[i]] = chunk[colnames[i]].astype('str')
                     elif (coltypes[i]=='int64'): 
                         chunk[colnames[i]] = (chunk[colnames[i]].astype('float64')).astype('int64')
-                    else: 
+                    else:         
                         chunk[colnames[i]] = chunk[colnames[i]].astype(coltypes[i])
                                     
             # only include revenue service
