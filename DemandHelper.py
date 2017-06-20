@@ -728,7 +728,7 @@ class DemandHelper():
             if len(infiles)!=1: 
                 raise IOError('Wrong number of files matching pattern: ' + pattern)
             else: 
-                print infiles[0]
+                print (infiles[0])
                 df = pd.read_csv(infiles[0], skiprows=skiprows)
 
                 # get the data relevant to this county
@@ -779,7 +779,7 @@ class DemandHelper():
                 if len(infiles)!=1: 
                     raise IOError('Wrong number of files matching pattern: ' + pattern)
                 else: 
-                    print infiles[0]
+                    print (infiles[0])
                     df = pd.read_csv(infiles[0], skiprows=1)
 
                     # get the data relevant to this county
@@ -981,7 +981,7 @@ class DemandHelper():
             infiles = glob.glob(pattern)
                 
             for infile in infiles: 
-                print 'Reading QCEW data in ' + infile
+                print ('Reading QCEW data in ' + infile)
                     
                 df_allrows = pd.read_csv(infile)
                 
@@ -1178,7 +1178,7 @@ class DemandHelper():
                 infile = filePattern + str(year) + '.csv' 
                 if os.path.isfile(infile):
                         
-                    print 'Reading LODES data in ' + infile            
+                    print ('Reading LODES data in ' + infile)            
                     df = pd.read_csv(infile)            
                     
                     # one dimensional processing for RAC and WAC
