@@ -110,8 +110,15 @@ def getOutkey(month, dow, prefix):
     gets the key name as a string from the month and the day of week
     """
     return prefix + str(month.date()).replace('-', '') + 'd' + str(dow)
-                    
 
+    
+def getInkey(month, prefix):
+    """
+    gets the key name as a string from the month
+    """
+    return prefix + str(month.date()).replace('-', '')
+    
+    
 def calcGroupWeights(df, oldWeight):
     """
     df - dataframe to operate on.  Must contain columns for TRIPS
@@ -242,7 +249,7 @@ class SFMuniDataExpander():
                 
     
 
-    def __init__(self, sfmuni_file, gtfs_outfile, trip_outfile, ts_outfile, 
+    def __init__(self, gtfs_outfile, trip_outfile, ts_outfile, 
                  daily_trip_outfile, daily_ts_outfile,
                  dow=[1,2,3], startDate='1900-01-01', endDate='2100-01-01', 
                  startingTripCount=1, startingTsCount=0):
@@ -255,7 +262,6 @@ class SFMuniDataExpander():
         self.ts_outfile = ts_outfile
 
         # open the data stores
-        self.sfmuni_store = pd.HDFStore(sfmuni_file) 
         self.gtfs_store = pd.HDFStore(gtfs_outfile)
         
         # which days of week to run for
@@ -268,18 +274,11 @@ class SFMuniDataExpander():
         # count the trips and trip-stops to ensure a unique index
         self.tripCount = startingTripCount
         self.tsCount = startingTsCount
-
-        # get the list of all observed dates
-        observedDates = self.sfmuni_store.select_column('sample', 'DATE').unique()
         
-        self.dateList = []
-        for d in sorted(observedDates): 
-            date = pd.Timestamp(d)
-            if (date>=pd.Timestamp(startDate) and date<=pd.Timestamp(endDate)):
-                self.dateList.append(date)
-        
-        print('SFMuniDataExpander set up for ', len(self.dateList), ' observed dates between ', 
-               self.dateList[0], ' and ', self.dateList[len(self.dateList)-1])
+        # running a specific range 
+        self.startDate = startDate
+        self.endDate = endDate
+        print('Running expansion for date rage ', self.startDate, ' to ', self.endDate)
     
     
     def closeStores(self):  
@@ -290,7 +289,7 @@ class SFMuniDataExpander():
         self.gtfs_store.close()
         self.aggregator.close()
         
-    def expandAndWeight(self, gtfs_file):
+    def expandAndWeight(self, gtfs_file, sfmuni_file):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
         This will be done for every individual day, so you get a list of 
@@ -331,7 +330,8 @@ class SFMuniDataExpander():
         print('Writing data for periods from ', gtfsStartDate, ' to ', gtfsEndDate)
         for date, servicePeriodsForDate in servicePeriodsEachDate:           
                         
-            if pd.Timestamp(date) in self.dateList:           
+            if (pd.Timestamp(date)>=pd.Timestamp(self.startDate)) and (pd.Timestamp(date)<=pd.Timestamp(self.endDate)):           
+            
                 print(datetime.datetime.now().ctime(), ' Processing ', date)         
                 
                 # use a separate file for each year
@@ -346,76 +346,84 @@ class SFMuniDataExpander():
                         
                         outkey = getOutkey(month=month, dow=period.service_id, prefix='m')                                             
     
-                        # get the corresponding MUNI data for this date
-                        sfmuni = self.getSFMuniData(date)
-                            
-                        # get the corresponding GTFS dataframe
-                        df = dataframes[period.service_id]
+                        # get the corresponding MUNI data for this date, and only continue if there 
+                        # are observed values
+                        sfmuni = self.getSFMuniData(sfmuni_file, date)                        
+                        if len(sfmuni) > 0: 
+                        
+                            # get the corresponding GTFS dataframe
+                            df = dataframes[period.service_id]
+                                    
+                            # update the dates
+                            df['ARRIVAL_TIME_S']   = date + (df['ARRIVAL_TIME_S'] - df['DATE'])
+                            df['DEPARTURE_TIME_S'] = date + (df['DEPARTURE_TIME_S'] - df['DATE'])
+            
+                            df['DATE'] = date
+                            df['MONTH'] = month
+                    
+                            # join the sfmuni data
+                            joined = self.joinSFMuniData(df, sfmuni)    
                                 
-                        # update the dates
-                        df['ARRIVAL_TIME_S']   = date + (df['ARRIVAL_TIME_S'] - df['DATE'])
-                        df['DEPARTURE_TIME_S'] = date + (df['DEPARTURE_TIME_S'] - df['DATE'])
-        
-                        df['DATE'] = date
-                        df['MONTH'] = month
-                
-                        # join the sfmuni data
-                        joined = self.joinSFMuniData(df, sfmuni)    
+                            # aggregate from trip-stops to trips
+                            trips = self.aggregator.aggregateToTrips(joined)
+                                
+                            # set a unique trip index
+                            trips.index = self.tripCount + pd.Series(range(0,len(trips)))
+                            self.tripCount += len(trips)
+                    
+                            # weight the trips
+                            trips = self.weightTrips(trips)
+                                
+                            # write the trips   
+                            stringLengths = self.getStringLengths(trips.columns)                                                                    
+                            trip_outstore.append(outkey, trips, data_columns=True, 
+                                        min_itemsize=stringLengths)
+                                
+                            # add weights to trip-stop df                          
+                            mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
+                            weightFields = ['PATTERN', 'TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
+                            tripWeights = trips[mergeFields + weightFields]            
+                            ts = pd.merge(joined, tripWeights, how='left', on=mergeFields, sort=True)  
+                                
+                            # set a unique trip-stop index
+                            ts.index = self.tsCount + pd.Series(range(0,len(ts)))
+                            self.tsCount += len(ts)
                             
-                        # aggregate from trip-stops to trips
-                        trips = self.aggregator.aggregateToTrips(joined)
+                            # not sure why it thinks SEQ is an object and not an int, but try converting
+                            ts['SEQ'] = ts['SEQ'].astype('int64')
                             
-                        # set a unique trip index
-                        trips.index = self.tripCount + pd.Series(range(0,len(trips)))
-                        self.tripCount += len(trips)
-                
-                        # weight the trips
-                        trips = self.weightTrips(trips)
-                            
-                        # write the trips   
-                        stringLengths = self.getStringLengths(trips.columns)                                                                    
-                        trip_outstore.append(outkey, trips, data_columns=True, 
-                                    min_itemsize=stringLengths)
-                            
-                        # add weights to trip-stop df                          
-                        mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
-                        weightFields = ['PATTERN', 'TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
-                        tripWeights = trips[mergeFields + weightFields]            
-                        ts = pd.merge(joined, tripWeights, how='left', on=mergeFields, sort=True)  
-                            
-                        # set a unique trip-stop index
-                        ts.index = self.tsCount + pd.Series(range(0,len(ts)))
-                        self.tsCount += len(ts)
-                        
-                        # not sure why it thinks SEQ is an object and not an int, but try converting
-                        ts['SEQ'] = ts['SEQ'].astype('int64')
-                        
-                        # write the trip-stops             
-                        stringLengths = self.getStringLengths(ts.columns)   
-                        ts_outstore.append(outkey, ts, data_columns=True, 
-                                        min_itemsize=stringLengths)                            
+                            # write the trip-stops             
+                            stringLengths = self.getStringLengths(ts.columns)   
+                            ts_outstore.append(outkey, ts, data_columns=True, 
+                                            min_itemsize=stringLengths)                            
 
-                        # aggregate to TOD and daily totals, and write those
-                        self.aggregator.aggregateTripsToDays(trips)
-                        self.aggregator.aggregateTripStopsToDays(ts)
+                            # aggregate to TOD and daily totals, and write those
+                            self.aggregator.aggregateTripsToDays(trips)
+                            self.aggregator.aggregateTripStopsToDays(ts)
                         
                                                 
                 trip_outstore.close()
                 ts_outstore.close()
 
-    def getSFMuniData(self, date):
+    def getSFMuniData(self, sfmuni_file, date):
         """
         Returns a dataframe with the observed SFMuni records
         and some processing of those
         """
 
-        sfmuni = self.sfmuni_store.select('sample', where='DATE==Timestamp(date)')
+        # use a separate file for each year
+        # and write a separate table for each month and DOW
+        # format of the table name is mYYYYMMDDdX, where X is the day of week
+        month = ((pd.to_datetime(date)).to_period('M')).to_timestamp()    
+        sfmuni_store = pd.HDFStore(getOutfile(sfmuni_file, month))
+        sfmuni_key = getInkey(month, 'm')
+                
+        sfmuni = sfmuni_store.select(sfmuni_key, where='DATE==Timestamp(date)')
         sfmuni.index = pd.Series(range(0,len(sfmuni)))
         
         # drop duplicates, which would get double-counted
         sfmuni = sfmuni.drop_duplicates(subset=['AGENCY_ID','ROUTE_SHORT_NAME','DIR','PATTCODE','TRIP', 'SEQ'])
-                                        
-        
+                
         # update the TRIP id in case there are multiple trips with different 
         # patterns leaving a different stop at the same time
         groupby = ['AGENCY_ID','ROUTE_SHORT_NAME','DIR','PATTCODE','TRIP']

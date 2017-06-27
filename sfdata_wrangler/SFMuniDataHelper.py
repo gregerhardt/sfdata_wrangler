@@ -24,7 +24,20 @@ __license__     = """
 import pandas as pd
 import numpy as np
 import datetime
-              
+
+def getOutfile(filename, date):
+    """
+    gets a filename with the year replacing YYYY
+    """
+    return filename.replace('YYYY', str(date.year))
+
+
+def getOutkey(month, prefix):
+    """
+    gets the key name as a string from the month and the day of week
+    """
+    return prefix + str(month.date()).replace('-', '')
+    
                                     
 class SFMuniDataHelper():
     """ 
@@ -334,7 +347,16 @@ class SFMuniDataHelper():
 		    
     # uniquely define the records
     INDEX_COLUMNS=['DATE', 'ROUTE_AVL', 'DIR', 'TRIP','SEQ'] 
-
+    
+    # for use in part 2
+    STRING_LENGTHS = {
+        'STOPNAME_AVL'  : 32, 
+        'PATTCODE'      : 10, 
+        'SCHOOL'        :  6, 
+        'AGENCY_ID'        : 10, 
+        'ROUTE_SHORT_NAME' : 10, 
+        'ROUTE_LONG_NAME'  : 32
+        }
 
     def __init__(self):
         """
@@ -354,9 +376,13 @@ class SFMuniDataHelper():
         df['ROUTE_LONG_NAME'] = df['ROUTE_LONG_NAME'].apply(str.strip)
         df['ROUTE_LONG_NAME'] = df['ROUTE_LONG_NAME'].apply(str.upper)        
         
+        # convert the times
+        df['START_DATE'] = pd.to_datetime(df['START_DATE'])
+        df['END_DATE']   = pd.to_datetime(df['END_DATE'])
+    
         self.routeEquiv = df
         
-            
+    
     def processRawData(self, infile, outfile):
         """
         Read SFMuniData, cleans it, processes it, and writes it to an HDF5 file.
@@ -486,10 +512,10 @@ class SFMuniDataHelper():
             chunk['DWELL'] = np.where(chunk['EOL'] == 1, 0, chunk['DWELL'])
             chunk['DWELL'] = np.where(chunk['SEQ'] == 1, 0, chunk['DWELL'])
             
-            # match to GTFS indices using route equivalency
-            chunk['AGENCY_ID']        = chunk['ROUTE_AVL'].map(self.routeEquiv['AGENCY_ID'])
-            chunk['ROUTE_SHORT_NAME'] = chunk['ROUTE_AVL'].map(self.routeEquiv['ROUTE_SHORT_NAME'])
-            chunk['ROUTE_LONG_NAME']  = chunk['ROUTE_AVL'].map(self.routeEquiv['ROUTE_LONG_NAME'])
+            # match to GTFS indices using route equivalency -- do this in clean step 2
+            chunk['AGENCY_ID']        = ''
+            chunk['ROUTE_SHORT_NAME'] = ''
+            chunk['ROUTE_LONG_NAME']  = ''
                         
             # check for missing route IDs
             for r in chunk['ROUTE_AVL'].unique(): 
@@ -540,6 +566,53 @@ class SFMuniDataHelper():
         store.close()
 
       
+    def cleanPart2(self, infile, outfile):
+        """
+        updates route equiv based on date, and writes to year-specific files.
+        
+        infile  - in cleaned step 1 format
+        outfile - output file name in h5 format, with YYYY for years
+        """
+        
+        print (datetime.datetime.now().ctime(), 'Converting data in file: ', infile)        
+        
+        # loop through these dates
+        store = pd.HDFStore(infile) 
+        dates = store.select_column('sample', 'DATE').unique()
+        dates = sorted(dates)
+        print(datetime.datetime.now().ctime(), 'Writing data for periods from ', dates[0], ' to ', dates[-1]) 
+        
+        # one for each date
+        for date in dates:
+        
+            print(datetime.datetime.now().ctime(), 'Processing ', date) 
+            
+            # use a separate output file for each year
+            # and write a separate table for each month and DOW
+            # format of the table name is mYYYYMMDDdX, where X is the day of week
+            month = ((pd.to_datetime(date)).to_period('M')).to_timestamp()    
+            outstore = pd.HDFStore(getOutfile(outfile, month))                          
+            outkey = getOutkey(month=month, prefix='m')        
+                        
+            # select the appropriate equiv records
+            equiv = self.routeEquiv[(self.routeEquiv['START_DATE'] < date) & (date < self.routeEquiv['END_DATE'])]
+            
+            # get the data            
+            df = store.select('sample', where='DATE==Timestamp(date)')
+            
+            # update the route names based on the equiv file
+            df['AGENCY_ID']        = ''
+            df['ROUTE_SHORT_NAME'] = ''
+            df['ROUTE_LONG_NAME']  = ''
+            
+            df['AGENCY_ID']        = df['ROUTE_AVL'].map(equiv['AGENCY_ID'])
+            df['ROUTE_SHORT_NAME'] = df['ROUTE_AVL'].map(equiv['ROUTE_SHORT_NAME'])
+            df['ROUTE_LONG_NAME']  = df['ROUTE_AVL'].map(equiv['ROUTE_LONG_NAME'])
+            
+            # write the data
+            outstore.append(outkey, df, data_columns=True, min_itemsize=self.STRING_LENGTHS)
+        
+        
     def getWrapAroundTimes(self, df, dateint_field, timeint_field):
         """
         Converts a string in the format '%H%M%S' to a datetime object.
