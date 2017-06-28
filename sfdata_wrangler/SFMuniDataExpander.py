@@ -318,7 +318,7 @@ class SFMuniDataExpander():
         self.gtfs_store.close()
         self.aggregator.close()
     
-    @profile
+    
     def expandAndWeight(self, gtfs_file):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
@@ -434,7 +434,7 @@ class SFMuniDataExpander():
                 trip_outstore.close()
                 ts_outstore.close()
     
-    @profile
+    
     def getSFMuniData(self, date):
         """
         Returns a dataframe with the observed SFMuni records
