@@ -409,9 +409,6 @@ class SFMuniDataHelper():
         stringLengths['ROUTE_SHORT_NAME'] = 10
         stringLengths['ROUTE_LONG_NAME']  = 32
 
-        # for tracking undefined route equivalencies
-        missingRouteIds = set()
-
         # set up the reader -- one file is a different format
         reader = None 
         if (infile.endswith(".TAB")): 
@@ -517,12 +514,6 @@ class SFMuniDataHelper():
             chunk['ROUTE_SHORT_NAME'] = ''
             chunk['ROUTE_LONG_NAME']  = ''
                         
-            # check for missing route IDs
-            for r in chunk['ROUTE_AVL'].unique(): 
-                if not r in self.routeEquiv.index: 
-                    missingRouteIds.add(r)
-                    print ('ROUTE_AVL id ', r, ' not found in route equivalency file')
-                
             # try to do this faster
             chunk['DATE']           = self.getDates(chunk['DATE_INT'])  
             chunk['ARRIVAL_TIME']   = self.getWrapAroundTimes(chunk, 'DATE_INT', 'ARRIVAL_TIME_INT')
@@ -557,11 +548,6 @@ class SFMuniDataHelper():
             rowsWritten += len(df)
             print(datetime.datetime.now().ctime(), ' Read %i rows and kept %i rows.' % (rowsRead, rowsWritten))
 
-        if len(missingRouteIds) > 0: 
-            print ('The following AVL route IDs are missing from the routeEquiv file:')
-            for missing in missingRouteIds: 
-                print('  ', missing)
-            
         # close the writer
         store.close()
 
@@ -576,6 +562,9 @@ class SFMuniDataHelper():
         
         print (datetime.datetime.now().ctime(), 'Converting data in file: ', infile)        
         
+        # for tracking undefined route equivalencies
+        missingRouteIds = set()
+
         # loop through these dates
         store = pd.HDFStore(infile) 
         dates = store.select_column('sample', 'DATE').unique()
@@ -600,17 +589,34 @@ class SFMuniDataHelper():
             # get the data            
             df = store.select('sample', where='DATE==Timestamp(date)')
             
+            # check for missing route IDs
+            for r in df['ROUTE_AVL'].unique(): 
+                if not r in equiv.index: 
+                    missingRouteIds.add(r)
+                    print ('ROUTE_AVL id ', r, ' not found in route equivalency file')
+                    
             # update the route names based on the equiv file
-            df['AGENCY_ID']        = ''
-            df['ROUTE_SHORT_NAME'] = ''
-            df['ROUTE_LONG_NAME']  = ''
+            df.drop('AGENCY_ID', axis=1, inplace=True)
+            df.drop('ROUTE_SHORT_NAME', axis=1, inplace=True)
+            df.drop('ROUTE_LONG_NAME', axis=1, inplace=True)
             
             df['AGENCY_ID']        = df['ROUTE_AVL'].map(equiv['AGENCY_ID'])
             df['ROUTE_SHORT_NAME'] = df['ROUTE_AVL'].map(equiv['ROUTE_SHORT_NAME'])
             df['ROUTE_LONG_NAME']  = df['ROUTE_AVL'].map(equiv['ROUTE_LONG_NAME'])
             
+            # convert unicode fields from python3  
+            types = df.apply(lambda x: pd.api.types.infer_dtype(x.values))
+            for col in types[types=='unicode'].index:
+                df[col] = df[col].astype(str)
+            
+            if len(missingRouteIds) > 0: 
+                print ('The following AVL route IDs are missing from the routeEquiv file:')
+                for missing in missingRouteIds: 
+                    print('  ', missing)
+                
             # write the data
             outstore.append(outkey, df, data_columns=True, min_itemsize=self.STRING_LENGTHS)
+            outstore.close()
         
         
     def getWrapAroundTimes(self, df, dateint_field, timeint_field):
