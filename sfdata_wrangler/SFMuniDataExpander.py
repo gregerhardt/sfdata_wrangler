@@ -194,7 +194,7 @@ class SFMuniDataExpander():
 	['HEADWAY_S' ,        0, 0, 'gtfs'], 
     ['FARE',              0, 0, 'gtfs'], 
 	['PATTCODE'  ,       10, 0, 'avl'], 
-    ['STOPNAME',         32, 0, 'gtfs'],        # stop attributes
+    ['STOPNAME',         64, 0, 'gtfs'],        # stop attributes
 	['STOPNAME_AVL',     32, 0, 'avl' ], 
     ['STOP_LAT',          0, 0, 'gtfs'], 
     ['STOP_LON',          0, 0, 'gtfs'], 
@@ -238,7 +238,7 @@ class SFMuniDataExpander():
 	['VC' ,               0, 0, 'calculated'],   # crowding
 	['CROWDED',           0, 0, 'calculated'], 
 	['CROWDHOURS',        0, 0, 'calculated'], 
-    ['ROUTE_ID',          0, 0, 'gtfs'],  # additional IDs 
+    ['ROUTE_ID',         10, 0, 'gtfs'],  # additional IDs 
     ['ROUTE_AVL',         0, 0, 'avl'],   
     ['TRIP_ID',           0, 0, 'gtfs'], 
     ['STOP_ID',           0, 0, 'gtfs'], 
@@ -291,15 +291,15 @@ class SFMuniDataExpander():
             sfmuni_store = pd.HDFStore(getOutfile(self.sfmuni_file, month))
             sfmuni_key = getInkey(month, 'm')
             
-            newDates = sfmuni_store.select_column(sfmuni_key, 'DATE').unique()
-            if firstMonth: 
-                observedDates = newDates
-            else: 
-                observedDates = observedDates + newDates
-                
+            if '/' + sfmuni_key in sfmuni_store.keys():             
+                newDates = sfmuni_store.select_column(sfmuni_key, 'DATE').unique()
+                if firstMonth: 
+                    observedDates = newDates
+                    firstMonth = False
+                else: 
+                    observedDates = np.append(observedDates, newDates)
+                    
             sfmuni_store.close()
-        
-        print (observedDates)
         
         self.dateList = []
         for d in sorted(observedDates): 

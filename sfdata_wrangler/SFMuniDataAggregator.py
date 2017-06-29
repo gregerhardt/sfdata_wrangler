@@ -325,7 +325,7 @@ class SFMuniDataAggregator():
                 ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route_stop','object' ,64],   
                 ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'system' ,'float64'   , 0],   
                 ['FARE'              ,'FARE'              ,'mean'    ,'system' ,'float64'   , 0],    
-                ['STOPNAME'          ,'STOPNAME'          ,'first'   ,'stop'   ,'object'    ,32],         # stop attributes
+                ['STOPNAME'          ,'STOPNAME'          ,'first'   ,'stop'   ,'object'    ,64],         # stop attributes
                 ['STOPNAME_AVL'      ,'STOPNAME_AVL'      ,'first'   ,'stop'   ,'object'    ,32],  
                 ['STOP_LAT'          ,'STOP_LAT'          ,'first'   ,'stop'   ,'float64'   , 0],   
                 ['STOP_LON'          ,'STOP_LON'          ,'first'   ,'stop'   ,'float64'   , 0],   
@@ -635,7 +635,7 @@ class SFMuniDataAggregator():
                 ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route_stop','object' ,64],   
                 ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'system' ,'float64'   , 0],   
                 ['FARE'              ,'FARE'              ,'mean'    ,'system' ,'float64'   , 0],    
-                ['STOPNAME'          ,'STOPNAME'          ,'first'   ,'stop'   ,'object'    ,32],         # stop attributes
+                ['STOPNAME'          ,'STOPNAME'          ,'first'   ,'stop'   ,'object'    ,64],         # stop attributes
                 ['STOPNAME_AVL'      ,'STOPNAME_AVL'      ,'first'   ,'stop'   ,'object'    ,32],  
                 ['STOP_LAT'          ,'STOP_LAT'          ,'first'   ,'stop'   ,'float64'   , 0],   
                 ['STOP_LON'          ,'STOP_LON'          ,'first'   ,'stop'   ,'float64'   , 0],   
