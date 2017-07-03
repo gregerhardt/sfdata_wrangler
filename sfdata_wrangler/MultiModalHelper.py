@@ -44,7 +44,7 @@ class MultiModalHelper():
     
     """
     
-    ANNUAL_TRANSIT_YEARS = [2000,2014]
+    ANNUAL_TRANSIT_YEARS = [2000,2015]
 
     MONTHS = ['January', 
               'February', 
@@ -134,7 +134,7 @@ class MultiModalHelper():
 
         # get the annual data
         annual = outstore.select('transitAnnual')
-                
+                        
         # extrapolate to get the last fiscal year of monthly data        
         index = np.max(annual.index.tolist()) + 1
         month = annual['MONTH'].max() + pd.DateOffset(months=11)
@@ -145,9 +145,12 @@ class MultiModalHelper():
         
         # expand to a monthly, using backfill to keep same values for whole year
         monthly = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
-        monthly = monthly.resample('M', fill_method='ffill')
+        monthly = monthly.resample('M').ffill()
         monthly['MONTH'] = monthly.index
         monthly['MONTH'] = monthly['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
+        
+        # deal with the last row
+        monthly = monthly.fillna(method='ffill')
                 
         # scale annual values to monthly values
         # by default, use 1/12th.  Use better information if we have it...
@@ -161,7 +164,7 @@ class MultiModalHelper():
             for mode in modes: 
                 col = colLabel + mode
                 monthly[col] = monthly[col] * factor
-        
+                
         # append to the output store
         outstore.append('transitMonthly', monthly, data_columns=True)
         outstore.close()
@@ -245,7 +248,7 @@ class MultiModalHelper():
                 
         # expand to a monthly, using backfill to keep same rate until it changes
         df = df.set_index(pd.DatetimeIndex(df['PeriodStart']))
-        df = df.resample('M', fill_method='ffill')
+        df = df.resample('M').ffill()
         df['MONTH'] = df.index
         df['MONTH'] = df['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
         
@@ -312,10 +315,10 @@ class MultiModalHelper():
         """
         
         # get the CPI and convert to monthly format
-        dfcpi = pd.read_excel(cpiFile, sheetname='BLS Data Series', skiprows=10, index_col=0)
-        base = dfcpi.at[2010, 'Annual']
+        dfcpi = pd.read_excel(cpiFile, sheetname='BLS Data Series', skiprows=11, index_col=0)
+        base = dfcpi.at[2010, 'HALF1']
         
-        dfcpi = dfcpi.drop(['Annual', 'HALF1', 'HALF2'], axis=1)
+        dfcpi = dfcpi.drop(['HALF1', 'HALF2'], axis=1)
         dfcpi = dfcpi.stack()
         dfcpi = dfcpi.reset_index()
         dfcpi = dfcpi.rename(columns={

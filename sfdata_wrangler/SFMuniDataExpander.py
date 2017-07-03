@@ -506,6 +506,20 @@ class SFMuniDataExpander():
 
         sfmuni['OBSERVED'] = 1
 
+        # force DIR and SEQ to be int columns
+        try: 
+            gtfs['DIR'] = gtfs['DIR'].astype(int)
+            gtfs['SEQ'] = gtfs['SEQ'].astype(int)
+            sfmuni['DIR'] = sfmuni['DIR'].astype(int)
+            sfmuni['SEQ'] = sfmuni['SEQ'].astype(int)
+        except ValueError:             
+            sfmuni = sfmuni.dropna(axis=0, subset=['DIR', 'SEQ'])
+            
+            gtfs['DIR'] = gtfs['DIR'].astype(int)
+            gtfs['SEQ'] = gtfs['SEQ'].astype(int)
+            sfmuni['DIR'] = sfmuni['DIR'].astype(int)
+            sfmuni['SEQ'] = sfmuni['SEQ'].astype(int)
+        
         # join 
         try: 
             joined = pd.merge(gtfs, sfmuni, how='left', on=joinFields, 

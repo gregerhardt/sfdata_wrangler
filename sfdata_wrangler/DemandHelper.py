@@ -57,9 +57,9 @@ class DemandHelper():
     """
 
     # the range of years for these data files
-    POP_EST_YEARS = [2000,2014]
+    POP_EST_YEARS = [2000,2016]
     HU_YEARS      = [2001,2014]
-    ACS_YEARS     = [2005,2014]
+    ACS_YEARS     = [2005,2015]
     LODES_YEARS   = [2002,2014]  
     
     # a list of output field and inputfield tuples for each table
@@ -868,7 +868,9 @@ class DemandHelper():
         
         # read and append each file
         for infile in completionsFiles: 
-    
+            
+            print("Processing housing file ", infile)
+            
             # read the data
             df = pd.read_csv(infile)
                 
@@ -877,7 +879,7 @@ class DemandHelper():
                 basename = os.path.basename(infile)
                 year = int(basename[:4])
                 df['YEAR'] = year
-                
+                        
             # convert the dates
             df['ACTUAL_DATE'] = df['ACTDATE'].apply(convertToDate)
             df['MONTH'] = df['ACTUAL_DATE'].apply(convertDateToMonth)
@@ -886,13 +888,13 @@ class DemandHelper():
             # those that only have a year
             dfExact = df[df['MONTH'].apply(pd.notnull)]
             dfNotExact = df[df['MONTH'].apply(pd.isnull)]        
-                
+                        
             #group and resample to monthly
             monthlyAgg = dfExact.groupby('MONTH').aggregate(sum)
             monthlyAgg = monthlyAgg.reset_index()
             annualAgg = dfNotExact.groupby('YEAR').aggregate(sum)
             annualAgg = annualAgg.reset_index()
-                
+                            
             # merge the data.  If missing on RHS, then they are zeros. 
             dfout = pd.merge(dfout, monthlyAgg, how='left', on=['MONTH'], sort=True, suffixes=('', '_MONTHLY')) 
             dfout = pd.merge(dfout, annualAgg, how='left', on=['YEAR'], sort=True, suffixes=('', '_ANNUAL')) 
@@ -1394,7 +1396,7 @@ class DemandHelper():
         """        
 
         annual = pd.read_csv(fleetEfficiencyFile, skiprows=1)
-        annual = annual.rename(columns={'Light duty vehicle, short wheel base' : 'FLEET_EFFICIENCY'}) 
+        annual = annual.rename(columns={'Average Light Duty' : 'FLEET_EFFICIENCY'}) 
         annual.index = annual['YEAR']
         annual = annual[['YEAR', 'FLEET_EFFICIENCY']]
 
@@ -1524,10 +1526,11 @@ class DemandHelper():
         """
         
         # get the CPI and convert to monthly format
-        dfcpi = pd.read_excel(cpiFile, sheetname='BLS Data Series', skiprows=10, index_col=0)
-        base = dfcpi.at[2010, 'Annual']
+        dfcpi = pd.read_excel(cpiFile, sheetname='BLS Data Series', skiprows=11, index_col=0)
         
-        dfcpi = dfcpi.drop(['Annual', 'HALF1', 'HALF2'], axis=1)
+        base = dfcpi.at[2010, 'HALF1']
+        
+        dfcpi = dfcpi.drop(['HALF1', 'HALF2'], axis=1)
         dfcpi = dfcpi.stack()
         dfcpi = dfcpi.reset_index()
         dfcpi = dfcpi.rename(columns={
@@ -1582,7 +1585,7 @@ class DemandHelper():
         annual['MONTH'] = annual['YEAR'].apply(lambda x: pd.Timestamp(str(int(x)) + '-07-01'))
         annual = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
 
-        monthly = annual[['MONTH']].resample('M')
+        monthly = pd.DataFrame(annual['MONTH'].resample('M').asfreq())
         monthly['MONTH'] = monthly.index
         monthly['MONTH'] = monthly['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
                 

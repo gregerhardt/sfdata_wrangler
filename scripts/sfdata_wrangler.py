@@ -67,84 +67,91 @@ VALID_STEPS = [ 'clean1',
 # INPUT FILES--change as needed
 ROUTE_EQUIV = "D:/RUNS/sfdata_wrangler2/routeEquiv_20170621.csv"
 
-RAW_STP_FILES =[#"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1005.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1009.stp",
-                #
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1101.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1110.stp",    
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1201.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1203.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1206.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1209.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1212.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1306.stp",
-                #
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1308.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1310_new.stp", 
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1402.stp", 
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1404.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1406.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1407.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1410.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1411.stp",
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1501.stp",
+RAW_STP_FILES =["D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/0912.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1001.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1005.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1009.stp",
                 
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1504.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1101.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1110.stp",    
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1201.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1203.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1206.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1209.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1212.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1303.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1304.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1306.stp",
                 
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1509.stp", 				
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1604.stp", 				
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1606.stp", 
-                #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1608.stp", 
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1308.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1310_new.stp", 
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1402.stp", 
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1404.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1406.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1407.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1410.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1411.stp",
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1501.stp",
+                
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1504.stp",
+                
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1509.stp", 				
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1604.stp", 				
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1606.stp", 
+                "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1608.stp", 
                 "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1702.stp", 
                 "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/1706.stp", 
                 ]
     
 # these should be ordered from old to new, and avoid gaps or overlaps
 RAW_GTFS_FILES = [
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
-  #                                                                                         # above file modified to avoid overlap of 13 days
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
-  #                                                                                         # above file modified to avoid gap of 2 days
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110420_0243_1.zip",  # 20110122 to 20110612 (originally 20110610)
-  #                                                                                         # above file modified to avoid gap of 2 days
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110910_0449.zip",  # 20110613 to 20111014
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20111210_0410.zip",  # 20111015 to 20120120
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120319_0337_1.zip",  # 20120121 to 20120608 (originally 20120615)
-  #                                                                                         # above file modified to avoid overlap of 6 days
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130302_0432_1.zip",  # 20120929 to 20130329 (originally 20130322)
-  #                                                                                         # above file modified to avoid gap of 8 days
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130910_2349_1.zip",  # 20130629 to 20131025  
-  #                                                                                         # above file modified to change '016X' to '16X' in ROUTE_SHORT_NAME
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip",   # 20131026 to 20140131  
-  #
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140319.zip",          # 20140201 to 20140411
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140416_0134.zip",     # 20140412 to 20140606
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140611_0111.zip",     # 20140607 to 20140621
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20141007_0221.zip",     # 20140621 to 20141024
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20141029_0132_1.zip",   # 20141025 to 20141121 (originally 20141219)
-  #                                                                                                                                         # above file modified to avoid overlap of 27 days  
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20141220_0202.zip",     # 20141122 to 20150130
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20150227_0144.zip",     # 20150131 to 20150424
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20150809_0207.zip",     # 20150425 to 20150925
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20151216_1446_1.zip",   # 20150926 to 20160212 (originally 20160311)
-  #                                                                                                                                         # above file modified to avoid overlap of 19 days
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20160307.zip",          # 20160213 to 20160422
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20160506.zip",          # 20160423 to 20160603
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20160724.zip",          # 20160604 to 20160812
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20170215.zip",          # 20160813 to 20170224
-  #"D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20170410.zip",          # 20170225 to 20170602
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
+                                                                                           # above file modified to avoid overlap of 13 days
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903 -- rail mis-coded? 
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
+                                                                                           # above file modified to avoid gap of 2 days
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110420_0243_2.zip",  # 20110122 to 20110612 (originally 20110610) -- cable car mis-coded?
+                                                                                           # above file modified to avoid gap of 2 days
+                                                                                           # above file modified to code California CC as mode 5 instead of 3
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110910_0449_1.zip",  # 20110613 to 20111014
+                                                                                           # above file modified to code California CC as mode 5 instead of 3
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20111210_0410.zip",  # 20111015 to 20120120
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120319_0337_1.zip",  # 20120121 to 20120608 (originally 20120615)
+                                                                                           # above file modified to avoid overlap of 6 days
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20120908_0325.zip",  # 20120609 to 20120928
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130302_0432_1.zip",  # 20120929 to 20130329 (originally 20130322)
+                                                                                           # above file modified to avoid gap of 8 days
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130612_0307.zip",  # 20130330 to 20130628
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20130910_2349_1.zip",  # 20130629 to 20131025  
+                                                                                           # above file modified to change '016X' to '16X' in ROUTE_SHORT_NAME
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140117_0111.zip",   # 20131026 to 20140131  
+  
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140319_1.zip",        # 20140201 to 20140411 
+                                                                                           # above file modified to code F-line as mode 0 not mode 3. 
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140416_0134.zip",     # 20140412 to 20140606
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140611_0111.zip",     # 20140607 to 20140621
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20141007_0221.zip",     # 20140621 to 20141024
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20141029_0132_2.zip",   # 20141025 to 20141121 (originally 20141219)
+                                                                                           # above file modified to recode rail lines as mode 0 not mode 3. 
+                                                                                                                                           # above file modified to avoid overlap of 27 days  
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20141220_0202_1.zip",     # 20141122 to 20150130  
+                                                                                           # above file modified to recode rail lines as mode 0 not mode 3. 
+  
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20150227_0144.zip",     # 20150131 to 20150424
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20150809_0207.zip",     # 20150425 to 20150925
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20151216_1446_1.zip",   # 20150926 to 20160212 (originally 20160311)
+                                                                                                                                           # above file modified to avoid overlap of 19 days
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20160307.zip",          # 20160213 to 20160422
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20160506.zip",          # 20160423 to 20160603
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20160724_1.zip",        # 20160604 to 20160812 
+                                                                                           # above file modified to recode rail lines as mode 0 not mode 3. 
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20170215.zip",          # 20160813 to 20170224
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20170410.zip",          # 20170225 to 20170602
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20170606.zip",          # 20170603 to 20170811
 
   ]
@@ -160,7 +167,7 @@ BART_GTFS_FILES = [
     "D:/OneDrive - University of Kentucky/SF-TNC/Data/BART/GTFS/bart-archiver_20120820_0458_1.zip",        # 20120701,20120909 (originally 20140101)
     "D:/OneDrive - University of Kentucky/SF-TNC/Data/BART/GTFS/bart-archiver_20130830_1519_1.zip",        # 20120910,20131231 (originally 20140101)
     "D:/OneDrive - University of Kentucky/SF-TNC/Data/BART/GTFS/bart-archiver_20140109_0110_1.zip",        # 20140101,20141121 (originally 20151231)
-    "D:/OneDrive - University of Kentucky/SF-TNC/Data/BART/GTFS/bay-area-rapid-transit_20150804_0108_1.zip", # 20141122,20150913 (originally 20160101)
+    "D:/OneDrive - University of Kentucky/SF-TNC/Data/BART/GTFS/bay-area-rapid-transit_20150803_1.zip",       # 20141122,20150913 (originally 20160101)   
     "D:/OneDrive - University of Kentucky/SF-TNC/Data/BART/GTFS/bay-area-rapid-transit_20151106_1.zip",       # 20150914,20170324 (originally 20170101) - schedule change confirmed on 9/15/2015
     "D:/OneDrive - University of Kentucky/SF-TNC/Data/BART/GTFS/bay-area-rapid-transit_20170427_1.zip",       # 20170325,20170611 (originally 20180101) - Warm Springs exension opens on 3/25/2017
     "D:/OneDrive - University of Kentucky/SF-TNC/Data/BART/GTFS/bay-area-rapid-transit_20170615.zip",         # 20170612,20180701  - possible Warm Springs schedule adjustment?   
@@ -198,7 +205,7 @@ CENSUS2010_FILE = "D:/OneDrive - University of Kentucky/SF-TNC/Data/Census/Censu
 CENSUS_POPEST_PRE2010_FILE  = "D:/OneDrive - University of Kentucky/SF-TNC/Data/Census/AnnualPopulationEstimates/2000to2010/CO-EST00INT-TOT.csv"
 CENSUS_POPEST_POST2010_FILE = "D:/OneDrive - University of Kentucky/SF-TNC/Data/Census/AnnualPopulationEstimates/post2010/PEP_2016_PEPANNRES_with_ann.csv"
 
-ACS_DIR = "C:/CASA/Data/Census/ACS/Tables/"
+ACS_DIR = "D:/OneDrive - University of Kentucky/SF-TNC/Data/Census/ACS/Tables/"
 
 HOUSING_COMPLETIONS_FILES = ["D:/OneDrive - University of Kentucky/SF-TNC/Data/HousingInventory/sfhousingcompletesthrough2011.csv", 
                              "D:/OneDrive - University of Kentucky/SF-TNC/Data/HousingInventory/2012_Housing_Inventory.csv",  
@@ -223,7 +230,7 @@ TOLL_FILE = "D:/OneDrive - University of Kentucky/SF-TNC/Data/Tolls/TollSchedule
 
 CASH_FARE_FILE = "D:/OneDrive - University of Kentucky/SF-TNC/Data/TransitFares/TransitCashFares.csv"
 
-CPI_FILE       = "D:/OneDrive - University of Kentucky/SF-TNC/Data/CPI/SeriesReport-20170629154705_55d952.xlsx"
+CPI_FILE       = "D:/OneDrive - University of Kentucky/SF-TNC/Data/CPI/SeriesReport-20170630114137_b1bbf7.xlsx"
 
 TRANSIT_ANNUAL_DIR = "D:/OneDrive - University of Kentucky/SF-TNC/Data/TransitStatisticalSummary"
 
@@ -281,8 +288,8 @@ DEMAND_REPORT_XLSFILE = "D:/RUNS/sfdata_wrangler2/out/DriversOfDemandReport.xlsx
 MUNI_REPORT_XLSFILE = "D:/RUNS/sfdata_wrangler2/out/MuniPerformanceReport.xlsx"
 REPORT_ROUTEPLOTS = "D:/RUNS/sfdata_wrangler2/out/RoutePlots.html"
 
-MUNI_ESTIMATION_FILE = "D:/RUNS/sfdata_wrangler2/out/MuniForecastFile.csv"
-BART_ESTIMATION_FILE = "D:/RUNS/sfdata_wrangler2/out/BARTForecastFile.csv"
+MUNI_ESTIMATION_FILE = "D:/RUNS/sfdata_wrangler2/out/MuniEstFile.csv"
+BART_ESTIMATION_FILE = "D:/RUNS/sfdata_wrangler2/out/BARTEstFile.csv"
 
 
 # main function call
@@ -323,8 +330,14 @@ if __name__ == "__main__":
     if 'gtfs' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         gtfsHelper = GTFSHelper() 
-        gtfsHelper.processFiles(RAW_GTFS_FILES, GTFS_OUTFILE, 'sfmuni', use_shape_dist=False)
+        gtfsHelper.processFiles(RAW_GTFS_FILES, GTFS_OUTFILE, 'sfmuni', use_shape_dist=False)        
+        gtfsHelper.createDailySystemTotals(RAW_GTFS_FILES, GTFS_OUTFILE, 'sfmuni', 'sfmuniDaily')
+        gtfsHelper.createMonthlySystemTotals(GTFS_OUTFILE,'sfmuniDaily','sfmuniMonthly')
+        
         gtfsHelper.processFiles(BART_GTFS_FILES, GTFS_OUTFILE, 'bart', use_shape_dist=True)
+        gtfsHelper.createDailySystemTotals(BART_GTFS_FILES, GTFS_OUTFILE, 'bart', 'bartDaily')
+        gtfsHelper.createMonthlySystemTotals(GTFS_OUTFILE,'bartDaily','bartMonthly')
+        
         print ('Finished processing GTFS data ', (datetime.datetime.now() - startTime) )
         
     # process GTFS data, and join AVL/APC data to it, also aggregate trip_stops to trips
@@ -351,7 +364,7 @@ if __name__ == "__main__":
         for daily_file in DAILY_TRIP_OUTFILES: 
             aggregator.aggregateTripsToMonths(daily_file, MONTHLY_TRIP_OUTFILE)
             
-        for daily_file in DAILY_TS_OUTFILE: 
+        for daily_file in DAILY_TS_OUTFILES: 
             aggregator.aggregateTripStopsToMonths(daily_file, MONTHLY_TS_OUTFILE)
             
         print ('Finished aggregations in ', (datetime.datetime.now() - startTime)) 
@@ -381,19 +394,18 @@ if __name__ == "__main__":
         
         demandHelper.processHousingUnitsData(HOUSING_COMPLETIONS_FILES, CENSUS2010_FILE, DEMAND_OUTFILE)          
 
+        demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
+                                   MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
+        
+        demandHelper.processParkingCosts(PARKING_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
+        
+        demandHelper.processTollCosts(TOLL_FILE, CPI_FILE, DEMAND_OUTFILE)
+        
         demandHelper.processQCEWData(QCEW_DIR, FIPS, CPI_FILE, DEMAND_OUTFILE)  
-
+        
         demandHelper.processLODES(LODES_DIR, 'WAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
         demandHelper.processLODES(LODES_DIR, 'RAC', LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
         demandHelper.processLODES(LODES_DIR, 'OD',  LODES_XWALK_FILE, FIPS, DEMAND_OUTFILE) 
-                                                             
-        demandHelper.processAutoOpCosts(FUEL_COST_FILE, FLEET_EFFICIENCY_FILE, 
-                                   MILEAGE_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
-
-        demandHelper.processParkingCosts(PARKING_RATE_FILE, CPI_FILE, DEMAND_OUTFILE)
-
-        demandHelper.processTollCosts(TOLL_FILE, CPI_FILE, DEMAND_OUTFILE)
-        
 
         print ('Finished processing drivers of demand data ', (datetime.datetime.now() - startTime) )
         
@@ -407,7 +419,7 @@ if __name__ == "__main__":
         mmHelper.processMonthlyTransitData(CPI_FILE, MULTIMODAL_OUTFILE)      
         mmHelper.extrapolateMonthlyServiceMiles(GTFS_OUTFILE, MULTIMODAL_OUTFILE) 
         mmHelper.processTransitFares(CASH_FARE_FILE, CPI_FILE, MULTIMODAL_OUTFILE)
-        mmHelper.processBARTEntryExits(BART_ENTRY_EXIT_DIR, MULTIMODAL_OUTFILE)
+#        mmHelper.processBARTEntryExits(BART_ENTRY_EXIT_DIR, MULTIMODAL_OUTFILE)
 
 
     # create performance reports

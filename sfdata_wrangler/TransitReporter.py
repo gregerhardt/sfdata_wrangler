@@ -70,7 +70,7 @@ class TransitReporter():
         else:
             trips = trip_store.select('system_tod', where='DOW=dow & TOD=tod')
             ts = ts_store.select('system_tod_s', where='DOW=dow & TOD=tod')    
-
+            
         employment = demand_store.select('countyEmp', where='FIPS=fips')
         population = demand_store.select('countyPop', where='FIPS=fips')
         autoOpCost = demand_store.select('autoOpCost')
@@ -78,19 +78,19 @@ class TransitReporter():
         trip_store.close()
         ts_store.close()
         demand_store.close()
-                                        
+                
         # resample so any missing months show up as missing   
         # the offsets are to get it based on the first day of the month instead of the last     
         trips = trips.set_index(pd.DatetimeIndex(trips['MONTH']))
-        trips = trips.resample('M')
+        trips = trips.resample('M').first()
         trips['MONTH'] = trips.index
         trips['MONTH'] = trips['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
 
         ts = ts.set_index(pd.DatetimeIndex(ts['MONTH']))
-        ts = ts.resample('M')
+        ts = ts.resample('M').first()
         ts['MONTH'] = ts.index
         ts['MONTH'] = ts['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
-        
+                
         # now the indices are aligned, so we can just assign
         df = ts[['MONTH']].copy()
 
@@ -897,6 +897,7 @@ class TransitReporter():
             transitFare= multimodal_store.select('transitFare')
             
         demand_store.close()
+        multimodal_store.close()
         
         # start with the employment, which has the longest time-series, 
         # and join all the others with the month being equivalent

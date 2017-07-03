@@ -491,10 +491,7 @@ class SFMuniDataAggregator():
 
         print('Aggregating trips to month')
         
-        # delete the output file if it already exists
-        if os.path.isfile(monthly_file):
-            print('Deleting previous aggregate output')
-            os.remove(monthly_file)                         
+        # establish the output file                   
         outstore = pd.HDFStore(monthly_file)
         
         # count the number of rows in each table so our 
@@ -679,10 +676,7 @@ class SFMuniDataAggregator():
 
         print('Aggregating trip-stops to month') 
 
-        # delete the output file if it already exists
-        if os.path.isfile(monthly_file):
-            print('Deleting previous aggregate output')
-            os.remove(monthly_file)                         
+        # establish the output file      
         outstore = pd.HDFStore(monthly_file)
         
         # count the number of rows in each table so our 

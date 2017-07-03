@@ -183,15 +183,11 @@ class GTFSHelper():
                 
                 outstore.append(outkey, df, data_columns=True, 
                     min_itemsize=self.STRING_LENGTHS)
-
+        
                 startIndex += len(df)
         
         outstore.close()
 
-        self.createDailySystemTotals(infiles, outfile, outkey, outkey+'Daily')
-        self.createMonthlySystemTotals(outfile,outkey+'Daily',outkey+'Monthly')
-        
-        
 
     def createDailySystemTotals(self, infiles, outfile, inkey, outkey):
         """
