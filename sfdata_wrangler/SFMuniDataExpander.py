@@ -319,7 +319,7 @@ class SFMuniDataExpander():
         self.aggregator.close()
     
     
-    def expandAndWeight(self, gtfs_file):
+    def expandAndWeight(self, gtfs_file, write_intermediate_files=True):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
         This will be done for every individual day, so you get a list of 
@@ -404,9 +404,10 @@ class SFMuniDataExpander():
                         trips = self.weightTrips(trips)
                             
                         # write the trips   
-                        stringLengths = self.getStringLengths(trips.columns)                                                                    
-                        trip_outstore.append(outkey, trips, data_columns=True, 
-                                    min_itemsize=stringLengths)
+                        if write_intermediate_files: 
+                            stringLengths = self.getStringLengths(trips.columns)                                                                    
+                            trip_outstore.append(outkey, trips, data_columns=True, 
+                                        min_itemsize=stringLengths)
                             
                         # add weights to trip-stop df                          
                         mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
@@ -422,9 +423,10 @@ class SFMuniDataExpander():
                         ts['SEQ'] = ts['SEQ'].astype('int64')
                         
                         # write the trip-stops             
-                        stringLengths = self.getStringLengths(ts.columns)   
-                        ts_outstore.append(outkey, ts, data_columns=True, 
-                                        min_itemsize=stringLengths)                            
+                        if write_intermediate_files: 
+                            stringLengths = self.getStringLengths(ts.columns)   
+                            ts_outstore.append(outkey, ts, data_columns=True, 
+                                            min_itemsize=stringLengths)                            
                         
                         # aggregate to TOD and daily totals, and write those
                         self.aggregator.aggregateTripsToDays(trips)

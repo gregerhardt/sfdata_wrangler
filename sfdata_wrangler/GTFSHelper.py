@@ -188,7 +188,7 @@ class GTFSHelper():
         
         outstore.close()
 
-
+    
     def createDailySystemTotals(self, infiles, outfile, inkey, outkey):
         """
         Converts from the detailed schedule information to the 
@@ -235,6 +235,10 @@ class GTFSHelper():
             # note that the last date is not included, hence the +1 increment
             servicePeriodsEachDate = self.schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate + pd.DateOffset(days=1)) 
             
+            # be efficient with IO
+            df = None 
+            firstLoop = True
+            
             for date, servicePeriodsForDate in servicePeriodsEachDate:     
                 print (' Processing ', date)
                 
@@ -260,9 +264,16 @@ class GTFSHelper():
                     records['DOW'] = dow
                     records['DATE'] = date
                     records['MONTH'] = month
-                        
-                    # write the data
-                    outstore.append(outkey, records, data_columns=True, 
+                    
+                    # append to the main dataframe
+                    if firstLoop: 
+                        df = records
+                        firstLoop = False
+                    else: 
+                        df = df.append(records)
+                    
+            # write the data
+            outstore.append(outkey, df, data_columns=True, 
                             min_itemsize=stringLengths)
 
         outstore.close()
