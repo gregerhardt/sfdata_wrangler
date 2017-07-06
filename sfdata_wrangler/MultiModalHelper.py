@@ -90,8 +90,7 @@ class MultiModalHelper():
                         ('Passengers', 'PASSENGERS_'), 
                         ('FareboxRevenue', 'FAREBOX_'), 
                         ('AvgWeekdayRidership', 'AVG_WEEKDAY_RIDERSHIP_'),
-                        ('AvgWeekdayRidership_Staff', 'AVG_WEEKDAY_RIDERSHIP_STAFF_'), 
-                        ('AvgWeekdayRidership_APC', 'AVG_WEEKDAY_RIDERSHIP_APC_')
+                        ('AvgWeekdayRidership_Staff', 'AVG_WEEKDAY_RIDERSHIP_STAFF_')
                         ]
         
         # get the data

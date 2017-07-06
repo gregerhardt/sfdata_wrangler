@@ -1331,18 +1331,35 @@ class TransitReporter():
         # open and join the input fields
         mm_store = pd.HDFStore(self.multimodal_file)
         demand_store = pd.HDFStore(self.demand_file)
+        ts_store = pd.HDFStore(self.ts_file)
         
         transit = mm_store.select('transitAnnual')
         fares = mm_store.select('transitFareAnnual')
         acs = demand_store.select('countyACSannual', where="FIPS=fips")
         
+        # get and aggregate monthly bordings        
+        ts = ts_store.select('system_day_s', where='DOW=1') 
+        muni = ts[['MONTH']].copy()
+        muni['APC_ON_MUNI_BUS'] = ts['ON']
+        muni['FISCAL_YEAR'] = muni['MONTH'].apply(lambda x: (x + pd.DateOffset(months=6)).year)
+        muni_annual = muni.groupby('FISCAL_YEAR').agg('mean').reset_index()
+        
+        bart = mm_store.select('bart_weekday', where="FROM='Entries' and TO='Exits'")
+        bart['APC_ON_BART'] = bart['RIDERS']
+        bart['FISCAL_YEAR'] = bart['MONTH'].apply(lambda x: (x + pd.DateOffset(months=6)).year)
+        bart_annual = bart.groupby('FISCAL_YEAR').agg('mean').reset_index()
+        
+        # close files
         mm_store.close()
         demand_store.close()
+        ts_store.close()
 
         # start with the population, which has the longest time-series, 
         # and join all the others with the month being equivalent
         df = pd.merge(transit, fares, how='left', on=['FISCAL_YEAR'],  sort=True, suffixes=('', '_FARE')) 
         df = pd.merge(df, acs, how='left', left_on=['FISCAL_YEAR'], right_on=['YEAR'], sort=True, suffixes=('', '_ACS')) 
+        df = pd.merge(df, muni_annual, how='outer', left_on=['FISCAL_YEAR'], right_on=['FISCAL_YEAR'], sort=True, suffixes=('', '_APC')) 
+        df = pd.merge(df, bart_annual, how='outer', left_on=['FISCAL_YEAR'], right_on=['FISCAL_YEAR'], sort=True, suffixes=('', '_APC')) 
 
         return df
 
@@ -1517,7 +1534,7 @@ class TransitReporter():
                     ('Annual Ridership', 'PASSENGERS', 'Transit Stat Summary', 'FY', 'System', int_format), 
                     ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', 'System', int_format), 
                     ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP_STAFF', 'SFMTA Staff Estimate', 'FY', 'System', int_format), 
-                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP_APC', 'APCs/Faregate', 'Monthly', 'Stop', int_format), 
+                    ('Average Weekday Ridership', 'APC_ON', 'APCs/Faregate', 'Monthly', 'Stop', int_format), 
                     ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY', 'System', cent_format), 
                     ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', 'System', cent_format), 
                     ]
