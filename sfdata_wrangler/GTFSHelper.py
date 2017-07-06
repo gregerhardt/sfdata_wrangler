@@ -200,26 +200,8 @@ class GTFSHelper():
         if '/' + outkey in outstore.keys(): 
             outstore.remove(outkey)
 
-        # determine the system totals, grouped by schedule dates
-        detailed_df = outstore.get(inkey)
-        aggregator = SFMuniDataAggregator()        
-        AGGREGATION_RULES = [            
-           	['TRIPS'        ,'TRIP_ID'     ,aggregator.countUnique, 'system', 'int64', 0],
-           	['STOPS'        ,'STOP_ID'     ,aggregator.countUnique, 'system', 'int64', 0],
-           	['TRIP_STOPS'   ,'TRIP_STOPS'  ,'sum',  'system', 'int64', 0],
-           	['FARE'         ,'FARE'        ,'mean', 'system', 'float64', 0],
-           	['HEADWAY_S'    ,'HEADWAY_S'   ,'mean', 'system', 'float64', 0],
-           	['SERVMILES_S'  ,'SERVMILES_S' ,'sum',  'system', 'float64', 0],
-           	['DWELL_S'      ,'DWELL_S'     ,'sum',  'system', 'float64', 0],
-           	['RUNTIME_S'    ,'RUNTIME_S'   ,'sum',  'system', 'float64', 0],
-           	['TOTTIME_S'    ,'TOTTIME_S'   ,'sum',  'system', 'float64', 0],
-           	['RUNSPEED_S'   ,'RUNSPEED_S'  ,'mean', 'system', 'float64', 0],
-           	['TOTSPEED_S'   ,'TOTSPEED_S'  ,'mean', 'system', 'float64', 0]
-                ]                
-        aggdf, stringLengths  = aggregator.aggregateTransitRecords(detailed_df, 
-                groupby=['SCHED_DATES','DOW','SERVICE_ID','AGENCY_ID','ROUTE_TYPE'], 
-                columnSpecs=AGGREGATION_RULES)
-
+        aggdf, stringLengths = self.getAggDf(outstore, inkey)
+        
         # use the GTFS files to determine the service in operation for each date
         for infile in infiles: 
             print ('\n\nReading ', infile)
@@ -278,7 +260,31 @@ class GTFSHelper():
 
         outstore.close()
 
+    def getAggDf(self, instore, inkey): 
+    
+        # determine the system totals, grouped by schedule dates
+        detailed_df = instore.get(inkey)
+        aggregator = SFMuniDataAggregator()        
+        AGGREGATION_RULES = [            
+           	['TRIPS'        ,'TRIP_ID'     ,aggregator.countUnique, 'system', 'int64', 0],
+           	['STOPS'        ,'STOP_ID'     ,aggregator.countUnique, 'system', 'int64', 0],
+           	['TRIP_STOPS'   ,'TRIP_STOPS'  ,'sum',  'system', 'int64', 0],
+           	['FARE'         ,'FARE'        ,'mean', 'system', 'float64', 0],
+           	['HEADWAY_S'    ,'HEADWAY_S'   ,'mean', 'system', 'float64', 0],
+           	['SERVMILES_S'  ,'SERVMILES_S' ,'sum',  'system', 'float64', 0],
+           	['DWELL_S'      ,'DWELL_S'     ,'sum',  'system', 'float64', 0],
+           	['RUNTIME_S'    ,'RUNTIME_S'   ,'sum',  'system', 'float64', 0],
+           	['TOTTIME_S'    ,'TOTTIME_S'   ,'sum',  'system', 'float64', 0],
+           	['RUNSPEED_S'   ,'RUNSPEED_S'  ,'mean', 'system', 'float64', 0],
+           	['TOTSPEED_S'   ,'TOTSPEED_S'  ,'mean', 'system', 'float64', 0]
+                ]                
+        aggdf, stringLengths  = aggregator.aggregateTransitRecords(detailed_df, 
+                groupby=['SCHED_DATES','DOW','SERVICE_ID','AGENCY_ID','ROUTE_TYPE'], 
+                columnSpecs=AGGREGATION_RULES)
 
+        return aggdf, stringLengths
+        
+        
     def createMonthlySystemTotals(self,  outfile, inkey, outkey):
         """
         Converts from the detailed schedule information to the 
