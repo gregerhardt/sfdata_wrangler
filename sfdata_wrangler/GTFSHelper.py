@@ -218,8 +218,7 @@ class GTFSHelper():
             servicePeriodsEachDate = self.schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate + pd.DateOffset(days=1)) 
             
             # be efficient with IO
-            df = None 
-            firstLoop = True
+            dfs = []
             
             for date, servicePeriodsForDate in servicePeriodsEachDate:     
                 print (' Processing ', date)
@@ -241,19 +240,17 @@ class GTFSHelper():
                         
                     servIdString = str(period.service_id).strip().upper()
 
-                    records = aggdf[(aggdf['SCHED_DATES']==dateRangeString) & (aggdf['SERVICE_ID']==servIdString)]
+                    records = aggdf[(aggdf['SCHED_DATES']==dateRangeString) & (aggdf['SERVICE_ID']==servIdString)].copy()
 
                     records['DOW'] = dow
                     records['DATE'] = date
                     records['MONTH'] = month
                     
-                    # append to the main dataframe
-                    if firstLoop: 
-                        df = records
-                        firstLoop = False
-                    else: 
-                        df = df.append(records)
+                    dfs.append(records)
                     
+            # convert the list of dataframes to a single dataframe
+            df = pd.concat(dfs, ignore_index=True)
+            
             # write the data
             outstore.append(outkey, df, data_columns=True, 
                             min_itemsize=stringLengths)
