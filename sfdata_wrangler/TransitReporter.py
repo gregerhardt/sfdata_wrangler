@@ -1516,6 +1516,8 @@ class TransitReporter():
         measures = [('Annual Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', 'System', int_format), 
                     ('Annual Ridership', 'PASSENGERS', 'Transit Stat Summary', 'FY', 'System', int_format), 
                     ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', 'System', int_format), 
+                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP_STAFF', 'SFMTA Staff Estimate', 'FY', 'System', int_format), 
+                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP_APC', 'APCs/Faregate', 'Monthly', 'Stop', int_format), 
                     ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY', 'System', cent_format), 
                     ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', 'System', cent_format), 
                     ]
@@ -1699,6 +1701,7 @@ class TransitReporter():
         # TRANSIT STATISTICAL SUMMARY DATA
         measures = [('Monthly Service Miles', 'SERVMILES', 'Transit Stat Summary', 'FY', 'System', int_format),
                     ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP', 'Transit Stat Summary', 'FY', 'System', int_format), 
+                    ('Average Weekday Ridership', 'AVG_WEEKDAY_RIDERSHIP_STAFF', 'SFMTA Staff Estimate', 'FY', 'System', int_format), 
                     ('Average Weekday Ridership', 'APC_ON', 'APCs/Faregate', 'Monthly', 'Stop', int_format), 
                     ('Cash Fare (2010$)', 'CASH_FARE_2010USD', 'Published Values', 'Actual', 'System', cent_format),  
                     ('Average Fare (2010$)', 'AVG_FARE_2010USD', 'Transit Stat Summary', 'FY/Actual', 'System', cent_format),

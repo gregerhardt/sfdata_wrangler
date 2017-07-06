@@ -44,7 +44,7 @@ class MultiModalHelper():
     
     """
     
-    ANNUAL_TRANSIT_YEARS = [2000,2015]
+    ANNUAL_TRANSIT_YEARS = [2000,2016]
 
     MONTHS = ['January', 
               'February', 
@@ -89,7 +89,9 @@ class MultiModalHelper():
         transitSpecs = [('ServiceMiles', 'SERVMILES_'), 
                         ('Passengers', 'PASSENGERS_'), 
                         ('FareboxRevenue', 'FAREBOX_'), 
-                        ('AvgWeekdayRidership', 'AVG_WEEKDAY_RIDERSHIP_')
+                        ('AvgWeekdayRidership', 'AVG_WEEKDAY_RIDERSHIP_'),
+                        ('AvgWeekdayRidership_Staff', 'AVG_WEEKDAY_RIDERSHIP_STAFF_'), 
+                        ('AvgWeekdayRidership_APC', 'AVG_WEEKDAY_RIDERSHIP_APC_')
                         ]
         
         # get the data
@@ -134,6 +136,9 @@ class MultiModalHelper():
 
         # get the annual data
         annual = outstore.select('transitAnnual')
+        
+        # distinguish between missing inputs and the last row...
+        annual = annual.fillna(-1)
                         
         # extrapolate to get the last fiscal year of monthly data        
         index = np.max(annual.index.tolist()) + 1
@@ -141,8 +146,7 @@ class MultiModalHelper():
         lastRow = pd.DataFrame({'MONTH' : [month]}, index=[index])
         
         annual = annual.append(lastRow)        
-        
-        
+                
         # expand to a monthly, using backfill to keep same values for whole year
         monthly = annual.set_index(pd.DatetimeIndex(annual['MONTH']))
         monthly = monthly.resample('M').ffill()
@@ -151,19 +155,24 @@ class MultiModalHelper():
         
         # deal with the last row
         monthly = monthly.fillna(method='ffill')
+        
+        # switch -1 back to missing
+        monthly = monthly.replace(to_replace=-1, value=np.NaN)
                 
         # scale annual values to monthly values
         # by default, use 1/12th.  Use better information if we have it...
         defaultFactors = [('SERVMILES_', 1.0/12.0), 
                          ('PASSENGERS_', 1.0/12.0), 
                          ('FAREBOX_', 1.0/12.0), 
-                         ('AVG_WEEKDAY_RIDERSHIP_', 1.0)
+                         ('AVG_WEEKDAY_RIDERSHIP_', 1.0), 
+                         ('AVG_WEEKDAY_RIDERSHIP_STAFF_', 1.0)
                          ]
         modes = ['BART', 'CALTRAIN', 'MUNI_BUS', 'MUNI_MOTORBUS', 'MUNI_TROLLEYBUS', 'MUNI_CC', 'MUNI_RAIL']
         for colLabel, factor in defaultFactors: 
             for mode in modes: 
                 col = colLabel + mode
-                monthly[col] = monthly[col] * factor
+                if col in monthly.columns: 
+                    monthly[col] = monthly[col] * factor
                 
         # append to the output store
         outstore.append('transitMonthly', monthly, data_columns=True)
