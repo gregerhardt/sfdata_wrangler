@@ -73,8 +73,12 @@ class SFMuniDataAggregator():
                 self.pattern_day_count = len(self.trip_outstore.select('pattern_day'))
             if 'route_tod' in keys:
                 self.route_tod_count = len(self.trip_outstore.select('route_tod'))
+            if 'route_tod_tot' in keys:
+                self.route_tod_count = len(self.trip_outstore.select('route_tod_tot'))
             if 'route_day' in keys:
                 self.route_day_count = len(self.trip_outstore.select('route_day'))
+            if 'route_day_tot' in keys:
+                self.route_day_count = len(self.trip_outstore.select('route_day_tot'))
             if 'system_tod' in keys:
                 self.system_tod_count = len(self.trip_outstore.select('system_tod'))
             if 'system_day' in keys:
@@ -555,6 +559,24 @@ class SFMuniDataAggregator():
                 min_itemsize=stringLengths)   
         route_tod_count += len(aggdf)    
 
+        # routes -- both directions
+        print('Processing routes by tod--both directions')              
+        df = instore.select('route_tod')                        
+        df.index = pd.Series(range(0,len(df)))                     
+                
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['MONTH','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME'], 
+                columnSpecs=TRIP_RULES, 
+                level='route', 
+                weight=None)      
+        aggdf.index = route_tod_count + pd.Series(range(0,len(aggdf)))
+        
+        # b/c agg by directions
+        aggdf['OBSDAYS'] = aggdf['OBSDAYS'] / 2
+        
+        outstore.append('route_tod_tot', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)   
+        route_tod_count += len(aggdf)    
 
         print('Processing daily routes')
         df = instore.select('route_day')                        
@@ -571,6 +593,23 @@ class SFMuniDataAggregator():
                 min_itemsize=stringLengths)  
         route_day_count += len(aggdf)     
 
+        print('Processing daily routes--both directions')
+        df = instore.select('route_day')                        
+        df.index = pd.Series(range(0,len(df)))                     
+                
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                groupby=['MONTH','DOW','AGENCY_ID','ROUTE_SHORT_NAME'], 
+                columnSpecs=TRIP_RULES, 
+                level='route', 
+                weight=None)      
+        aggdf.index = route_day_count + pd.Series(range(0,len(aggdf)))
+
+        # b/c agg by directions
+        aggdf['OBSDAYS'] = aggdf['OBSDAYS'] / 2
+        
+        outstore.append('route_day_tot', aggdf, data_columns=True, 
+                min_itemsize=stringLengths)  
+        route_day_count += len(aggdf)     
 
         # system
         print('Processing system by tod')                
@@ -922,7 +961,7 @@ class SFMuniDataAggregator():
             aggMethod[weight] = {weight : 'sum'}
             for col in wgtSumInFields.union(wgtAvgInFields):
                 df['w'+col] = df[weight] * df[col]
-                                                                                                                                 
+        
         # group
         grouped = df.groupby(groupby)
         aggregated = grouped.aggregate(aggMethod)

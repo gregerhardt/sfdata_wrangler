@@ -64,13 +64,7 @@ class TransitReporter():
         ts_store = pd.HDFStore(self.ts_file)
         demand_store = pd.HDFStore(self.demand_file)
         
-        # get list of months
-        months = trip_store.select('system_day', where='DOW=dow')
-        months = months.set_index(pd.DatetimeIndex(months['MONTH']))
-        months = months.resample('M').first()
-        months['MONTH'] = months.index
-        months['MONTH'] = months['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
-        months = months[['MONTH']].copy()
+        
         
         if tod=='Daily': 
             if route_short_name=='All': 
@@ -79,11 +73,8 @@ class TransitReporter():
             else: 
                 # need to aggregate these
                 trips = trip_store.select('route_day_tot', where='DOW=dow & ROUTE_SHORT_NAME=route_short_name')
-                ts = ts_store.select('rs_day', where='DOW=dow & ROUTE_SHORT_NAME=route_short_name')    
-                ts = ts[['MONTH', 'TRIP_STOPS']]
-                ts = ts.groupby('MONTH').aggregate('sum')
-                ts['MONTH'] = ts.index
-                
+                #ts = ts_store.select('rs_day', where='DOW=dow & ROUTE_SHORT_NAME=route_short_name')    
+                ts = trips.copy()
         else:
             if route_short_name=='All': 
                 trips = trip_store.select('system_tod', where='DOW=dow & TOD=tod')
@@ -91,9 +82,8 @@ class TransitReporter():
             else: 
                 # need to aggregate these
                 trips = trip_store.select('route_tod_tot', where='DOW=dow & TOD=tod & ROUTE_SHORT_NAME=route_short_name')
-                ts = ts_store.select('rs_tod', where='DOW=dow & TOD=tod & ROUTE_SHORT_NAME=route_short_name')    
-                ts = ts.groupby('MONTH').aggregate('sum')
-                ts['MONTH'] = ts.index
+                #ts = ts_store.select('rs_tod', where='DOW=dow & TOD=tod & ROUTE_SHORT_NAME=route_short_name')    
+                ts = trips.copy()
         
         
         employment = demand_store.select('countyEmp', where='FIPS=fips')
@@ -117,41 +107,41 @@ class TransitReporter():
         ts['MONTH'] = ts['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
                 
         # now the indices are aligned, so we can just assign
-        df = months
+        df = ts[['MONTH']].copy()
 
         df['TRIPS']          = trips['TRIPS']
-        df['SERVMILES']      = trips['SERVMILES']
-        df['SERVMILES_S']    = trips['SERVMILES_S']
-        df['ON']             = trips['ON']
-        df['RDBRDNGS']       = trips['RDBRDNGS']
-        df['PASSMILES']      = trips['PASSMILES']
-        df['PASSHOURS']      = trips['PASSHOURS']
-        df['WHEELCHAIR']     = trips['WHEELCHAIR']
-        df['BIKERACK']       = trips['BIKERACK']
-        df['RUNSPEED'] 	     = trips['RUNSPEED']
-        df['TOTSPEED'] 	     = trips['TOTSPEED']
-        df['DWELL_PER_STOP'] = trips['DWELL']  / ts['TRIP_STOPS']
-        df['HEADWAY_S']      = trips['HEADWAY_S']
-        df['FARE_PER_PASS']  = trips['FULLFARE_REV'] / trips['ON']
-        df['MILES_PER_PASS'] = trips['PASSMILES'] / trips['ON']
-        df['IVT_PER_PAS']    = (trips['PASSHOURS'] / trips['ON']) * 60.0
+        df['SERVMILES']      = ts['SERVMILES']
+        df['SERVMILES_S']    = ts['SERVMILES_S']
+        df['ON']             = ts['ON']
+        df['RDBRDNGS']       = ts['RDBRDNGS']
+        df['PASSMILES']      = ts['PASSMILES']
+        df['PASSHOURS']      = ts['PASSHOURS']
+        df['WHEELCHAIR']     = ts['WHEELCHAIR']
+        df['BIKERACK']       = ts['BIKERACK']
+        df['RUNSPEED'] 	     = ts['RUNSPEED']
+        df['TOTSPEED'] 	     = ts['TOTSPEED']
+        df['DWELL_PER_STOP'] = ts['DWELL'] / ts['TRIP_STOPS']
+        df['HEADWAY_S']      = ts['HEADWAY_S']
+        df['FARE_PER_PASS']  = ts['FULLFARE_REV'] / ts['ON']
+        df['MILES_PER_PASS'] = ts['PASSMILES'] / ts['ON']
+        df['IVT_PER_PAS']    = (ts['PASSHOURS'] / ts['ON']) * 60.0
         df['PASSPEED']       = (df['MILES_PER_PASS'] / df['IVT_PER_PAS']) * 60.0
-        df['WAIT_PER_PAS']   = (trips['WAITHOURS'] / trips['ON']) * 60.0
-        df['ONTIME5']        = trips['ONTIME5']	
-        df['DELAY_DEP_PER_PASS'] = trips['PASSDELAY_DEP'] / trips['ON']
-        df['DELAY_ARR_PER_PASS'] = trips['PASSDELAY_ARR'] / trips['ON']
+        df['WAIT_PER_PAS']   = (ts['WAITHOURS'] / ts['ON']) * 60.0
+        df['ONTIME5']        = ts['ONTIME5']	
+        df['DELAY_DEP_PER_PASS'] = ts['PASSDELAY_DEP'] / ts['ON']
+        df['DELAY_ARR_PER_PASS'] = ts['PASSDELAY_ARR'] / ts['ON']
         df['VC']             = trips['VC']        
         df['CROWDED']        = trips['CROWDED']   
-        df['CROWDHOURS']     = trips['CROWDHOURS']
-        df['NUMDAYS']        = trips['NUMDAYS']
-        df['OBSDAYS']        = trips['OBSDAYS']
+        df['CROWDHOURS']     = ts['CROWDHOURS']
+        df['NUMDAYS']        = ts['NUMDAYS']
+        df['OBSDAYS']        = ts['OBSDAYS']
         df['OBSERVED_PCT']   = trips['OBS_TRIPS'] / trips['TRIPS']
-        df['MEASURE_ERR']    = trips['OFF'] / trips['ON'] - 1.0
-        df['WEIGHT_ERR']     = trips['SERVMILES'] / trips['SERVMILES_S'] - 1.0
+        df['MEASURE_ERR']    = ts['OFF'] / ts['ON'] - 1.0
+        df['WEIGHT_ERR']     = ts['SERVMILES'] / ts['SERVMILES_S'] - 1.0
 
         # additional fields for estimation
-        df['OFF_MINUS_ON']   = trips['OFF'] - trips['ON']
-        df['SERVMILES_MINUS_SERVMILES_S']   = trips['SERVMILES'] - trips['SERVMILES_S']
+        df['OFF_MINUS_ON']   = ts['OFF'] - ts['ON']
+        df['SERVMILES_MINUS_SERVMILES_S']   = ts['SERVMILES'] - ts['SERVMILES_S']
         
         df['MEASURE_ERR_ON']  = df['MEASURE_ERR'] * df['ON']
         df['WEIGHT_ERR_ON']   = df['WEIGHT_ERR'] * df['ON']
@@ -273,16 +263,6 @@ class TransitReporter():
         # get the routes from the equiv file       
         routes = self.getRouteNames(routeEquivFile)
         
-        # write the first sheet of ridership for each route        
-        trip_store = pd.HDFStore(self.trip_file)
-        df = trip_store.select('route_day_tot', where="DOW=1")
-        df = df[['MONTH', 'ROUTE_SHORT_NAME', 'ON']]
-        df = df.pivot(index='MONTH', columns='ROUTE_SHORT_NAME')
-        trip_store.close()
-         
-        self.writeRouteSummary(df, writer, 'Routes', routes)
-        
-        # now write one sheet for each route
         for route_short_name, route_long_name in routes: 
                 
             # get the actual data
@@ -293,7 +273,7 @@ class TransitReporter():
             months.T.to_excel(writer, sheet_name=route_short_name, 
                                 startrow=11, startcol=4, header=False, index=False)
                     
-        
+    
             # note that we have to call the pandas function first to get the
             # excel sheet created properly, so now we can access that
             workbook  = writer.book
@@ -353,103 +333,6 @@ class TransitReporter():
                 
         return list(zip(equiv['ROUTE_SHORT_NAME'], equiv['ROUTE_LONG_NAME']))
         
-    
-    def writeRouteSummary(self, df, writer, sheet, routes, comments=None):
-        '''
-        Writes a summary of route ridership
-        '''
-        
-        # Write the month as the column headers
-        
-        months = pd.DataFrame(df.index)
-        months = months.set_index(pd.DatetimeIndex(months['MONTH']))
-        months = months.resample('M').first()
-        months['MONTH'] = months.index
-        months['MONTH'] = months['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
-        months.index = months['MONTH']
-        months.T.to_excel(writer, sheet_name='Routes', 
-                                startrow=11, startcol=4, header=False, index=False)
-        
-        # which cells to look at
-        max_col = 3+len(months)+1
-        
-        # time
-        timestring = str(pd.Timestamp(datetime.datetime.now()))
-        timestring = timestring.split('.')[0]
-        
-        # get the worksheet
-        workbook  = writer.book
-        worksheet = writer.sheets[sheet]        
-        
-        # set up the formatting, with defaults
-        bold = workbook.add_format({'bold': 1})
-        int_format = workbook.add_format({'num_format': '#,##0'})
-        dec_format = workbook.add_format({'num_format': '#,##0.00'})
-        money_format = workbook.add_format({'num_format': '$#,##0.00'})
-        percent_format = workbook.add_format({'num_format': '0.0%'})
-        
-        # set the column widths
-        worksheet.set_column(0, 1, 5)
-        worksheet.set_column(0, 1, 8)
-        worksheet.set_column(2, 2, 25)
-        worksheet.set_column(3, 3, 25)
-        
-        # write the header
-        worksheet.write(1, 1, 'SFMTA Transit Performance Report', bold)
-        worksheet.write(3, 1, 'Input Specification', bold)
-        worksheet.write(4, 2, 'Geographic Extent: ')
-        worksheet.write(4, 3, 'All busses, by route')
-        worksheet.write(5, 2, 'Day-of-Week: ')
-        worksheet.write(5, 3, 'Average Weekday')
-        worksheet.write(6, 2, 'Time-of-Day: ')
-        worksheet.write(6, 3, 'Daily')
-        worksheet.write(7, 2, 'Report Generated on: ')
-        worksheet.write(7, 3, timestring)
-        worksheet.write(8, 2, 'Comments: ')      
-        worksheet.write(8, 3, comments)                
-                
-        # Write the data for each route       
-                
-        # HEADER
-        worksheet.write(10, 4, 'Values', bold)
-        worksheet.write(11, 3, 'Trend', bold)
-        
-        worksheet.write(12, 1, 'Route', bold)
-        
-        # write the header
-        row = 13
-        for route_short_name, route_long_name in routes:    
-            if route_short_name in df['ON'].columns: 
-                
-                worksheet.write(row, 1, route_short_name)
-                worksheet.write(row, 2, route_long_name)         
-            
-                worksheet.set_row(row, None, int_format) 
-                row = row + 1
-        
-        # write the data
-        selected = months.copy()
-        for route_short_name, route_long_name in routes:    
-            if route_short_name in df['ON'].columns: 
-                selected[route_short_name] = df['ON'][route_short_name]
-        
-        selected = selected.drop('MONTH', 1)
-        selected.T.to_excel(writer, sheet_name=sheet, 
-                                    startrow=13, startcol=4, header=False, index=False)  
-        
-        # add sparklines
-        r = 13
-        for route_short_name, route_long_name in routes:    
-            if route_short_name in df['ON'].columns: 
-                cell = xl_rowcol_to_cell(r, 3)
-                data_range = xl_rowcol_to_cell(r, 4) + ':' + xl_rowcol_to_cell(r, max_col)
-                worksheet.add_sparkline(cell, {'range': data_range})   
-                r = r + 1
-                
-        # freeze so we can see what's happening
-        worksheet.freeze_panes(0, 4)
-        
-    
     
     def writeSystemValues(self, df, writer, months, sheet):
         '''
@@ -2050,6 +1933,8 @@ class TransitReporter():
                 
         # get a filename for the differences
         base = os.path.splitext(estfile)
+        estfileDiff = base[0] + '_diff' + base[1]
+
 
         # get the data
         muni = self.assembleSystemPerformanceData(fips, dow=dow, tod=tod)
@@ -2081,9 +1966,24 @@ class TransitReporter():
         df['BART_STRIKE_DAYS'] = 0
         df['BART_STRIKE_DAYS'] = np.where(df['MONTH']==pd.to_datetime('2013-07-01'), 4, df['BART_STRIKE_DAYS'])
         df['BART_STRIKE_DAYS'] = np.where(df['MONTH']==pd.to_datetime('2013-10-01'), 3, df['BART_STRIKE_DAYS'])
-                
+        
+        # calcluate the diff from 12 months before
+        diff = pd.DataFrame()
+        for col in df.columns: 
+            if df[col].dtype=='object': 
+                diff[col] = df[col] + '-' + df[col].shift(12)
+            elif df[col].dtype=='datetime64[ns]':
+                diff[col] = df[col]
+            else: 
+                diff[col] = df[col] - df[col].shift(12)
+        diff = diff[12:]
+        
+        # and a bit of clean up
+        diff['MONTH_NUM'] = diff['MONTH'].apply(lambda x: x.month)
+
         # write the data
         df.to_csv(estfile)
+        diff.to_csv(estfileDiff)
 
 
     def writeBARTEstimationFile(self, estfile, fipsList):
