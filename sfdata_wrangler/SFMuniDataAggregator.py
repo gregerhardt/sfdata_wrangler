@@ -128,7 +128,7 @@ class SFMuniDataAggregator():
                 ['NUMSTOPS'          ,'SEQ'         ,self.countUnique,'trip' ,'int64'     , 0],                 
                 ['TRIP_ID'           ,'TRIP_ID'           ,'first'   ,'trip' ,'int64'     , 0],         # trip attributes  
                 ['PATTCODE'          ,'PATTCODE'          ,'first'   ,'trip' ,'int64'     , 0],  
-       	        ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'trip' ,'object'    ,32],         # route attributes    
+                ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'trip' ,'object'    ,32],         # route attributes    
                 ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'trip' ,'int64'     , 0], 
                 ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'trip' ,'object'    ,64],   
                 ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'trip' ,'float64'   , 0],   
@@ -360,13 +360,109 @@ class SFMuniDataAggregator():
                     weight=None)      
             aggdf.index = rs_tod_count + pd.Series(range(0,len(aggdf)))
     
-            outstore.append('rs_tod', aggdf, data_columns=True, 
+            outstore.append('rs_tod_observed_only', aggdf, data_columns=True, 
                     min_itemsize=stringLengths)          
             rs_tod_count += len(aggdf)
     
         instore.close()
         outstore.close()
 
+        
+    def imputeMissingTripStops(self, monthly_file):
+        """
+        Sometimes, there are no observed trips in a time period for 
+        the whole month.  When that happens, impute the values by taking
+        the matching value from the previous month. 
+        """
+        
+        stringLengths =  {'AGENCY_ID'       : 10,  
+                          'TOD'             : 10,    
+                          'ROUTE_SHORT_NAME': 32, 
+                          'ROUTE_LONG_NAME' : 32,          
+                          'TRIP_HEADSIGN'   : 64,   
+                          'STOPNAME'        : 64,         
+                          'STOPNAME_AVL'    : 32
+                          }
+        
+        impute_cols = ['TIMEPOINT', 
+                       'ARRIVAL_TIME_DEV',    
+                       'DEPARTURE_TIME_DEV',  
+                       'DWELL',   
+                       'RUNTIME', 
+                       'TOTTIME', 
+                       'SERVMILES',   
+                       'RUNSPEED',    
+                       'TOTSPEED',    
+                       'ONTIME5',  
+                       'ON',      
+                       'OFF',    
+                       'LOAD_ARR',    
+                       'LOAD_DEP',   
+                       'PASSMILES',   
+                       'PASSHOURS',   
+                       'WAITHOURS',   
+                       'FULLFARE_REV',    
+                       'PASSDELAY_DEP',   
+                       'PASSDELAY_ARR',   
+                       'RDBRDNGS',    
+                       'DOORCYCLES',  
+                       'WHEELCHAIR',  
+                       'BIKERACK',    
+                       'CAPACITY',    
+                       'VC',  
+                       'CROWDED', 
+                       'CROWDHOURS'
+                       ]
+        
+        # open the output file
+        store = pd.HDFStore(monthly_file)
+        
+        keys = store.keys()
+        if '/rs_tod' in keys: 
+            store.remove('rs_tod')
+            
+        # do this month-by-month to match properly
+        months = sorted(store.select_column('rs_tod_observed_only', 'MONTH').unique())
+        print('Imputing missing data for %i months' % len(months))
+        
+        prev_month = pd.to_datetime('1900-01-01')
+        for month in months: 
+            print('Processing month ', month)
+        
+            # get current data
+            df = store.select('rs_tod_observed_only', where='MONTH=Timestamp(month)')  
+            
+            # set imputed trip stops and colums to keep
+            df['IMP_TRIP_STOPS'] = 0.
+            cols = df.columns
+            
+            # so we can skip first month and missing months
+            if prev_month in months: 
+                df_prev = store.select('rs_tod', where='MONTH=Timestamp(prev_month)')  
+                
+                # match
+                df = pd.merge(df, df_prev, 
+                              how='left', 
+                              on=['DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
+                              suffixes=['', '_PREV'], 
+                              sort=True) 
+                
+                # fill missing values
+                for col in impute_cols: 
+                    df[col] = np.where(df['OBS_TRIP_STOPS']==0, df[col+'_PREV'], df[col])
+                
+                # make sure we know what is imputed
+                df['IMP_TRIP_STOPS'] = np.where(df['OBS_TRIP_STOPS']==0, df['OBS_TRIP_STOPS_PREV'] + df['IMP_TRIP_STOPS_PREV'], 0)
+                                
+            # write the processed data and increment
+            df = df[cols]
+            store.append('rs_tod', df, data_columns=True, 
+                    min_itemsize=stringLengths)
+            
+            prev_month = month
+    
+        store.close()
+    
         
     def aggregateMonthlyTripStops(self, monthly_file):
         """
@@ -384,7 +480,8 @@ class SFMuniDataAggregator():
                 ['NUMDAYS'           ,'NUMDAYS'           ,'max'     ,'system' ,'int64'     , 0],         # stats for observations
                 ['OBSDAYS'           ,'OBSDAYS'           ,'wgtAvg'  ,'system' ,'float64'   , 0],      
                 ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'system' ,'int64'     , 0],                    
-                ['OBS_TRIP_STOPS'    ,'OBS_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],
+                ['OBS_TRIP_STOPS'    ,'OBS_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],              
+                ['IMP_TRIP_STOPS'    ,'IMP_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],
                 ['WGT_TRIP_STOPS'    ,'WGT_TRIP_STOPS'    ,'sum'     ,'system' ,'float64'   , 0], 
                 ['STOP_ID'           ,'STOP_ID'           ,'first'   ,'route_stop','int64'  , 0],        
                 ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route_stop','object' ,32],         # route attributes    
@@ -500,10 +597,12 @@ class SFMuniDataAggregator():
                 ['NUMDAYS'           ,'NUMDAYS'           ,'max'     ,'system' ,'int64'     , 0],         # stats for observations
                 ['OBSDAYS'           ,'OBSDAYS'           ,'wgtAvg'  ,'system' ,'float64'   , 0],           
                 ['TRIPS'             ,'TRIP_STOPS'        ,'max'     ,'system' ,'int64'     , 0],                    
-                ['OBS_TRIPS'         ,'OBS_TRIP_STOPS'    ,'max'     ,'system' ,'int64'     , 0],
+                ['OBS_TRIPS'         ,'OBS_TRIP_STOPS'    ,'max'     ,'system' ,'int64'     , 0],           
+                ['IMP_TRIPS'         ,'IMP_TRIP_STOPS'    ,'max'     ,'system' ,'int64'     , 0],
                 ['WGT_TRIPS'         ,'WGT_TRIP_STOPS'    ,'max'     ,'system' ,'float64'   , 0], 
                 ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'system' ,'int64'     , 0],                    
-                ['OBS_TRIP_STOPS'    ,'OBS_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],
+                ['OBS_TRIP_STOPS'    ,'OBS_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],                
+                ['IMP_TRIP_STOPS'    ,'IMP_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],
                 ['WGT_TRIP_STOPS'    ,'WGT_TRIP_STOPS'    ,'sum'     ,'system' ,'float64'   , 0],      
                 ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route'  ,'object'    ,32],         # route attributes    
                 ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route'  ,'int64'     , 0], 
@@ -552,7 +651,7 @@ class SFMuniDataAggregator():
         
         # remove the tables to be replaced
         keys = outstore.keys()
-        if '/route_tod' in keys: 
+        if '/route_dir_tod' in keys: 
             outstore.remove('route_tod')
         
         # get the data--route stop by TOD
@@ -566,7 +665,7 @@ class SFMuniDataAggregator():
                     level='route', 
                     weight='TRIP_STOPS')
     
-        outstore.append('route_tod', aggdf, data_columns=True, 
+        outstore.append('route_dir_tod', aggdf, data_columns=True, 
                     min_itemsize=stringLengths)    
         
     
@@ -584,10 +683,12 @@ class SFMuniDataAggregator():
                 ['NUMDAYS'           ,'NUMDAYS'           ,'max'     ,'system' ,'int64'     , 0],         # stats for observations
                 ['OBSDAYS'           ,'OBSDAYS'           ,'wgtAvg'  ,'system' ,'float64'   , 0],           
                 ['TRIPS'             ,'TRIPS'             ,'sum'     ,'system' ,'int64'     , 0],                    
-                ['OBS_TRIPS'         ,'OBS_TRIPS'         ,'sum'     ,'system' ,'int64'     , 0],
+                ['OBS_TRIPS'         ,'OBS_TRIPS'         ,'sum'     ,'system' ,'int64'     , 0],              
+                ['IMP_TRIPS'         ,'IMP_TRIPS'         ,'sum'     ,'system' ,'int64'     , 0],
                 ['WGT_TRIPS'         ,'WGT_TRIPS'         ,'sum'     ,'system' ,'float64'   , 0], 
                 ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'system' ,'int64'     , 0],                    
-                ['OBS_TRIP_STOPS'    ,'OBS_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],
+                ['OBS_TRIP_STOPS'    ,'OBS_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],                   
+                ['IMP_TRIP_STOPS'    ,'IMP_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],
                 ['WGT_TRIP_STOPS'    ,'WGT_TRIP_STOPS'    ,'sum'     ,'system' ,'float64'   , 0],      
                 ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route','object' ,32],         # route attributes    
                 ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route','int64'  , 0], 
@@ -628,26 +729,26 @@ class SFMuniDataAggregator():
                 ['CROWDHOURS'        ,'CROWDHOURS'        ,'sum'     ,'system' ,'float64'   , 0]  
                 ]
 
-        print('Aggregating route stops to routes') 
+        print('Aggregating routes to days') 
 
         # establish the output file      
         store = pd.HDFStore(monthly_trip_file)
         
         # remove the tables to be replaced
         keys = store.keys()
+        if '/route_dir_day' in keys: 
+            store.remove('route_dir_day')
+        if '/route_tod' in keys: 
+            store.remove('route_tod')
         if '/route_day' in keys: 
             store.remove('route_day')
-        if '/route_tod_tot' in keys: 
-            store.remove('route_tod_tot')
-        if '/route_day_tot' in keys: 
-            store.remove('route_day_tot')
         if '/system_tod' in keys: 
             store.remove('system_tod')
         if '/system_day' in keys: 
             store.remove('system_day')
         
         # get the data--route stop by TOD
-        df = store.select('route_tod')                        
+        df = store.select('route_dir_tod')                        
         df.index = pd.Series(range(0,len(df)))      
         
         # routes by day and direction
@@ -657,7 +758,7 @@ class SFMuniDataAggregator():
                     level='route', 
                     weight='TRIPS')
     
-        store.append('route_day', aggdf, data_columns=True, 
+        store.append('route_dir_day', aggdf, data_columns=True, 
                     min_itemsize=stringLengths)    
                     
         # routes by time-of-day 
@@ -667,7 +768,7 @@ class SFMuniDataAggregator():
                     level='route', 
                     weight='TRIPS')
     
-        store.append('route_tod_tot', aggdf, data_columns=True, 
+        store.append('route_tod', aggdf, data_columns=True, 
                     min_itemsize=stringLengths)                        
         
         # routes by day 
@@ -677,7 +778,7 @@ class SFMuniDataAggregator():
                     level='route', 
                     weight='TRIPS')
     
-        store.append('route_day_tot', aggdf, data_columns=True, 
+        store.append('route_day', aggdf, data_columns=True, 
                     min_itemsize=stringLengths)    
     
         # system by time-of-day 
