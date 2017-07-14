@@ -75,25 +75,14 @@ class TransitReporter():
         if tod=='Daily': 
             if route_short_name=='All': 
                 trips = trip_store.select('system_day', where='DOW=dow')
-                ts = ts_store.select('system_day_s', where='DOW=dow') 
             else: 
-                # need to aggregate these
-                trips = trip_store.select('route_day_tot', where='DOW=dow & ROUTE_SHORT_NAME=route_short_name')
-                ts = ts_store.select('rs_day', where='DOW=dow & ROUTE_SHORT_NAME=route_short_name')    
-                ts = ts[['MONTH', 'TRIP_STOPS']]
-                ts = ts.groupby('MONTH').aggregate('sum')
-                ts['MONTH'] = ts.index
+                trips = trip_store.select('route_day', where='DOW=dow & ROUTE_SHORT_NAME=route_short_name')
                 
         else:
             if route_short_name=='All': 
                 trips = trip_store.select('system_tod', where='DOW=dow & TOD=tod')
-                ts = ts_store.select('system_tod_s', where='DOW=dow & TOD=tod')   
             else: 
-                # need to aggregate these
-                trips = trip_store.select('route_tod_tot', where='DOW=dow & TOD=tod & ROUTE_SHORT_NAME=route_short_name')
-                ts = ts_store.select('rs_tod', where='DOW=dow & TOD=tod & ROUTE_SHORT_NAME=route_short_name')    
-                ts = ts.groupby('MONTH').aggregate('sum')
-                ts['MONTH'] = ts.index
+                trips = trip_store.select('route_tod', where='DOW=dow & TOD=tod & ROUTE_SHORT_NAME=route_short_name')
         
         
         employment = demand_store.select('countyEmp', where='FIPS=fips')
@@ -110,11 +99,6 @@ class TransitReporter():
         trips = trips.resample('M').first()
         trips['MONTH'] = trips.index
         trips['MONTH'] = trips['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
-
-        ts = ts.set_index(pd.DatetimeIndex(ts['MONTH']))
-        ts = ts.resample('M').first()
-        ts['MONTH'] = ts.index
-        ts['MONTH'] = ts['MONTH'].apply(pd.DateOffset(days=1)).apply(pd.DateOffset(months=-1))
                 
         # now the indices are aligned, so we can just assign
         df = months
@@ -130,7 +114,7 @@ class TransitReporter():
         df['BIKERACK']       = trips['BIKERACK']
         df['RUNSPEED'] 	     = trips['RUNSPEED']
         df['TOTSPEED'] 	     = trips['TOTSPEED']
-        df['DWELL_PER_STOP'] = trips['DWELL']  / ts['TRIP_STOPS']
+        df['DWELL_PER_STOP'] = trips['DWELL']  / trips['TRIP_STOPS']
         df['HEADWAY_S']      = trips['HEADWAY_S']
         df['FARE_PER_PASS']  = trips['FULLFARE_REV'] / trips['ON']
         df['MILES_PER_PASS'] = trips['PASSMILES'] / trips['ON']
@@ -146,6 +130,7 @@ class TransitReporter():
         df['NUMDAYS']        = trips['NUMDAYS']
         df['OBSDAYS']        = trips['OBSDAYS']
         df['OBSERVED_PCT']   = trips['OBS_TRIPS'] / trips['TRIPS']
+        df['IMPUTED_PCT']    = trips['IMP_TRIPS'] / trips['TRIPS']
         df['MEASURE_ERR']    = trips['OFF'] / trips['ON'] - 1.0
         df['WEIGHT_ERR']     = trips['SERVMILES'] / trips['SERVMILES_S'] - 1.0
 
@@ -275,7 +260,7 @@ class TransitReporter():
         
         # write the first sheet of ridership for each route        
         trip_store = pd.HDFStore(self.trip_file)
-        df = trip_store.select('route_day_tot', where="DOW=1")
+        df = trip_store.select('route_day', where="DOW=1")
         df = df[['MONTH', 'ROUTE_SHORT_NAME', 'ON']]
         df = df.pivot(index='MONTH', columns='ROUTE_SHORT_NAME')
         trip_store.close()
@@ -605,21 +590,23 @@ class TransitReporter():
         worksheet.write(42, 1, 'Observations & Error', bold)       
         worksheet.write(43, 2, 'Number of Days')       
         worksheet.write(44, 2, 'Days with Observations')       
-        worksheet.write(45, 2, 'Percent of Trips Observed')      
-        worksheet.write(46, 2, 'Measurement Error (ON/OFF-1)')       
-        worksheet.write(47, 2, 'Weighting Error (SERVMILES/SERVMILES_S-1)')      
+        worksheet.write(45, 2, 'Percent of Trips Observed')    
+        worksheet.write(46, 2, 'Percent of Trips Imputed')      
+        worksheet.write(47, 2, 'Measurement Error (ON/OFF-1)')       
+        worksheet.write(48, 2, 'Weighting Error (SERVMILES/SERVMILES_S-1)')      
 
         worksheet.set_row(43, None, int_format) 
         worksheet.set_row(44, None, int_format) 
         worksheet.set_row(45, None, percent_format) 
         worksheet.set_row(46, None, percent_format)
         worksheet.set_row(47, None, percent_format)
+        worksheet.set_row(48, None, percent_format)
 
-        selected = df[['NUMDAYS', 'OBSDAYS', 'OBSERVED_PCT', 'MEASURE_ERR', 'WEIGHT_ERR']]
+        selected = df[['NUMDAYS', 'OBSDAYS', 'OBSERVED_PCT', 'IMPUTED_PCT', 'MEASURE_ERR', 'WEIGHT_ERR']]
         selected.T.to_excel(writer, sheet_name=sheet, 
                             startrow=43, startcol=4, header=False, index=False)  
         
-        for r in range(43,48):
+        for r in range(43,49):
             cell = xl_rowcol_to_cell(r, 3)
             data_range = xl_rowcol_to_cell(r, 4) + ':' + xl_rowcol_to_cell(r, max_col)
             worksheet.add_sparkline(cell, {'range': data_range})
@@ -631,7 +618,7 @@ class TransitReporter():
         from 12 months earlier. 
         '''
         # which cells to look at
-        ROW_OFFSET = 40
+        ROW_OFFSET = 41
         COL_OFFSET = 12
         max_col = 3+len(months)+1
         
@@ -647,16 +634,16 @@ class TransitReporter():
         percent_format = workbook.add_format({'num_format': '0.0%'})
         
         # the header and labels
-        worksheet.write(50,4, 'Difference from 12 Months Before', bold)
-        worksheet.write(51,3, 'Difference Trend', bold)
+        worksheet.write(51,4, 'Difference from 12 Months Before', bold)
+        worksheet.write(52,3, 'Difference Trend', bold)
         months.T.to_excel(writer, sheet_name=sheet, 
                             startrow=51, startcol=4, header=False, index=False)   
         
         
         # DRIVERS OF DEMAND
-        worksheet.write(52, 1, 'Drivers of Demand', bold)        
+        worksheet.write(53, 1, 'Drivers of Demand', bold)        
         
-        for r in range(53,56):
+        for r in range(54,57):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -674,9 +661,9 @@ class TransitReporter():
                                            'negative_points': True})      
                 
         # SERVICE
-        worksheet.write(56, 1, 'Service Provided', bold)        
+        worksheet.write(57, 1, 'Service Provided', bold)        
         
-        for r in range(57,59):
+        for r in range(58,60):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -694,9 +681,9 @@ class TransitReporter():
                                            'negative_points': True})      
         
         # RIDERSHIP
-        worksheet.write(59, 1, 'Ridership', bold)      
+        worksheet.write(60, 1, 'Ridership', bold)      
             
-        for r in range(60,66):
+        for r in range(61,67):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -714,9 +701,9 @@ class TransitReporter():
                                            'negative_points': True})      
         
         # LEVEL-OF-SERVICE
-        worksheet.write(66, 1, 'Level-of-Service', bold)      
+        worksheet.write(67, 1, 'Level-of-Service', bold)      
         
-        for r in range(67,75):
+        for r in range(68,76):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -733,12 +720,12 @@ class TransitReporter():
                                            'type': 'column', 
                                            'negative_points': True})      
                            
-        worksheet.set_row(71, None, money_format) 
+        worksheet.set_row(72, None, money_format) 
         
         # RELIABILITY
-        worksheet.write(75, 1, 'Reliability', bold)    
+        worksheet.write(76, 1, 'Reliability', bold)    
         
-        for r in range(76,79):
+        for r in range(77,80):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -755,12 +742,12 @@ class TransitReporter():
                                            'type': 'column', 
                                            'negative_points': True})      
                         
-        worksheet.set_row(76, None, percent_format)      
+        worksheet.set_row(77, None, percent_format)      
         
         # CROWDING
-        worksheet.write(79, 1, 'Crowding', bold)   
+        worksheet.write(80, 1, 'Crowding', bold)   
         
-        for r in range(80,82):
+        for r in range(81,83):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -777,8 +764,8 @@ class TransitReporter():
                                            'type': 'column', 
                                            'negative_points': True})      
                           
-        worksheet.set_row(80, None, dec_format)              
-        worksheet.set_row(81, None, percent_format) 
+        worksheet.set_row(81, None, dec_format)              
+        worksheet.set_row(82, None, percent_format) 
         
         
     def writeSystemPercentDifferenceFormulas(self, writer, months, sheet): 
@@ -787,7 +774,7 @@ class TransitReporter():
         from 12 months earlier. 
         '''
         # which cells to look at
-        ROW_OFFSET = 74
+        ROW_OFFSET = 75
         COL_OFFSET = 12
         max_col = 3+len(months)+1
         
@@ -800,15 +787,15 @@ class TransitReporter():
         percent_format = workbook.add_format({'num_format': '0.0%'})
         
         # the header and labels
-        worksheet.write(84,4, 'Percent Difference from 12 Months Before', bold)
-        worksheet.write(85,3, 'Percent Difference Trend', bold)
+        worksheet.write(85,4, 'Percent Difference from 12 Months Before', bold)
+        worksheet.write(86,3, 'Percent Difference Trend', bold)
         months.T.to_excel(writer, sheet_name=sheet, 
                             startrow=85, startcol=4, header=False, index=False)   
         
         # DRIVERS OF DEMAND
-        worksheet.write(86, 1, 'Drivers of Demand', bold)        
+        worksheet.write(87, 1, 'Drivers of Demand', bold)        
         
-        for r in range(87,90):
+        for r in range(88,89):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -826,9 +813,9 @@ class TransitReporter():
                                            'negative_points': True})   
 
         # SERVICE
-        worksheet.write(90, 1, 'Service Provided', bold)        
+        worksheet.write(91, 1, 'Service Provided', bold)        
         
-        for r in range(91,93):
+        for r in range(92,94):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -846,9 +833,9 @@ class TransitReporter():
                                            'negative_points': True})      
         
         # RIDERSHIP
-        worksheet.write(93, 1, 'Ridership', bold)      
+        worksheet.write(94, 1, 'Ridership', bold)      
             
-        for r in range(94,100):
+        for r in range(95,101):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -866,9 +853,9 @@ class TransitReporter():
                                            'negative_points': True})      
         
         # LEVEL-OF-SERVICE
-        worksheet.write(100, 1, 'Level-of-Service', bold)      
+        worksheet.write(101, 1, 'Level-of-Service', bold)      
         
-        for r in range(101,109):
+        for r in range(102,110):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -887,9 +874,9 @@ class TransitReporter():
                            
         
         # RELIABILITY
-        worksheet.write(109, 1, 'Reliability', bold)    
+        worksheet.write(110, 1, 'Reliability', bold)    
         
-        for r in range(110,113):
+        for r in range(111,114):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -908,9 +895,9 @@ class TransitReporter():
                         
         
         # CROWDING
-        worksheet.write(113, 1, 'Crowding', bold)   
+        worksheet.write(114, 1, 'Crowding', bold)   
         
-        for r in range(114,116):
+        for r in range(115,117):
             cell = xl_rowcol_to_cell(r, 2)
             label = xl_rowcol_to_cell(r-ROW_OFFSET, 2)
             worksheet.write_formula(cell, '='+label)
@@ -1560,16 +1547,16 @@ class TransitReporter():
         # open and join the input fields
         mm_store = pd.HDFStore(self.multimodal_file)
         demand_store = pd.HDFStore(self.demand_file)
-        ts_store = pd.HDFStore(self.ts_file)
+        trip_store = pd.HDFStore(self.trip_file)
         
         transit = mm_store.select('transitAnnual')
         fares = mm_store.select('transitFareAnnual')
         acs = demand_store.select('countyACSannual', where="FIPS=fips")
         
         # get and aggregate monthly bordings        
-        ts = ts_store.select('system_day_s', where='DOW=1') 
-        muni = ts[['MONTH']].copy()
-        muni['APC_ON_MUNI_BUS'] = ts['ON']
+        trips = trip_store.select('system_day', where='DOW=1') 
+        muni = trips[['MONTH']].copy()
+        muni['APC_ON_MUNI_BUS'] = trips['ON']
         muni['FISCAL_YEAR'] = muni['MONTH'].apply(lambda x: (x + pd.DateOffset(months=6)).year)
         muni_annual = muni.groupby('FISCAL_YEAR').agg('mean').reset_index()
         
@@ -1581,7 +1568,7 @@ class TransitReporter():
         # close files
         mm_store.close()
         demand_store.close()
-        ts_store.close()
+        trip_store.close()
 
         # start with the population, which has the longest time-series, 
         # and join all the others with the month being equivalent
@@ -1601,7 +1588,7 @@ class TransitReporter():
         # open and join the input fields
         mm_store = pd.HDFStore(self.multimodal_file)
         demand_store = pd.HDFStore(self.demand_file)
-        ts_store = pd.HDFStore(self.ts_file)
+        trip_store = pd.HDFStore(self.trip_file)
         gtfs_store = pd.HDFStore(self.gtfs_file)
         
         transit = mm_store.select('transitMonthly')
@@ -1619,14 +1606,14 @@ class TransitReporter():
         servmiles_extrapolated = mm_store.select('exrapolatedServiceMiles')
         
         # more specific data
-        ts = ts_store.select('system_day_s', where='DOW=1') 
-        muni = ts[['MONTH']].copy()
-        muni['APC_ON_MUNI_BUS'] = ts['ON']
+        trips = trip_store.select('system_day', where='DOW=1') 
+        muni = trips[['MONTH']].copy()
+        muni['APC_ON_MUNI_BUS'] = trips['ON']
         bart['APC_ON_BART'] = bart['RIDERS']
         
         mm_store.close()
         demand_store.close()
-        ts_store.close()
+        trip_store.close()
         gtfs_store.close()
 
         # join all the others with the month being equivalent
