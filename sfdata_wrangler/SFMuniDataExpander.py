@@ -411,7 +411,7 @@ class SFMuniDataExpander():
                             
                         # add weights to trip-stop df                          
                         mergeFields = ['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'TRIP']
-                        weightFields = ['PATTERN', 'TRIP_WEIGHT', 'TOD_WEIGHT', 'DAY_WEIGHT', 'SYSTEM_WEIGHT'] 
+                        weightFields = ['PATTERN', 'TRIP_WEIGHT', 'TOD_WEIGHT'] 
                         tripWeights = trips[mergeFields + weightFields]            
                         ts = pd.merge(joined, tripWeights, how='left', on=mergeFields, sort=True)  
                             
@@ -429,8 +429,7 @@ class SFMuniDataExpander():
                                             min_itemsize=stringLengths)                            
                         
                         # aggregate to TOD and daily totals, and write those
-                        self.aggregator.aggregateTripsToDays(trips)
-                        self.aggregator.aggregateTripStopsToDays(ts)
+                        self.aggregator.aggregateTripStopsByTimeOfDay(ts)
                         
                                             
                 trip_outstore.close()
@@ -616,16 +615,7 @@ class SFMuniDataExpander():
         trips['TOD_WEIGHT'] = calcWeights(trips, 
                 groupby=['DATE','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
                 oldWeight='TRIP_WEIGHT')
-    
-        trips['DAY_WEIGHT'] = calcWeights(trips, 
-                groupby=['DATE','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                oldWeight='TOD_WEIGHT')
-        
-        # system
-        trips['SYSTEM_WEIGHT'] = calcWeights(trips, 
-                groupby=['DATE','TOD','AGENCY_ID'], 
-                oldWeight='DAY_WEIGHT')
-                
+                    
         return trips
                         
         

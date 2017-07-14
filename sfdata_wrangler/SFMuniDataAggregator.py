@@ -184,128 +184,7 @@ class SFMuniDataAggregator():
         return aggdf
 
     
-    def aggregateTripsToDays(self, df):
-        """
-        Aggregates weighted data to daily totals.  
-            Does this at different levels of aggregation for:
-            pattern_tod, pattern_day, route_tod, route_day, system_tod, system_day
-        
-        """
-                    
-        # specify 'none' as aggregation method if we want to include the 
-        #   output field, but it is calculated separately
-        #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
-        TRIP_RULES = [              
-                ['MONTH'             ,'MONTH'             ,'first'   ,'system' ,'datetime64', 0],           
-                ['SCHED_DATES'       ,'SCHED_DATES'       ,'first'   ,'system' ,'object'    ,20],          
-                ['NUMDAYS'           ,'DATE'        ,self.countUnique,'system' ,'int64'     , 0],         # stats for observations
-                ['TRIPS'             ,'TRIPS'             ,'sum'     ,'system' ,'int64'     , 0],         #  note: attributes from schedule/gtfs should be unweighted             
-                ['OBS_TRIPS'         ,'OBSERVED'          ,'sum'     ,'system' ,'int64'     , 0],
-                ['WGT_TRIPS'         ,'TRIPS'             ,'wgtSum'  ,'system' ,'float64'   , 0],  
-                ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route'  ,'object'    ,32],         # route attributes    
-                ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route'  ,'int64'     , 0], 
-                ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route'  ,'object'    ,64],   
-                ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'system' ,'float64'   , 0],   
-                ['FARE'              ,'FARE'              ,'mean'    ,'system' ,'float64'   , 0],    
-                ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'wgtAvg'  ,'route'  ,'float64'   , 0],         # times 
-                ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','wgtAvg'  ,'route'  ,'float64'   , 0],   
-                ['DWELL_S'           ,'DWELL_S'           ,'sum'     ,'system' ,'float64'   , 0],
-                ['DWELL'             ,'DWELL'             ,'wgtSum'  ,'system' ,'float64'   , 0],    
-                ['RUNTIME_S'         ,'RUNTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
-                ['RUNTIME'           ,'RUNTIME'           ,'wgtSum'  ,'system' ,'float64'   , 0],       
-                ['TOTTIME_S'         ,'TOTTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
-                ['TOTTIME'           ,'TOTTIME'           ,'wgtSum'  ,'system' ,'float64'   , 0], 
-                ['SERVMILES_S'       ,'SERVMILES_S'       ,'sum'     ,'system' ,'float64'   , 0],
-                ['SERVMILES'         ,'SERVMILES'         ,'wgtSum'  ,'system' ,'float64'   , 0],
-                ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
-                ['RUNSPEED'          ,'RUNSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],    
-                ['TOTSPEED_S'        ,'TOTSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
-                ['TOTSPEED'          ,'TOTSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],                 
-                ['ONTIME5'           ,'ONTIME5'           ,'wgtAvg'  ,'system' ,'float64'   , 0],              
-                ['ON'                ,'ON'                ,'wgtSum'  ,'system' ,'float64'   , 0],         # ridership   
-                ['OFF'               ,'OFF'               ,'wgtSum'  ,'system' ,'float64'   , 0],            
-                ['PASSMILES'         ,'PASSMILES'         ,'wgtSum'  ,'system' ,'float64'   , 0],   
-                ['PASSHOURS'         ,'PASSHOURS'         ,'wgtSum'  ,'system' ,'float64'   , 0],  
-                ['WAITHOURS'         ,'WAITHOURS'         ,'wgtSum'  ,'system' ,'float64'   , 0],  
-                ['FULLFARE_REV'      ,'FULLFARE_REV'      ,'wgtSum'  ,'system' ,'float64'   , 0],               
-                ['PASSDELAY_DEP'     ,'PASSDELAY_DEP'     ,'wgtSum'  ,'system' ,'float64'   , 0],   
-                ['PASSDELAY_ARR'     ,'PASSDELAY_ARR'     ,'wgtSum'  ,'system' ,'float64'   , 0],  
-                ['RDBRDNGS'          ,'RDBRDNGS'          ,'wgtSum'  ,'system' ,'float64'   , 0],     
-                ['DOORCYCLES'        ,'DOORCYCLES'        ,'wgtSum'  ,'system' ,'float64'   , 0],   
-                ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'wgtSum'  ,'system' ,'float64'   , 0],  
-                ['BIKERACK'          ,'BIKERACK'          ,'wgtSum'  ,'system' ,'float64'   , 0],   
-                ['VC'                ,'VC'                ,'wgtAvg'  ,'system' ,'float64'   , 0],        # crowding
-                ['CROWDED'           ,'CROWDED'           ,'wgtAvg'  ,'system' ,'float64'   , 0],   
-                ['CROWDHOURS'        ,'CROWDHOURS'        ,'wgtSum'  ,'system' ,'float64'   , 0]  
-                ]
-                    
-        # patterns
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
-                columnSpecs=TRIP_RULES, 
-                level='route', 
-                weight='TOD_WEIGHT')
-        aggdf.index = self.pattern_tod_count + pd.Series(range(0,len(aggdf)))
-        self.trip_outstore.append('pattern_tod', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        self.pattern_tod_count += len(aggdf)
-    
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
-                columnSpecs=TRIP_RULES, 
-                level='route', 
-                weight='DAY_WEIGHT')
-        aggdf.index = self.pattern_day_count + pd.Series(range(0,len(aggdf)))
-        self.trip_outstore.append('pattern_day', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)  
-        self.pattern_day_count += len(aggdf) 
-
-
-        # routes
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                columnSpecs=TRIP_RULES, 
-                level='route', 
-                weight='TOD_WEIGHT')
-        aggdf.index = self.route_tod_count + pd.Series(range(0,len(aggdf)))
-        self.trip_outstore.append('route_tod', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        self.route_tod_count += len(aggdf)
-    
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                columnSpecs=TRIP_RULES, 
-                level='route', 
-                weight='DAY_WEIGHT')
-        aggdf.index = self.route_day_count + pd.Series(range(0,len(aggdf)))
-        self.trip_outstore.append('route_day', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)  
-        self.route_day_count += len(aggdf) 
-    
-        # system
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','TOD','AGENCY_ID'], 
-                columnSpecs=TRIP_RULES, 
-                level='system', 
-                weight='SYSTEM_WEIGHT')      
-        aggdf.index = self.system_tod_count + pd.Series(range(0,len(aggdf))) 
-        self.trip_outstore.append('system_tod', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        self.system_tod_count += len(aggdf)
-    
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','AGENCY_ID'], 
-                columnSpecs=TRIP_RULES, 
-                level='system', 
-                weight='SYSTEM_WEIGHT')     
-        aggdf.index = self.system_day_count + pd.Series(range(0,len(aggdf)))                       
-        self.trip_outstore.append('system_day', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        self.system_day_count += len(aggdf)
-            
-
-    
-    def aggregateTripStopsToDays(self, df):
+    def aggregateTripStopsByTimeOfDay(self, df):
         """
         Aggregates weighted data to daily totals.  
             Does this at different levels of aggregation for:
@@ -323,7 +202,7 @@ class SFMuniDataAggregator():
                 ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'system' ,'int64'     , 0],         #  note: attributes from schedule/gtfs should be unweighted             
                 ['OBS_TRIP_STOPS'    ,'OBSERVED'          ,'sum'     ,'system' ,'int64'     , 0],
                 ['WGT_TRIP_STOPS'    ,'TRIP_STOPS'        ,'wgtSum'  ,'system' ,'float64'   , 0], 
-   	        ['STOP_ID'           ,'STOP_ID'           ,'first'   ,'route_stop','int64'  , 0],        
+                ['STOP_ID'           ,'STOP_ID'           ,'first'   ,'route_stop','int64'  , 0],        
                 ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route_stop','object' ,32],         # route attributes    
                 ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route_stop','int64'  , 0], 
                 ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route_stop','object' ,64],   
@@ -382,233 +261,7 @@ class SFMuniDataAggregator():
         self.ts_outstore.append('rs_tod', aggdf, data_columns=True, 
                 min_itemsize=stringLengths)          
         self.rs_tod_count += len(aggdf)
-                                                    
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
-                columnSpecs=STOP_RULES, 
-                level='route_stop', 
-                weight='DAY_WEIGHT')
-        aggdf.index = self.rs_day_count + pd.Series(range(0,len(aggdf)))
-        self.ts_outstore.append('rs_day', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        self.rs_day_count += len(aggdf)
     
-        # stops
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','TOD','AGENCY_ID','STOP_ID'], 
-                columnSpecs=STOP_RULES, 
-                level='stop', 
-                weight='TOD_WEIGHT')
-        aggdf.index = self.stop_tod_count + pd.Series(range(0,len(aggdf)))
-        self.ts_outstore.append('stop_tod', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        self.stop_tod_count += len(aggdf)
-    
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','AGENCY_ID','STOP_ID'], 
-                columnSpecs=STOP_RULES, 
-                level='stop', 
-                weight='DAY_WEIGHT')
-        aggdf.index = self.stop_day_count + pd.Series(range(0,len(aggdf)))
-        self.ts_outstore.append('stop_day', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)  
-        self.stop_day_count += len(aggdf)
-
-        # system
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','TOD','AGENCY_ID'], 
-                columnSpecs=STOP_RULES, 
-                level='system', 
-                weight='SYSTEM_WEIGHT')      
-        aggdf.index = self.system_tod_count_s + pd.Series(range(0,len(aggdf))) 
-        self.ts_outstore.append('system_tod_s', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        self.system_tod_count_s += len(aggdf)
-    
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['DATE','DOW','AGENCY_ID'], 
-                columnSpecs=STOP_RULES, 
-                level='system', 
-                weight='SYSTEM_WEIGHT')     
-        aggdf.index = self.system_day_count_s + pd.Series(range(0,len(aggdf)))                       
-        self.ts_outstore.append('system_day_s', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        self.system_day_count_s += len(aggdf)
-                        
-
-    
-    def aggregateTripsToMonths(self, daily_file, monthly_file):
-        """
-        Aggregates daily data to monthly totals for an average weekday/
-        saturday/sunday.  Does this at different levels of aggregation for:
-            pattern_tod, pattern_day, route_tod, route_day, system_tod, system_day
-        
-        These are unweighted, because we've already applied weights when
-        calculating the daily totals. 
-        """
-        
-        # specify 'none' as aggregation method if we want to include the 
-        #   output field, but it is calculated separately
-        #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
-        TRIP_RULES = [              
-                ['NUMDAYS'           ,'DATE'        ,self.countUnique,'system' ,'int64'     , 0],         # stats for observations
-                ['OBSDAYS'           ,'OBS_TRIPS'   ,np.count_nonzero,'system' ,'int64'     , 0],                        
-                ['TRIPS'             ,'TRIPS'             ,'mean'    ,'system' ,'int64'     , 0],         #  note: attributes from schedule/gtfs should be unweighted             
-                ['OBS_TRIPS'         ,'OBS_TRIPS'         ,'mean'    ,'system' ,'int64'     , 0],
-                ['WGT_TRIPS'         ,'WGT_TRIPS'         ,'mean'    ,'system' ,'float64'   , 0],  
-                ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route'  ,'object'    ,32],         # route attributes    
-                ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route'  ,'int64'     , 0], 
-                ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route'  ,'object'    ,64],   
-                ['HEADWAY_S'         ,'HEADWAY_S'         ,'mean'    ,'system' ,'float64'   , 0],   
-                ['FARE'              ,'FARE'              ,'mean'    ,'system' ,'float64'   , 0],    
-                ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'mean'    ,'route'  ,'float64'   , 0],         # times 
-                ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','mean'    ,'route'  ,'float64'   , 0],   
-                ['DWELL_S'           ,'DWELL_S'           ,'mean'    ,'system' ,'float64'   , 0],
-                ['DWELL'             ,'DWELL'             ,'mean'    ,'system' ,'float64'   , 0],    
-                ['RUNTIME_S'         ,'RUNTIME_S'         ,'mean'    ,'system' ,'float64'   , 0],
-                ['RUNTIME'           ,'RUNTIME'           ,'mean'    ,'system' ,'float64'   , 0],    
-                ['TOTTIME_S'         ,'TOTTIME_S'         ,'mean'    ,'system' ,'float64'   , 0],
-                ['TOTTIME'           ,'TOTTIME'           ,'mean'    ,'system' ,'float64'   , 0],   
-                ['SERVMILES_S'       ,'SERVMILES_S'       ,'mean'    ,'system' ,'float64'   , 0],
-                ['SERVMILES'         ,'SERVMILES'         ,'mean'    ,'system' ,'float64'   , 0],
-                ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
-                ['RUNSPEED'          ,'RUNSPEED'          ,'mean'    ,'system' ,'float64'   , 0],  
-                ['TOTSPEED_S'        ,'TOTSPEED_S'        ,'mean'    ,'system' ,'float64'   , 0],
-                ['TOTSPEED'          ,'TOTSPEED'          ,'mean'    ,'system' ,'float64'   , 0],                 
-                ['ONTIME5'           ,'ONTIME5'           ,'mean'    ,'system' ,'float64'   , 0],              
-                ['ON'                ,'ON'                ,'mean'    ,'system' ,'float64'   , 0],         # ridership   
-                ['OFF'               ,'OFF'               ,'mean'    ,'system' ,'float64'   , 0],            
-                ['PASSMILES'         ,'PASSMILES'         ,'mean'    ,'system' ,'float64'   , 0],   
-                ['PASSHOURS'         ,'PASSHOURS'         ,'mean'    ,'system' ,'float64'   , 0],  
-                ['WAITHOURS'         ,'WAITHOURS'         ,'mean'    ,'system' ,'float64'   , 0],  
-                ['FULLFARE_REV'      ,'FULLFARE_REV'      ,'mean'    ,'system' ,'float64'   , 0],               
-                ['PASSDELAY_DEP'     ,'PASSDELAY_DEP'     ,'mean'    ,'system' ,'float64'   , 0],   
-                ['PASSDELAY_ARR'     ,'PASSDELAY_ARR'     ,'mean'    ,'system' ,'float64'   , 0],  
-                ['RDBRDNGS'          ,'RDBRDNGS'          ,'mean'    ,'system' ,'float64'   , 0],     
-                ['DOORCYCLES'        ,'DOORCYCLES'        ,'mean'    ,'system' ,'float64'   , 0],   
-                ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'mean'    ,'system' ,'float64'   , 0],  
-                ['BIKERACK'          ,'BIKERACK'          ,'mean'    ,'system' ,'float64'   , 0],   
-                ['VC'                ,'VC'                ,'mean'    ,'system' ,'float64'   , 0],        # crowding
-                ['CROWDED'           ,'CROWDED'           ,'mean'    ,'system' ,'float64'   , 0],   
-                ['CROWDHOURS'        ,'CROWDHOURS'        ,'mean'    ,'system' ,'float64'   , 0]  
-                ]
-
-        print('Aggregating trips to month')
-        
-        # establish the output file                   
-        outstore = pd.HDFStore(monthly_file)
-        
-        # count the number of rows in each table so our 
-        # indices are unique
-        pattern_tod_count  = 0
-        pattern_day_count  = 0
-        route_tod_count  = 0
-        route_day_count  = 0
-        system_tod_count = 0
-        system_day_count = 0
-
-                
-        # open the output file
-        instore = pd.HDFStore(daily_file)                      
-    
-        # patterns
-        print('Processing patterns by tod')
-        df = instore.select('pattern_tod')                        
-        df.index = pd.Series(range(0,len(df)))                     
-                
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['MONTH','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
-                columnSpecs=TRIP_RULES, 
-                level='route', 
-                weight=None)      
-        aggdf.index = pattern_tod_count + pd.Series(range(0,len(aggdf)))
-
-        outstore.append('pattern_tod', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        pattern_tod_count += len(aggdf)    
-
-
-        print('Processing daily patterns')
-        df = instore.select('pattern_day')                        
-        df.index = pd.Series(range(0,len(df)))                     
-                
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['MONTH','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'PATTERN'], 
-                columnSpecs=TRIP_RULES, 
-                level='route', 
-                weight=None)      
-        aggdf.index = pattern_day_count + pd.Series(range(0,len(aggdf)))
-
-        outstore.append('pattern_day', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)  
-        pattern_day_count += len(aggdf)     
-
-        # routes
-        print('Processing routes by tod')              
-        df = instore.select('route_tod')                        
-        df.index = pd.Series(range(0,len(df)))                     
-                
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['MONTH','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                columnSpecs=TRIP_RULES, 
-                level='route', 
-                weight=None)      
-        aggdf.index = route_tod_count + pd.Series(range(0,len(aggdf)))
-
-        outstore.append('route_tod', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        route_tod_count += len(aggdf)    
-
-        print('Processing daily routes')
-        df = instore.select('route_day')                        
-        df.index = pd.Series(range(0,len(df)))                     
-                
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['MONTH','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
-                columnSpecs=TRIP_RULES, 
-                level='route', 
-                weight=None)      
-        aggdf.index = route_day_count + pd.Series(range(0,len(aggdf)))
-
-        outstore.append('route_day', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)  
-        route_day_count += len(aggdf)     
-
-        # system
-        print('Processing system by tod')                
-        df = instore.select('system_tod')                        
-        df.index = pd.Series(range(0,len(df)))                     
-                
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['MONTH','DOW','TOD','AGENCY_ID'], 
-                columnSpecs=TRIP_RULES, 
-                level='system', 
-                weight=None)           
-        aggdf.index = system_tod_count + pd.Series(range(0,len(aggdf))) 
-
-        outstore.append('system_tod', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        system_tod_count += len(aggdf)    
-
-
-        print('Processing daily system')                
-        df = instore.select('system_day')                        
-        df.index = pd.Series(range(0,len(df)))                     
-                
-        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                groupby=['MONTH','DOW','AGENCY_ID'], 
-                columnSpecs=TRIP_RULES, 
-                level='system', 
-                weight=None)        
-        aggdf.index = system_day_count + pd.Series(range(0,len(aggdf)))  
-                     
-        outstore.append('system_day', aggdf, data_columns=True, 
-                min_itemsize=stringLengths)   
-        system_day_count += len(aggdf)            
-            
-        instore.close()
-        outstore.close()
-
     
     def aggregateTripStopsToMonths(self, daily_file, monthly_file):
         """
@@ -624,11 +277,11 @@ class SFMuniDataAggregator():
         #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
         STOP_RULES = [              
                 ['NUMDAYS'           ,'DATE'        ,self.countUnique,'system' ,'int64'     , 0],         # stats for observations
-                ['OBSDAYS'         ,'OBS_TRIP_STOPS',np.count_nonzero,'system' ,'int64'     , 0],        
+                ['OBSDAYS'           ,'OBS_TRIP_STOPS',np.count_nonzero,'system' ,'int64'     , 0],        
                 ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'mean'    ,'system' ,'int64'     , 0],                    
                 ['OBS_TRIP_STOPS'    ,'OBS_TRIP_STOPS'    ,'mean'    ,'system' ,'int64'     , 0],
                 ['WGT_TRIP_STOPS'    ,'WGT_TRIP_STOPS'    ,'mean'    ,'system' ,'float64'   , 0], 
-   	        ['STOP_ID'           ,'STOP_ID'           ,'first'   ,'route_stop','int64'  , 0],        
+                ['STOP_ID'           ,'STOP_ID'           ,'first'   ,'route_stop','int64'  , 0],        
                 ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route_stop','object' ,32],         # route attributes    
                 ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route_stop','int64'  , 0], 
                 ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route_stop','object' ,64],   
@@ -684,11 +337,6 @@ class SFMuniDataAggregator():
         # count the number of rows in each table so our 
         # indices are unique
         rs_tod_count     = 0
-        rs_day_count     = 0
-        stop_tod_count   = 0
-        stop_day_count   = 0
-        system_tod_count_s = 0
-        system_day_count_s = 0
 
                 
         # open the output file
@@ -716,84 +364,345 @@ class SFMuniDataAggregator():
                     min_itemsize=stringLengths)          
             rs_tod_count += len(aggdf)
     
-                                                               
-            df = instore.select('rs_day', where='MONTH=Timestamp(month)')                        
-            df.index = pd.Series(range(0,len(df)))                     
-                    
-            aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                    groupby=['MONTH','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
-                    columnSpecs=STOP_RULES, 
-                    level='route_stop', 
-                    weight=None)      
-            aggdf.index = rs_day_count + pd.Series(range(0,len(aggdf)))
-    
-            outstore.append('rs_day', aggdf, data_columns=True, 
-                    min_itemsize=stringLengths)   
-            rs_day_count += len(aggdf)                    
-    
-            # stops         
-            df = instore.select('stop_tod', where='MONTH=Timestamp(month)')                        
-            df.index = pd.Series(range(0,len(df)))                     
-                
-            aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                    groupby=['MONTH','DOW','TOD','AGENCY_ID','STOP_ID'], 
-                    columnSpecs=STOP_RULES, 
-                    level='stop', 
-                    weight=None)      
-            aggdf.index = stop_tod_count + pd.Series(range(0,len(aggdf)))
-    
-            outstore.append('stop_tod', aggdf, data_columns=True, 
-                    min_itemsize=stringLengths)   
-            stop_tod_count += len(aggdf)    
-    
-    
-            df = instore.select('stop_day', where='MONTH=Timestamp(month)')                        
-            df.index = pd.Series(range(0,len(df)))                     
-                    
-            aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                    groupby=['MONTH','DOW','AGENCY_ID','STOP_ID'], 
-                    columnSpecs=STOP_RULES, 
-                    level='stop', 
-                    weight=None)      
-            aggdf.index = stop_day_count + pd.Series(range(0,len(aggdf)))
-    
-            outstore.append('stop_day', aggdf, data_columns=True, 
-                    min_itemsize=stringLengths)  
-            stop_day_count += len(aggdf)    
-    
-            # system         
-            df = instore.select('system_tod_s', where='MONTH=Timestamp(month)')                        
-            df.index = pd.Series(range(0,len(df)))                     
-                    
-            aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                    groupby=['MONTH','DOW','TOD','AGENCY_ID'], 
-                    columnSpecs=STOP_RULES, 
-                    level='system', 
-                    weight=None)           
-            aggdf.index = system_tod_count_s + pd.Series(range(0,len(aggdf))) 
-    
-            outstore.append('system_tod_s', aggdf, data_columns=True, 
-                    min_itemsize=stringLengths)   
-            system_tod_count_s += len(aggdf)    
-    
-          
-            df = instore.select('system_day_s', where='MONTH=Timestamp(month)')                        
-            df.index = pd.Series(range(0,len(df)))                     
-                    
-            aggdf, stringLengths  = self.aggregateTransitRecords(df, 
-                    groupby=['MONTH','DOW','AGENCY_ID'], 
-                    columnSpecs=STOP_RULES, 
-                    level='system', 
-                    weight=None)        
-            aggdf.index = system_day_count_s + pd.Series(range(0,len(aggdf)))  
-                        
-            outstore.append('system_day_s', aggdf, data_columns=True, 
-                    min_itemsize=stringLengths)   
-            system_day_count_s += len(aggdf)    
-
         instore.close()
         outstore.close()
 
+        
+    def aggregateMonthlyTripStops(self, monthly_file):
+        """
+        Aggregates daily data to monthly totals for an average weekday/
+        saturday/sunday.  Does this at different levels of aggregation for:
+            rs_tod, rs_day, stop_tod, stop_day, system_tod, system_day
+        
+        These are unweighted, because we've already applied weights when
+        calculating the daily totals. 
+        """
+        # specify 'none' as aggregation method if we want to include the 
+        #   output field, but it is calculated separately
+        #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
+        STOP_RULES = [              
+                ['NUMDAYS'           ,'NUMDAYS'           ,'max'     ,'system' ,'int64'     , 0],         # stats for observations
+                ['OBSDAYS'           ,'OBSDAYS'           ,'wgtAvg'  ,'system' ,'float64'   , 0],      
+                ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'system' ,'int64'     , 0],                    
+                ['OBS_TRIP_STOPS'    ,'OBS_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],
+                ['WGT_TRIP_STOPS'    ,'WGT_TRIP_STOPS'    ,'sum'     ,'system' ,'float64'   , 0], 
+                ['STOP_ID'           ,'STOP_ID'           ,'first'   ,'route_stop','int64'  , 0],        
+                ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route_stop','object' ,32],         # route attributes    
+                ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route_stop','int64'  , 0], 
+                ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route_stop','object' ,64],   
+                ['HEADWAY_S'         ,'HEADWAY_S'         ,'wgtAvg'  ,'system' ,'float64'   , 0],   
+                ['FARE'              ,'FARE'              ,'wgtAvg'  ,'system' ,'float64'   , 0],    
+                ['STOPNAME'          ,'STOPNAME'          ,'first'   ,'stop'   ,'object'    ,64],         # stop attributes
+                ['STOPNAME_AVL'      ,'STOPNAME_AVL'      ,'first'   ,'stop'   ,'object'    ,32],  
+                ['STOP_LAT'          ,'STOP_LAT'          ,'first'   ,'stop'   ,'float64'   , 0],   
+                ['STOP_LON'          ,'STOP_LON'          ,'first'   ,'stop'   ,'float64'   , 0],   
+                ['EOL'               ,'EOL'               ,'first'   ,'stop'   ,'int64'     , 0],   
+                ['SOL'               ,'SOL'               ,'first'   ,'stop'   ,'int64'     , 0],   
+                ['TIMEPOINT'         ,'TIMEPOINT'         ,'first'   ,'stop'   ,'int64'     , 0],     
+                ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'wgtAvg'  ,'stop'   ,'float64'   , 0],         # times 
+                ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','wgtAvg'  ,'stop'   ,'float64'   , 0],   
+                ['DWELL_S'           ,'DWELL_S'           ,'sum'     ,'system' ,'float64'   , 0],
+                ['DWELL'             ,'DWELL'             ,'sum'     ,'system' ,'float64'   , 0],    
+                ['RUNTIME_S'         ,'RUNTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['RUNTIME'           ,'RUNTIME'           ,'sum'     ,'system' ,'float64'   , 0],    
+                ['TOTTIME_S'         ,'TOTTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['TOTTIME'           ,'TOTTIME'           ,'sum'     ,'system' ,'float64'   , 0],   
+                ['SERVMILES_S'       ,'SERVMILES_S'       ,'sum'     ,'system' ,'float64'   , 0],
+                ['SERVMILES'         ,'SERVMILES'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'wgtAvg'  ,'system' ,'float64'   , 0],
+                ['RUNSPEED'          ,'RUNSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],  
+                ['TOTSPEED_S'        ,'TOTSPEED_S'        ,'wgtAvg'  ,'system' ,'float64'   , 0],
+                ['TOTSPEED'          ,'TOTSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],                 
+                ['ONTIME5'           ,'ONTIME5'           ,'wgtAvg'  ,'system' ,'float64'   , 0],              
+                ['ON'                ,'ON'                ,'sum'     ,'system' ,'float64'   , 0],         # ridership   
+                ['OFF'               ,'OFF'               ,'sum'     ,'system' ,'float64'   , 0],   
+                ['LOAD_ARR'          ,'LOAD_ARR'          ,'sum'     ,'stop'   ,'float64'   , 0],   
+                ['LOAD_DEP'          ,'LOAD_DEP'          ,'sum'     ,'stop'   ,'float64'   , 0],            
+                ['PASSMILES'         ,'PASSMILES'         ,'sum'     ,'system' ,'float64'   , 0],   
+                ['PASSHOURS'         ,'PASSHOURS'         ,'sum'     ,'system' ,'float64'   , 0],  
+                ['WAITHOURS'         ,'WAITHOURS'         ,'sum'     ,'system' ,'float64'   , 0],  
+                ['FULLFARE_REV'      ,'FULLFARE_REV'      ,'sum'     ,'system' ,'float64'   , 0],               
+                ['PASSDELAY_DEP'     ,'PASSDELAY_DEP'     ,'sum'     ,'system' ,'float64'   , 0],   
+                ['PASSDELAY_ARR'     ,'PASSDELAY_ARR'     ,'sum'     ,'system' ,'float64'   , 0],  
+                ['RDBRDNGS'          ,'RDBRDNGS'          ,'sum'     ,'system' ,'float64'   , 0],     
+                ['DOORCYCLES'        ,'DOORCYCLES'        ,'sum'     ,'system' ,'float64'   , 0],   
+                ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'sum'     ,'system' ,'float64'   , 0],  
+                ['BIKERACK'          ,'BIKERACK'          ,'sum'     ,'system' ,'float64'   , 0],   
+                ['CAPACITY'          ,'CAPACITY'          ,'sum'     ,'stop'   ,'float64'   , 0],        # crowding 
+                ['VC'                ,'VC'                ,'wgtAvg'  ,'system' ,'float64'   , 0],
+                ['CROWDED'           ,'CROWDED'           ,'wgtAvg'  ,'system' ,'float64'   , 0],   
+                ['CROWDHOURS'        ,'CROWDHOURS'        ,'sum'     ,'system' ,'float64'   , 0]  
+                ]
+
+        print('Aggregating route stops by TOD to daily and stop totals') 
+
+        # establish the output file      
+        store = pd.HDFStore(monthly_file)
+        
+        # remove the tables to be replaced
+        keys = store.keys()
+        if '/rs_day' in keys: 
+            store.remove('rs_day')
+        if '/stop_tod' in keys: 
+            store.remove('stop_tod')
+        if '/stop_day' in keys: 
+            store.remove('stop_day')
+        
+        # get the data--route stop by TOD
+        df = store.select('rs_tod')                        
+        df.index = pd.Series(range(0,len(df)))      
+        
+        # daily route stops
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                    groupby=['MONTH','DOW','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR', 'SEQ'], 
+                    columnSpecs=STOP_RULES, 
+                    level='route_stop', 
+                    weight='TRIP_STOPS')
+    
+        store.append('rs_day', aggdf, data_columns=True, 
+                    min_itemsize=stringLengths)    
+        
+        # stops by time-of-day
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                    groupby=['MONTH','DOW','TOD','AGENCY_ID','STOP_ID'], 
+                    columnSpecs=STOP_RULES, 
+                    level='stop', 
+                    weight='TRIP_STOPS') 
+    
+        store.append('stop_tod', aggdf, data_columns=True, 
+                    min_itemsize=stringLengths)          
+        
+        # daily stops
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                    groupby=['MONTH','DOW','AGENCY_ID','STOP_ID'], 
+                    columnSpecs=STOP_RULES, 
+                    level='stop', 
+                    weight='TRIP_STOPS')
+    
+        store.append('stop_day', aggdf, data_columns=True, 
+                    min_itemsize=stringLengths)          
+    
+        store.close()
+    
+    
+    def aggregateMonthlyTrips(self, monthly_ts_file, monthly_trip_file):
+        
+        self.aggregateMonthlyRouteStopsToRoutes(monthly_ts_file, monthly_trip_file)
+        self.aggregateMonthlyRoutesToTotals(monthly_trip_file)
+        
+    
+    def aggregateMonthlyRouteStopsToRoutes(self, monthly_ts_file, monthly_trip_file):
+        
+        # specify 'none' as aggregation method if we want to include the 
+        #   output field, but it is calculated separately
+        #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
+        TRIP_RULES = [              
+                ['NUMDAYS'           ,'NUMDAYS'           ,'max'     ,'system' ,'int64'     , 0],         # stats for observations
+                ['OBSDAYS'           ,'OBSDAYS'           ,'wgtAvg'  ,'system' ,'float64'   , 0],           
+                ['TRIPS'             ,'TRIP_STOPS'        ,'max'     ,'system' ,'int64'     , 0],                    
+                ['OBS_TRIPS'         ,'OBS_TRIP_STOPS'    ,'max'     ,'system' ,'int64'     , 0],
+                ['WGT_TRIPS'         ,'WGT_TRIP_STOPS'    ,'max'     ,'system' ,'float64'   , 0], 
+                ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'system' ,'int64'     , 0],                    
+                ['OBS_TRIP_STOPS'    ,'OBS_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],
+                ['WGT_TRIP_STOPS'    ,'WGT_TRIP_STOPS'    ,'sum'     ,'system' ,'float64'   , 0],      
+                ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route'  ,'object'    ,32],         # route attributes    
+                ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route'  ,'int64'     , 0], 
+                ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route'  ,'object'    ,64],   
+                ['HEADWAY_S'         ,'HEADWAY_S'         ,'wgtAvg'  ,'system' ,'float64'   , 0],   
+                ['FARE'              ,'FARE'              ,'wgtAvg'  ,'system' ,'float64'   , 0],    
+                ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'wgtAvg'  ,'system'   ,'float64'   , 0],         # times 
+                ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','wgtAvg'  ,'system'   ,'float64'   , 0],   
+                ['DWELL_S'           ,'DWELL_S'           ,'sum'     ,'system' ,'float64'   , 0],
+                ['DWELL'             ,'DWELL'             ,'sum'     ,'system' ,'float64'   , 0],    
+                ['RUNTIME_S'         ,'RUNTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['RUNTIME'           ,'RUNTIME'           ,'sum'     ,'system' ,'float64'   , 0],    
+                ['TOTTIME_S'         ,'TOTTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['TOTTIME'           ,'TOTTIME'           ,'sum'     ,'system' ,'float64'   , 0],   
+                ['SERVMILES_S'       ,'SERVMILES_S'       ,'sum'     ,'system' ,'float64'   , 0],
+                ['SERVMILES'         ,'SERVMILES'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'wgtAvg'  ,'system' ,'float64'   , 0],
+                ['RUNSPEED'          ,'RUNSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],  
+                ['TOTSPEED_S'        ,'TOTSPEED_S'        ,'wgtAvg'  ,'system' ,'float64'   , 0],
+                ['TOTSPEED'          ,'TOTSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],                 
+                ['ONTIME5'           ,'ONTIME5'           ,'wgtAvg'  ,'system' ,'float64'   , 0],              
+                ['ON'                ,'ON'                ,'sum'     ,'system' ,'float64'   , 0],         # ridership   
+                ['OFF'               ,'OFF'               ,'sum'     ,'system' ,'float64'   , 0],   
+                ['MAX_LOAD'          ,'LOAD_ARR'          ,'max'     ,'route'   ,'float64'   , 0],         
+                ['PASSMILES'         ,'PASSMILES'         ,'sum'     ,'system' ,'float64'   , 0],   
+                ['PASSHOURS'         ,'PASSHOURS'         ,'sum'     ,'system' ,'float64'   , 0],  
+                ['WAITHOURS'         ,'WAITHOURS'         ,'sum'     ,'system' ,'float64'   , 0],  
+                ['FULLFARE_REV'      ,'FULLFARE_REV'      ,'sum'     ,'system' ,'float64'   , 0],               
+                ['PASSDELAY_DEP'     ,'PASSDELAY_DEP'     ,'sum'     ,'system' ,'float64'   , 0],   
+                ['PASSDELAY_ARR'     ,'PASSDELAY_ARR'     ,'sum'     ,'system' ,'float64'   , 0],  
+                ['RDBRDNGS'          ,'RDBRDNGS'          ,'sum'     ,'system' ,'float64'   , 0],     
+                ['DOORCYCLES'        ,'DOORCYCLES'        ,'sum'     ,'system' ,'float64'   , 0],   
+                ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'sum'     ,'system' ,'float64'   , 0],  
+                ['BIKERACK'          ,'BIKERACK'          ,'sum'     ,'system' ,'float64'   , 0],   
+                ['CAPACITY'          ,'CAPACITY'          ,'wgtAvg'  ,'route'   ,'float64'   , 0],        # crowding 
+                ['VC'                ,'VC'                ,'max'     ,'system' ,'float64'   , 0],
+                ['CROWDED'           ,'CROWDED'           ,'max'     ,'system' ,'float64'   , 0],   
+                ['CROWDHOURS'        ,'CROWDHOURS'        ,'sum'     ,'system' ,'float64'   , 0]  
+                ]
+
+        print('Aggregating route stops to routes') 
+
+        # establish the output file      
+        instore = pd.HDFStore(monthly_ts_file)
+        outstore = pd.HDFStore(monthly_trip_file)
+        
+        # remove the tables to be replaced
+        keys = outstore.keys()
+        if '/route_tod' in keys: 
+            outstore.remove('route_tod')
+        
+        # get the data--route stop by TOD
+        df = instore.select('rs_tod')                        
+        df.index = pd.Series(range(0,len(df)))      
+        
+        # patterns by time-of-day
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                    groupby=['MONTH','DOW','TOD','AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
+                    columnSpecs=TRIP_RULES, 
+                    level='route', 
+                    weight='TRIP_STOPS')
+    
+        outstore.append('route_tod', aggdf, data_columns=True, 
+                    min_itemsize=stringLengths)    
+        
+    
+        instore.close()
+        outstore.close()
+    
+    
+    
+    def aggregateMonthlyRoutesToTotals(self, monthly_trip_file):
+        
+        # specify 'none' as aggregation method if we want to include the 
+        #   output field, but it is calculated separately
+        #        outfield,            infield,  aggregationMethod,   maxlevel, type, stringLength                
+        TRIP_RULES = [              
+                ['NUMDAYS'           ,'NUMDAYS'           ,'max'     ,'system' ,'int64'     , 0],         # stats for observations
+                ['OBSDAYS'           ,'OBSDAYS'           ,'wgtAvg'  ,'system' ,'float64'   , 0],           
+                ['TRIPS'             ,'TRIPS'             ,'sum'     ,'system' ,'int64'     , 0],                    
+                ['OBS_TRIPS'         ,'OBS_TRIPS'         ,'sum'     ,'system' ,'int64'     , 0],
+                ['WGT_TRIPS'         ,'WGT_TRIPS'         ,'sum'     ,'system' ,'float64'   , 0], 
+                ['TRIP_STOPS'        ,'TRIP_STOPS'        ,'sum'     ,'system' ,'int64'     , 0],                    
+                ['OBS_TRIP_STOPS'    ,'OBS_TRIP_STOPS'    ,'sum'     ,'system' ,'int64'     , 0],
+                ['WGT_TRIP_STOPS'    ,'WGT_TRIP_STOPS'    ,'sum'     ,'system' ,'float64'   , 0],      
+                ['ROUTE_LONG_NAME'   ,'ROUTE_LONG_NAME'   ,'first'   ,'route','object' ,32],         # route attributes    
+                ['ROUTE_TYPE'        ,'ROUTE_TYPE'        ,'first'   ,'route','int64'  , 0], 
+                ['TRIP_HEADSIGN'     ,'TRIP_HEADSIGN'     ,'first'   ,'route','object' ,64],   
+                ['HEADWAY_S'         ,'HEADWAY_S'         ,'wgtAvg'  ,'system' ,'float64'   , 0],   
+                ['FARE'              ,'FARE'              ,'wgtAvg'  ,'system' ,'float64'   , 0],    
+                ['ARRIVAL_TIME_DEV'  ,'ARRIVAL_TIME_DEV'  ,'wgtAvg'  ,'system'   ,'float64'   , 0],         # times 
+                ['DEPARTURE_TIME_DEV','DEPARTURE_TIME_DEV','wgtAvg'  ,'system'   ,'float64'   , 0],   
+                ['DWELL_S'           ,'DWELL_S'           ,'sum'     ,'system' ,'float64'   , 0],
+                ['DWELL'             ,'DWELL'             ,'sum'     ,'system' ,'float64'   , 0],    
+                ['RUNTIME_S'         ,'RUNTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['RUNTIME'           ,'RUNTIME'           ,'sum'     ,'system' ,'float64'   , 0],    
+                ['TOTTIME_S'         ,'TOTTIME_S'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['TOTTIME'           ,'TOTTIME'           ,'sum'     ,'system' ,'float64'   , 0],   
+                ['SERVMILES_S'       ,'SERVMILES_S'       ,'sum'     ,'system' ,'float64'   , 0],
+                ['SERVMILES'         ,'SERVMILES'         ,'sum'     ,'system' ,'float64'   , 0],
+                ['RUNSPEED_S'        ,'RUNSPEED_S'        ,'wgtAvg'  ,'system' ,'float64'   , 0],
+                ['RUNSPEED'          ,'RUNSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],  
+                ['TOTSPEED_S'        ,'TOTSPEED_S'        ,'wgtAvg'  ,'system' ,'float64'   , 0],
+                ['TOTSPEED'          ,'TOTSPEED'          ,'wgtAvg'  ,'system' ,'float64'   , 0],                 
+                ['ONTIME5'           ,'ONTIME5'           ,'wgtAvg'  ,'system' ,'float64'   , 0],              
+                ['ON'                ,'ON'                ,'sum'     ,'system' ,'float64'   , 0],         # ridership   
+                ['OFF'               ,'OFF'               ,'sum'     ,'system' ,'float64'   , 0],   
+                ['MAX_LOAD'          ,'MAX_LOAD'          ,'sum'     ,'route'  ,'float64'   , 0],            
+                ['PASSMILES'         ,'PASSMILES'         ,'sum'     ,'system' ,'float64'   , 0],   
+                ['PASSHOURS'         ,'PASSHOURS'         ,'sum'     ,'system' ,'float64'   , 0],  
+                ['WAITHOURS'         ,'WAITHOURS'         ,'sum'     ,'system' ,'float64'   , 0],  
+                ['FULLFARE_REV'      ,'FULLFARE_REV'      ,'sum'     ,'system' ,'float64'   , 0],               
+                ['PASSDELAY_DEP'     ,'PASSDELAY_DEP'     ,'sum'     ,'system' ,'float64'   , 0],   
+                ['PASSDELAY_ARR'     ,'PASSDELAY_ARR'     ,'sum'     ,'system' ,'float64'   , 0],  
+                ['RDBRDNGS'          ,'RDBRDNGS'          ,'sum'     ,'system' ,'float64'   , 0],     
+                ['DOORCYCLES'        ,'DOORCYCLES'        ,'sum'     ,'system' ,'float64'   , 0],   
+                ['WHEELCHAIR'        ,'WHEELCHAIR'        ,'sum'     ,'system' ,'float64'   , 0],  
+                ['BIKERACK'          ,'BIKERACK'          ,'sum'     ,'system' ,'float64'   , 0],   
+                ['CAPACITY'          ,'CAPACITY'          ,'sum'     ,'route'   ,'float64'   , 0],        # crowding 
+                ['VC'                ,'VC'                ,'wgtAvg'  ,'system' ,'float64'   , 0],
+                ['CROWDED'           ,'CROWDED'           ,'wgtAvg'  ,'system' ,'float64'   , 0],   
+                ['CROWDHOURS'        ,'CROWDHOURS'        ,'sum'     ,'system' ,'float64'   , 0]  
+                ]
+
+        print('Aggregating route stops to routes') 
+
+        # establish the output file      
+        store = pd.HDFStore(monthly_trip_file)
+        
+        # remove the tables to be replaced
+        keys = store.keys()
+        if '/route_day' in keys: 
+            store.remove('route_day')
+        if '/route_tod_tot' in keys: 
+            store.remove('route_tod_tot')
+        if '/route_day_tot' in keys: 
+            store.remove('route_day_tot')
+        if '/system_tod' in keys: 
+            store.remove('system_tod')
+        if '/system_day' in keys: 
+            store.remove('system_day')
+        
+        # get the data--route stop by TOD
+        df = store.select('route_tod')                        
+        df.index = pd.Series(range(0,len(df)))      
+        
+        # routes by day and direction
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                    groupby=['MONTH','DOW', 'AGENCY_ID','ROUTE_SHORT_NAME', 'DIR'], 
+                    columnSpecs=TRIP_RULES, 
+                    level='route', 
+                    weight='TRIPS')
+    
+        store.append('route_day', aggdf, data_columns=True, 
+                    min_itemsize=stringLengths)    
+                    
+        # routes by time-of-day 
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                    groupby=['MONTH','DOW', 'TOD','AGENCY_ID','ROUTE_SHORT_NAME'], 
+                    columnSpecs=TRIP_RULES, 
+                    level='route', 
+                    weight='TRIPS')
+    
+        store.append('route_tod_tot', aggdf, data_columns=True, 
+                    min_itemsize=stringLengths)                        
+        
+        # routes by day 
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                    groupby=['MONTH','DOW', 'AGENCY_ID','ROUTE_SHORT_NAME'], 
+                    columnSpecs=TRIP_RULES, 
+                    level='route', 
+                    weight='TRIPS')
+    
+        store.append('route_day_tot', aggdf, data_columns=True, 
+                    min_itemsize=stringLengths)    
+    
+        # system by time-of-day 
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                    groupby=['MONTH','DOW', 'TOD','AGENCY_ID'], 
+                    columnSpecs=TRIP_RULES, 
+                    level='system', 
+                    weight='TRIPS')
+    
+        store.append('system_tod', aggdf, data_columns=True, 
+                    min_itemsize=stringLengths)                        
+        
+        # system by day 
+        aggdf, stringLengths  = self.aggregateTransitRecords(df, 
+                    groupby=['MONTH','DOW', 'AGENCY_ID'], 
+                    columnSpecs=TRIP_RULES, 
+                    level='system', 
+                    weight='TRIPS')
+    
+        store.append('system_day', aggdf, data_columns=True, 
+                    min_itemsize=stringLengths)    
+                    
+        store.close()
+    
+    
     
     def aggregateTransitRecords(self, df, groupby, columnSpecs, level='system', weight=None):
         """
@@ -909,7 +818,7 @@ class SFMuniDataAggregator():
                     aggMethod[infield][outfield] = aggregation
                 else:
                     aggMethod[infield] = {outfield : aggregation}
-                        
+                                        
             # these fields get the count of the number of records
             if aggregation == 'count': 
                 countOutFields.add(outfield)
@@ -921,9 +830,14 @@ class SFMuniDataAggregator():
         # include the weight when aggregating
         # scale up any weighted columns  
         if weight != None: 
-            aggMethod[weight] = {weight : 'sum'}
+            if weight in aggMethod: 
+                aggMethod[weight][weight] = 'sum'
+            else:
+                aggMethod[weight] = {weight : 'sum'}
+            
             for col in wgtSumInFields.union(wgtAvgInFields):
                 df['w'+col] = df[weight] * df[col]
+        
         
         # group
         grouped = df.groupby(groupby)
@@ -970,7 +884,7 @@ class SFMuniDataAggregator():
                                     aggregated['TOTTIME']), 
                                 index=aggregated.index)            
             aggregated['TOTSPEED'] = speedInput.apply(self.updateSpeeds)
-
+            
         # force the data types
         # this doesn't work if there are missing values, hence the pass
         for col in coltypes: 
