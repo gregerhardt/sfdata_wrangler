@@ -343,7 +343,7 @@ class SFMuniDataAggregator():
         instore = pd.HDFStore(daily_file)
         
         # do this month-by-month to save memory
-        months = instore.select_column('system_day_s', 'MONTH').unique()
+        months = instore.select_column('rs_tod', 'MONTH').unique()
         print('Retrieved a total of %i months to process' % len(months))
         for month in months: 
             print('Processing month ', month)

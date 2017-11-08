@@ -284,7 +284,7 @@ class SFMuniDataExpander():
         
         # get the list of observed dates from all relevant files
         months = pd.date_range(startDate, endDate, freq='M') 
-        
+        print (months)
         firstMonth = True
         for m in months: 
             month = ((pd.to_datetime(m)).to_period('M')).to_timestamp()    
@@ -319,7 +319,7 @@ class SFMuniDataExpander():
         self.aggregator.close()
     
     
-    def expandAndWeight(self, gtfs_file, write_intermediate_files=True):
+    def expandAndWeight(self, gtfs_file, write_intermediate_files=True, route_type=3):
         """
         Read GTFS, cleans it, processes it, and writes it to an HDF5 file.
         This will be done for every individual day, so you get a list of 
@@ -351,7 +351,7 @@ class SFMuniDataExpander():
                 # only keep the busses here
                 print('Reading service_id ', service_id)
                 dataframes[service_id] = self.gtfs_store.select('sfmuni', 
-                           where="SCHED_DATES=dateRangeString & SERVICE_ID=service_id & ROUTE_TYPE=3")
+                           where="SCHED_DATES=dateRangeString & SERVICE_ID=service_id & ROUTE_TYPE=route_type")
             
         # note that the last date is not included, hence the +1 increment
         servicePeriodsEachDate = gtfsHelper.schedule.GetServicePeriodsActiveEachDate(gtfsStartDate, gtfsEndDate + pd.DateOffset(days=1)) 
