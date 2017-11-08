@@ -65,7 +65,7 @@ VALID_STEPS = [ 'clean1',
                 
 
 # INPUT FILES--change as needed
-ROUTE_EQUIV = "D:/RUNS/sfdata_wrangler2/routeEquiv_20170621.csv"
+ROUTE_EQUIV = "D:/RUNS/sfdata_wrangler2/routeEquiv_20170707.csv"
 
 RAW_STP_FILES =["D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/0803.stp",
                 "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Data/Raw STP Files/0906.stp",
@@ -106,16 +106,22 @@ RAW_STP_FILES =["D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/SFMTA Dat
                 ]
     
 # these should be ordered from old to new, and avoid gaps or overlaps
+
+# note that from 20090613 through 20110102, the K and T are duplicated in the GTFS files.  They are later
+# combined into a single KT line, as they should be.  To deal with this problem, the GTFS files were modified
+# to keep the T and rename it to the KT.  The K was changed to route_type 999, which is a missing value and gets dropped. 
 RAW_GTFS_FILES = [
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20090402_0310_1.zip",  # 20090221 to 20090612 (originally 20090626)
                                                                                            # above file modified to avoid overlap of 13 days
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20091106_0310_1.zip",  # 20090613 to 20091204   (removed trailing sapced from file)
-  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100415_0222.zip",  # 20091205 to 20100507
-  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903 -- rail mis-coded? 
-  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231)
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100415_0222_1.zip",  # 20091205 to 20100507 - schedule change confirmed on 12/5/2009 -- 'big change'
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100812_0223_1.zip",  # 20100508 to 20100903  - schedule change confirmed on 12/8/2010 -- 10% cuts
+                                                                                           # above file modified to code F-line as mode 0 not mode 1.   
+                                                                                           # also, note that M-Ocean View rail closed for construction--St Francis Circle Project
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20100908_0243_1.zip",  # 20100904 to 20110102 (originally 20101231) -- schedule change confirmed on 9/4/2010 -- 66% restoration
                                                                                            # above file modified to avoid gap of 2 days
-  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121
-  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110420_0243_2.zip",  # 20110122 to 20110612 (originally 20110610) -- cable car mis-coded?
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110104_0839.zip",  # 20110103 to 20110121, modified to change K/T to KT
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110420_0243_2.zip",  # 20110122 to 20110612 (originally 20110610) 
                                                                                            # above file modified to avoid gap of 2 days
                                                                                            # above file modified to code California CC as mode 5 instead of 3
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20110910_0449_1.zip",  # 20110613 to 20111014
@@ -133,7 +139,8 @@ RAW_GTFS_FILES = [
   
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140319_1.zip",        # 20140201 to 20140411 
                                                                                            # above file modified to code F-line as mode 0 not mode 3. 
-  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140416_0134.zip",     # 20140412 to 20140606
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140416_0134_1.zip",   # 20140412 to 20140606
+                                                                                           # above file modified to code F-line as mode 0 not mode 3.   
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20140611_0111.zip",     # 20140607 to 20140621
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20141007_0221.zip",     # 20140621 to 20141024
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20141029_0132_2.zip",   # 20141025 to 20141121 (originally 20141219)
@@ -143,15 +150,15 @@ RAW_GTFS_FILES = [
                                                                                            # above file modified to recode rail lines as mode 0 not mode 3. 
   
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20150227_0144.zip",     # 20150131 to 20150424
-  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20150809_0207.zip",     # 20150425 to 20150925
-  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20151216_1446_1.zip",   # 20150926 to 20160212 (originally 20160311)
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20150809_0207.zip",     # 20150425 to 20150925 - schedule change confimred on 4/25/2015 -- rapid launch
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20151216_1446_1.zip",   # 20150926 to 20160212 (originally 20160311) - schedule change confimred on 9/26/2015 -- more increases
                                                                                                                                            # above file modified to avoid overlap of 19 days
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20160307.zip",          # 20160213 to 20160422
-  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20160506.zip",          # 20160423 to 20160603
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20160506.zip",          # 20160423 to 20160603 - schedule change confirmed on 4/23/2016 -- big increase
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20160724_1.zip",        # 20160604 to 20160812 
                                                                                            # above file modified to recode rail lines as mode 0 not mode 3. 
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20170215.zip",          # 20160813 to 20170224
-  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20170410.zip",          # 20170225 to 20170602
+  "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20170410.zip",          # 20170225 to 20170602 - schedule change confirmed on 2/25/2017 -- more MUNI Forward
   "D:/OneDrive - University of Kentucky/SF-TNC/Data/MUNI/GTFS/san-francisco-municipal-transportation-agency_20170606.zip",          # 20170603 to 20170811
 
   ]
@@ -286,6 +293,7 @@ MULTIMODAL_OUTFILE = "D:/RUNS/sfdata_wrangler2/out/multimodal.h5"
 MULTIMODAL_REPORT_XLSFILE = "D:/RUNS/sfdata_wrangler2/out/MultiModalReport.xlsx"
 DEMAND_REPORT_XLSFILE = "D:/RUNS/sfdata_wrangler2/out/DriversOfDemandReport.xlsx"
 MUNI_REPORT_XLSFILE = "D:/RUNS/sfdata_wrangler2/out/MuniPerformanceReport.xlsx"
+ROUTE_REPORT_XLSFILE = "D:/RUNS/sfdata_wrangler2/out/MuniRoutesReport.xlsx"
 REPORT_ROUTEPLOTS = "D:/RUNS/sfdata_wrangler2/out/RoutePlots.html"
 
 MUNI_ESTIMATION_FILE = "D:/RUNS/sfdata_wrangler2/out/MuniEstFile.csv"
@@ -353,7 +361,7 @@ if __name__ == "__main__":
                                 startDate='1900-01-01', 
                                 endDate='2100-12-31')
         for gtfs_infile in RAW_GTFS_FILES: 
-            sfmuniExpander.expandAndWeight(gtfs_infile)
+            sfmuniExpander.expandAndWeight(gtfs_infile, write_intermediate_files=False)
         sfmuniExpander.closeStores()
         print ('Finished expanding to GTFS in ', (datetime.datetime.now() - startTime))
 
@@ -361,12 +369,14 @@ if __name__ == "__main__":
     if 'aggregate' in STEPS_TO_RUN: 
         startTime = datetime.datetime.now()   
         aggregator = SFMuniDataAggregator()
-        for daily_file in DAILY_TRIP_OUTFILES: 
-            aggregator.aggregateTripsToMonths(daily_file, MONTHLY_TRIP_OUTFILE)
             
         for daily_file in DAILY_TS_OUTFILES: 
             aggregator.aggregateTripStopsToMonths(daily_file, MONTHLY_TS_OUTFILE)
+        aggregator.imputeMissingTripStops(MONTHLY_TS_OUTFILE)
             
+        aggregator.aggregateMonthlyTripStops(MONTHLY_TS_OUTFILE)
+        aggregator.aggregateMonthlyTrips(MONTHLY_TS_OUTFILE, MONTHLY_TRIP_OUTFILE)
+        
         print ('Finished aggregations in ', (datetime.datetime.now() - startTime)) 
 
 
@@ -419,7 +429,7 @@ if __name__ == "__main__":
         mmHelper.processMonthlyTransitData(CPI_FILE, MULTIMODAL_OUTFILE)      
         mmHelper.extrapolateMonthlyServiceMiles(GTFS_OUTFILE, MULTIMODAL_OUTFILE) 
         mmHelper.processTransitFares(CASH_FARE_FILE, CPI_FILE, MULTIMODAL_OUTFILE)
-#        mmHelper.processBARTEntryExits(BART_ENTRY_EXIT_DIR, MULTIMODAL_OUTFILE)
+        mmHelper.processBARTEntryExits(BART_ENTRY_EXIT_DIR, MULTIMODAL_OUTFILE)
 
 
     # create performance reports
@@ -432,6 +442,8 @@ if __name__ == "__main__":
                                    gtfs_file=GTFS_OUTFILE, 
                                    multimodal_file=MULTIMODAL_OUTFILE)
         reporter.writeSystemReport(MUNI_REPORT_XLSFILE, fips='06075', dow=1)
+        
+        reporter.writeRouteReports(ROUTE_REPORT_XLSFILE, routeEquivFile=ROUTE_EQUIV, fips='06075', dow=1)
 
         reporter.writeDemandReport(DEMAND_REPORT_XLSFILE, FIPS)
 
