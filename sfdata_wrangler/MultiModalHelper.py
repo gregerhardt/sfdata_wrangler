@@ -228,7 +228,15 @@ class MultiModalHelper():
             # only keep relevant fields
             df = df[['MONTH', 'SERVMILES_E_'+name]]
             extrapolated = pd.merge(extrapolated, df, how='outer', on='MONTH')
-                    
+            
+        # in Nov 2014, BART switched to a GTFS format that includes shape between the stations
+        # as a result, the service miles appear to increase, but this is artificial.
+        # Adjust the service miles before this date to be consistent
+        idx = extrapolated.index[extrapolated['MONTH']=='2014-12-01']
+        extrapolated.loc[idx[0]-1,'SERVMILES_E_BART'] = extrapolated.loc[idx[0],'SERVMILES_E_BART']
+        ratio = extrapolated.loc[idx[0],'SERVMILES_E_BART'] / extrapolated.loc[idx[0]-2,'SERVMILES_E_BART']
+        extrapolated['SERVMILES_E_BART'] = np.where(extrapolated['MONTH']<'2014-11-01', ratio * extrapolated['SERVMILES_E_BART'], extrapolated['SERVMILES_E_BART'])
+        
         # append to the output store
         outstore.append('/exrapolatedServiceMiles', extrapolated, data_columns=True)
         outstore.close()

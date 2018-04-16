@@ -57,10 +57,10 @@ class DemandHelper():
     """
 
     # the range of years for these data files
-    POP_EST_YEARS = [2000,2016]
-    HU_YEARS      = [2001,2014]
-    ACS_YEARS     = [2005,2015]
-    LODES_YEARS   = [2002,2014]  
+    POP_EST_YEARS = [2000,2017]
+    HU_YEARS      = [2001,2015]
+    ACS_YEARS     = [2005,2016]
+    LODES_YEARS   = [2002,2015]  
     
     # a list of output field and inputfield tuples for each table
     ACS_EQUIV = {'B01003' : [('POP',   'Estimate; Total')
@@ -89,15 +89,17 @@ class DemandHelper():
                             ],
                             
                             # total mode shares
-                 'B08119' : [('JTW_DA',       'Estimate; Car, truck, or van - drove alone:'),
-                             ('JTW_SR',       'Estimate; Car, truck, or van - carpooled:'), 
+                 'B08006' : [('JTW_DA',       'Estimate; Car, truck, or van: - Drove alone'),
+                             ('JTW_SR',       'Estimate; Car, truck, or van: - Carpooled:'), 
                              ('JTW_TRANSIT',  'Estimate; Public transportation (excluding taxicab):'), 
-                             ('JTW_WALK',     'Estimate; Walked:'), 
-                             ('JTW_OTHER',    'Estimate; Taxicab, motorcycle, bicycle, or other means:'), 
-                             ('JTW_HOME',     'Estimate; Worked at home:'),                              
-                             
-                             # workers earnings $0-50k vs $50k+
-                             ('JTW_EARN0_50_DA',      ['Estimate; Car, truck, or van - drove alone: - $1 to $9,999 or loss', 
+                             ('JTW_BIKE',     'Estimate; Bicycle'), 
+                             ('JTW_WALK',     'Estimate; Walked'), 
+                             ('JTW_OTHER',    'Estimate; Taxicab, motorcycle, or other means'), 
+                             ('JTW_HOME',     'Estimate; Worked at home')                      
+                            ],
+                            
+                            # workers earnings $0-50k vs $50k+
+                 'B08119' : [('JTW_EARN0_50_DA',      ['Estimate; Car, truck, or van - drove alone: - $1 to $9,999 or loss', 
                                                        'Estimate; Car, truck, or van - drove alone: - $10,000 to $14,999',
                                                        'Estimate; Car, truck, or van - drove alone: - $15,000 to $24,999', 
                                                        'Estimate; Car, truck, or van - drove alone: - $25,000 to $34,999',
@@ -309,10 +311,10 @@ class DemandHelper():
                                                'Public transportation: - Subway or elevated', 
                                                'Public transportation: - Railroad', 
                                                'Public transportation: - Ferryboat']), 
+                             ('JTW_BIKE',     'Bicycle'), 
                              ('JTW_WALK',     'Walked'), 
                              ('JTW_OTHER',   ['Public transportation: - Taxicab', 
                                               'Motorcycle', 
-                                              'Bicycle', 
                                               'Other means']), 
                              ('JTW_HOME',     'Worked at home')
                             ],            
@@ -498,7 +500,10 @@ class DemandHelper():
                                               'Female: - 70 to 74 years', 
                                               'Female: - 75 to 79 years', 
                                               'Female: - 80 to 84 years', 
-                                              'Female: - 85 years and over'])
+                                              'Female: - 85 years and over']), 
+                                              
+                             ('MALE',         'Male:'),
+                             ('FEMALE',       'Female:')
                             ]
                 }
 
@@ -635,7 +640,7 @@ class DemandHelper():
             monthly['HH_TIMES_INC'] = monthly['HH'] * monthly['MEDIAN_HHINC_2010USD']
             
             # calculate mode shares for journey to work data - totals
-            modes    = ['DA', 'SR', 'TRANSIT', 'WALK', 'OTHER', 'HOME']
+            modes    = ['DA', 'SR', 'TRANSIT', 'BIKE', 'WALK', 'OTHER', 'HOME']
             monthly['total'] = 0.0
             for mode in modes: 
                 monthly['total'] = monthly['total'] + monthly['JTW_' + mode]
@@ -806,6 +811,9 @@ class DemandHelper():
                         newName = newName.replace('Total population - AGE', 'AGE')                      
                         newName = newName.replace('Total population - SELECTED AGE CATEGORIES', 'SELECTED AGE CATEGORIES') 
                         newName = newName.replace('Total population - SUMMARY INDICATORS', 'SUMMARY INDICATORS') 
+                        newName = newName.replace('Estimate; Other means', 'Estimate; Taxicab, motorcycle, or other means') 
+                        newName = newName.replace('Estimate; Drove alone', 'Estimate; Car, truck, or van: - Drove alone') 
+                        newName = newName.replace('Estimate; Carpooled:', 'Estimate; Car, truck, or van: - Carpooled:') 
                         
                         colNames[oldName] = newName
                     df = df.rename(columns=colNames) 
