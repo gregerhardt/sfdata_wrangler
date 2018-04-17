@@ -887,7 +887,7 @@ class SFMuniDataAggregator():
 
         
         # master-routes by time-of-day 
-        df = store.select('route_dir_tod')                        
+        df = store.select('route_tod')                        
         df.index = pd.Series(range(0,len(df)))    
         df = df.merge(route_equiv, how='left', on=['AGENCY_ID', 'ROUTE_SHORT_NAME'])
 
@@ -903,7 +903,7 @@ class SFMuniDataAggregator():
                     min_itemsize=stringLengths)                        
         
         # master-routes by day 
-        df = store.select('route_dir_day')                        
+        df = store.select('route_day')                        
         df.index = pd.Series(range(0,len(df)))  
         df = df.merge(route_equiv, how='left', on=['AGENCY_ID', 'ROUTE_SHORT_NAME'])
         
