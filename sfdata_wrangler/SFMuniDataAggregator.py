@@ -890,8 +890,6 @@ class SFMuniDataAggregator():
         df = store.select('route_tod')                        
         df.index = pd.Series(range(0,len(df)))    
         df = df.merge(route_equiv, how='left', on=['AGENCY_ID', 'ROUTE_SHORT_NAME'])
-
-        # TODO - merge MASTER_ROUTE_NAME from equivalency
         
         aggdf, stringLengths  = self.aggregateTransitRecords(df, 
                     groupby=['MONTH','DOW', 'TOD','AGENCY_ID','MASTER_ROUTE_NAME'], 
@@ -899,8 +897,18 @@ class SFMuniDataAggregator():
                     level='route', 
                     weight='NUMDAYS')
     
+        # The 9X changes to the 8X in Dec 2009 and we're missing the data--fill that in        
+        tods = aggdf['TOD'].unique()
+        for tod in tods: 
+            dec_idx = aggdf.index[(aggdf['MASTER_ROUTE_NAME']=='8') & (aggdf['TOD']==tod) & (aggdf['MONTH']=='2009-12-01')]
+            jan_idx = aggdf.index[(aggdf['MASTER_ROUTE_NAME']=='8') & (aggdf['TOD']==tod) & (aggdf['MONTH']=='2010-01-01')]
+            for col in aggdf.select_dtypes(include=['number']).columns:
+                if np.isnan(aggdf.loc[dec_idx[0],col]):
+                    aggdf.loc[dec_idx[0],col] = aggdf.loc[jan_idx[0],col]                
+                    
         store.append('master_route_tod', aggdf, data_columns=True, 
                     min_itemsize=stringLengths)                        
+        
         
         # master-routes by day 
         df = store.select('route_day')                        
@@ -913,6 +921,14 @@ class SFMuniDataAggregator():
                     level='route', 
                     weight='NUMDAYS')
     
+        # The 9X changes to the 8X in Dec 2009 and we're missing the data--fill that in
+        dec_idx = aggdf.index[(aggdf['MASTER_ROUTE_NAME']=='8') & (aggdf['MONTH']=='2009-12-01')]
+        jan_idx = aggdf.index[(aggdf['MASTER_ROUTE_NAME']=='8') & (aggdf['MONTH']=='2010-01-01')]
+        for col in aggdf.select_dtypes(include=['number']).columns:
+            if np.isnan(aggdf.loc[dec_idx[0],col]):
+                aggdf.loc[dec_idx[0],col] = aggdf.loc[jan_idx[0],col]
+    
+                
         store.append('master_route_day', aggdf, data_columns=True, 
                     min_itemsize=stringLengths)    
     
