@@ -30,6 +30,17 @@ import datetime
 from xlsxwriter.utility import xl_rowcol_to_cell
 import bokeh.plotting as bk
 
+
+def convertDateToMonth(date):
+    '''
+    Given a date, returns the month
+    '''
+    if pd.isnull(date): 
+        return pd.NaT
+    else: 
+        month = ((pd.to_datetime(date)).to_period('M')).to_timestamp() 
+        return month
+
     
 class TransitReporter():
     """ 
@@ -2133,6 +2144,149 @@ class TransitReporter():
         df.to_csv(estfile)
 
 
+    def assembleNTDData(self, ntd_dir, field, ntdid, modes): 
+        '''
+        Reads NTD data, converts format, and returns a dataframe. 
+        '''
+        # open the file with all the data
+        file_name = ntd_dir + '/' + field + '.csv'
+        all_rows = pd.read_csv(file_name,  thousands=',')
+        
+        # select the appropriate agency and modes
+        mode_rows = all_rows[(all_rows['5 digit NTD ID']==float(ntdid)) & (all_rows['Modes'].isin(modes))]
+        
+        # clean up column names so we can convert to datetime
+        # the format is MMMYY, so convert to a new format we will understand
+        cols_to_drop = []
+        cols_to_rename = {}
+
+        for col in mode_rows.columns: 
+            if col.startswith('JAN'): 
+                cols_to_rename[col] = '1/1/' + col[3:]
+            elif col.startswith('FEB'): 
+                cols_to_rename[col] = '2/1/' + col[3:]
+            elif col.startswith('MAR'): 
+                cols_to_rename[col] = '3/1/' + col[3:]
+            elif col.startswith('APR'): 
+                cols_to_rename[col] = '4/1/' + col[3:]
+            elif col.startswith('MAY'): 
+                cols_to_rename[col] = '5/1/' + col[3:]
+            elif col.startswith('JUN'): 
+                cols_to_rename[col] = '6/1/' + col[3:]
+            elif col.startswith('JUL'): 
+                cols_to_rename[col] = '7/1/' + col[3:]
+            elif col.startswith('AUG'): 
+                cols_to_rename[col] = '8/1/' + col[3:]
+            elif col.startswith('SEP'): 
+                cols_to_rename[col] = '9/1/' + col[3:]
+            elif col.startswith('OCT'): 
+                cols_to_rename[col] = '10/1/' + col[3:]
+            elif col.startswith('NOV'): 
+                cols_to_rename[col] = '11/1/' + col[3:]
+            elif col.startswith('DEC'): 
+                cols_to_rename[col] = '12/1/' + col[3:]
+            else: 
+                cols_to_drop.append(col)
+                
+        mode_rows = mode_rows.drop(cols_to_drop, axis=1)
+        mode_rows = mode_rows.rename(columns=cols_to_rename)
+        
+        for col in mode_rows.columns:
+            mode_rows[col] = mode_rows[col].astype(int)
+            
+        # sum the values across all modes
+        mode_total = mode_rows.sum()
+        
+        # format into a dataframe with datetime months and the right column names
+        mode_total = mode_total.reset_index()
+        cols = mode_total.columns
+        mode_total = mode_total.rename(columns={cols[0] : 'MONTH', cols[1]: field})
+        mode_total['MONTH'] = mode_total['MONTH'].apply(convertDateToMonth)
+        
+        return mode_total
+        
+        
+    def writeNTDEstimationFile(self, estfile, ntd_dir, ntdid, modes, fips, dow=1, tod='Daily'):
+        '''
+        Writes a model estimation file for SF MUNI busses starting from NTD ridership.         
+        '''     
+        
+        # get the ntd data
+        # unlinked passenger trips
+        upt = self.assembleNTDData(ntd_dir, 'UPT', ntdid, modes)        
+        # vehicle revenue miles
+        vrm = self.assembleNTDData(ntd_dir, 'VRM', ntdid, modes)
+        # vehicle revenue hours
+        vrh = self.assembleNTDData(ntd_dir, 'VRH', ntdid, modes)
+        # vehicles operated in maximum service
+        voms = self.assembleNTDData(ntd_dir, 'VOMS', ntdid, modes)
+                
+        # get supporting data -- include all fips counties for demand data
+        multimodal = self.assembleMonthlyMultiModalData(fips)
+        demand = self.assembleDemandData(fips)
+        muni = self.assembleSystemPerformanceData(fips, dow=dow, tod=tod)
+        
+        # merge the data      
+        df = pd.merge(upt, vrm,  how='left', on=['MONTH'], sort=True) 
+        df = pd.merge(df,  vrh,  how='left', on=['MONTH'], sort=True) 
+        df = pd.merge(df,  voms, how='left', on=['MONTH'], sort=True)       
+        df = pd.merge(df,  multimodal, how='left', on=['MONTH'], sort=True, suffixes=('', '_MM'))    
+        df = pd.merge(df,  demand, how='left', on=['MONTH'], sort=True, suffixes=('', '_DEMAND'))    
+        df = pd.merge(df,  muni, how='left', on=['MONTH'], sort=True, suffixes=('', '_MUNI'))      
+                
+        df.to_csv(estfile)
+                
+    def writeNTDBartEstimationFile(self, estfile, ntd_dir, ntdid, modes, fipsList, dow=1, tod='Daily'):
+        '''
+        Writes a model estimation file for SF MUNI busses starting from NTD ridership.         
+        '''     
+        
+        # get the ntd data
+        # unlinked passenger trips
+        upt = self.assembleNTDData(ntd_dir, 'UPT', ntdid, modes)        
+        # vehicle revenue miles
+        vrm = self.assembleNTDData(ntd_dir, 'VRM', ntdid, modes)
+        # vehicle revenue hours
+        vrh = self.assembleNTDData(ntd_dir, 'VRH', ntdid, modes)
+        # vehicles operated in maximum service
+        voms = self.assembleNTDData(ntd_dir, 'VOMS', ntdid, modes)
+                
+        # get supporting data -- include all fips counties for demand data
+        multimodal = self.assembleMonthlyMultiModalData('06075')
+        demand = self.assembleDemandData('Total')
+        
+        # merge the data      
+        df = pd.merge(upt, vrm,  how='left', on=['MONTH'], sort=True) 
+        df = pd.merge(df,  vrh,  how='left', on=['MONTH'], sort=True) 
+        df = pd.merge(df,  voms, how='left', on=['MONTH'], sort=True)       
+        df = pd.merge(df,  multimodal, how='left', on=['MONTH'], sort=True, suffixes=('', '_MM'))    
+        df = pd.merge(df,  demand, how='left', on=['MONTH'], sort=True, suffixes=('', '_DEMAND'))  
+                
+        # now, merge the county-specific demand data
+        for fips, countyName, abbreviation in fipsList: 
+            demand = self.assembleDemandData(fips)
+            df = pd.merge(df, demand, how='left', on=['MONTH'], sort=True, suffixes=('', '_' + abbreviation)) 
+        
+        # additional fields
+        for col in demand.columns: 
+            if col+'_Total' in df.columns: 
+                if (df[col+'_Total'].dtype==np.float64) or (df[col+'_Total'].dtype==np.int64) : 
+                    df[col+'_3COUNTY'] = df[col+'_Total'] - df[col+'_SFC']
+                    df[col+'_SFSHARE'] = df[col+'_SFC'] / df[col+'_Total'] 
+                    
+        # more additional fields
+        df['CASUAL_CARPOOL'] = np.where(df['TOLL_BB_CARPOOL_2010USD']>0, 0, 1)
+        
+        df['BART_STRIKE'] = 0
+        df['BART_STRIKE'] = np.where(df['MONTH']==pd.to_datetime('2013-07-01'), 1, df['BART_STRIKE'])
+        df['BART_STRIKE'] = np.where(df['MONTH']==pd.to_datetime('2013-10-01'), 1, df['BART_STRIKE'])
+        
+        df['BART_STRIKE_DAYS'] = 0
+        df['BART_STRIKE_DAYS'] = np.where(df['MONTH']==pd.to_datetime('2013-07-01'), 4, df['BART_STRIKE_DAYS'])
+        df['BART_STRIKE_DAYS'] = np.where(df['MONTH']==pd.to_datetime('2013-10-01'), 3, df['BART_STRIKE_DAYS'])
+        
+        df.to_csv(estfile)
+        
 
     def set_position(self, writer, worksheet, row, col):
         '''
